@@ -1,6 +1,19 @@
+import { writeFile } from 'node:fs/promises';
 import pc from 'picocolors';
 import { connect } from '../client/connect.js';
+import { runComplianceChecks } from '../checks/compliance.js';
+import { runSchemaChecks } from '../checks/schema.js';
+import {
+  type CheckResult,
+  type CheckReport,
+  summarizeResults,
+  getExitCode,
+} from '../report/model.js';
+import { renderConsoleReport } from '../report/console.js';
+import { renderJsonReport } from '../report/json.js';
 import type { Config } from '../config/schema.js';
+
+const VERSION = '0.1.0';
 
 export interface RunOptions {
   config: string;
@@ -15,6 +28,7 @@ export async function runCommand(
   options: RunOptions
 ): Promise<number> {
   const verbose = options.verbose ?? false;
+  const reporter = options.json ? 'json' : options.reporter;
 
   if (verbose) {
     console.log(pc.dim('Connecting to server...'));
@@ -32,55 +46,59 @@ export async function runCommand(
   }
 
   try {
-    // Print server info
-    console.log(pc.bold('Server:'), connection.serverInfo.name, pc.dim(`v${connection.serverInfo.version}`));
-    console.log(pc.bold('Protocol:'), connection.protocolVersion);
+    const results: CheckResult[] = [];
 
-    // List tools
-    const toolsResult = await connection.client.listTools();
-    const tools = toolsResult.tools;
-
-    console.log('');
-    console.log(pc.bold(`Tools (${tools.length}):`));
-    for (const tool of tools) {
-      console.log(`  ${pc.cyan(tool.name)}: ${pc.dim(tool.description ?? '(no description)')}`);
-    }
-
-    // List resources if available
-    if (connection.capabilities.resources) {
-      try {
-        const resourcesResult = await connection.client.listResources();
-        const resources = resourcesResult.resources;
-        console.log('');
-        console.log(pc.bold(`Resources (${resources.length}):`));
-        for (const resource of resources) {
-          console.log(`  ${pc.cyan(resource.uri)}: ${pc.dim(resource.name ?? '(no name)')}`);
-        }
-      } catch {
-        // Resources not supported or failed
+    // Run compliance checks if enabled
+    if (config.checks?.compliance !== false) {
+      if (verbose) {
+        console.log(pc.dim('Running compliance checks...'));
       }
+      const complianceResults = await runComplianceChecks({
+        connection,
+        config,
+      });
+      results.push(...complianceResults);
     }
 
-    // List prompts if available
-    if (connection.capabilities.prompts) {
-      try {
-        const promptsResult = await connection.client.listPrompts();
-        const prompts = promptsResult.prompts;
-        console.log('');
-        console.log(pc.bold(`Prompts (${prompts.length}):`));
-        for (const prompt of prompts) {
-          console.log(`  ${pc.cyan(prompt.name)}: ${pc.dim(prompt.description ?? '(no description)')}`);
-        }
-      } catch {
-        // Prompts not supported or failed
+    // Run schema checks if enabled
+    if (config.checks?.schema !== false) {
+      if (verbose) {
+        console.log(pc.dim('Running schema checks...'));
       }
+      const schemaResults = await runSchemaChecks({
+        connection,
+      });
+      results.push(...schemaResults);
     }
 
-    console.log('');
-    console.log(pc.green('Connection successful!'));
-    console.log(pc.dim('(Full check suite will be implemented in Phase 1)'));
+    // Build report
+    const report: CheckReport = {
+      version: VERSION,
+      timestamp: new Date().toISOString(),
+      server: {
+        name: connection.serverInfo.name,
+        version: connection.serverInfo.version,
+        protocolVersion: connection.protocolVersion,
+      },
+      summary: summarizeResults(results),
+      results,
+    };
 
-    return 0;
+    // Output report
+    if (reporter === 'json') {
+      const json = renderJsonReport(report);
+      if (options.out) {
+        await writeFile(options.out, json, 'utf-8');
+        console.log(pc.dim(`Report written to ${options.out}`));
+      } else {
+        console.log(json);
+      }
+    } else {
+      // Console reporter
+      renderConsoleReport(report, { verbose });
+    }
+
+    return getExitCode(results);
   } finally {
     await connection.close();
   }

@@ -35,3 +35,8 @@ yarn.lock
 *.tmp
 *.temp
 .cache/
+
+# Project documentation (local only)
+CLAUDE.md
+SPEC.md
+session-log.md

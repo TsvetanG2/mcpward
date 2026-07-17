@@ -13,7 +13,14 @@
       "Bash(node dist/cli.js run:*)",
       "Bash(node dist/cli.js:*)",
       "Bash(pnpm run lint:*)",
-      "Bash(pnpm run typecheck:*)"
+      "Bash(pnpm run typecheck:*)",
+      "Bash(pnpm add:*)",
+      "Bash(cat:*)",
+      "Bash(echo:*)",
+      "Bash(pnpm --version:*)",
+      "Bash(npm exec:*)",
+      "Bash(git restore:*)",
+      "Bash(git add:*)"
     ]
   }
 }
