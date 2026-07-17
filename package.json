@@ -1,0 +1,70 @@
+{
+  "name": "mcpward",
+  "version": "0.1.0",
+  "description": "Black-box security & contract testing for MCP servers — rug-pull, tool-poisoning, schema-drift & protocol checks for CI (JUnit + SARIF).",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "mcpward": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src test",
+    "lint:fix": "eslint src test --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "pnpm run build"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "mcp-server",
+    "contract-testing",
+    "regression-testing",
+    "security",
+    "tool-poisoning",
+    "rug-pull",
+    "schema-validation",
+    "json-rpc",
+    "sarif",
+    "junit",
+    "ci",
+    "cli",
+    "ai-agents",
+    "llm",
+    "testing",
+    "devtools"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "commander": "^13.1.0",
+    "execa": "^9.5.3",
+    "picocolors": "^1.1.1",
+    "yaml": "^2.8.0",
+    "zod": "^3.25.61"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.29.0",
+    "@types/node": "^22.16.0",
+    "eslint": "^9.29.0",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.34.0",
+    "vitest": "^3.2.4"
+  }
+}
