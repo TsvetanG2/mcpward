@@ -20,7 +20,8 @@
       "Bash(pnpm --version:*)",
       "Bash(npm exec:*)",
       "Bash(git restore:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git rm:*)"
     ]
   }
 }
