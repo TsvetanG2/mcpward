@@ -59,3 +59,27 @@ We will credit reporters in the advisory and `CHANGELOG.md` unless you prefer to
 - The **server under test is untrusted** — all of its responses, tool descriptions, and schemas are treated as hostile input and must never be executed, evaluated, or blindly interpolated.
 
 Anything that breaks the second assumption is a valid vulnerability report.
+
+## Supply chain
+
+### Known advisories
+
+**GHSA-frvp-7c67-39w9** — `@hono/node-server` < 2.0.5 is affected by a path traversal in `serve-static` on Windows via an encoded backslash (`%5C`), CVSS 5.9 moderate. It reaches us transitively through `@modelcontextprotocol/sdk`, which is at its latest version (1.29.0).
+
+**This vulnerability is not reachable from mcpward:** mcpward is an MCP *client* and never runs an HTTP server or serves static files, so the vulnerable code path is never executed. It will clear when the SDK bumps to `@hono/node-server` ≥ 2.0.5 (current release: 2.0.11); we do not vendor or patch upstream dependencies.
+
+**GHSA-v2hh-gcrm-f6hx** — `fast-uri` 3.0.0–3.1.3 is vulnerable to host confusion via a literal backslash authority delimiter, CVSS high. It reaches us transitively through `ajv`. This is also not reachable from mcpward's use case: we validate JSON Schemas against tool definitions, not user-supplied URLs with potential backslash injection.
+
+### Why supply-chain scanners flag this package
+
+| Alert | Cause | Assessment |
+|---|---|---|
+| Obfuscated code | `qs/dist/qs.js` — a minified UMD browser bundle of a ubiquitous query-string library, pulled in via `express` | Minified, not obfuscated. Not our code and not executed by the CLI. |
+| Uses eval | `ajv` compiles JSON Schemas into validator functions at runtime | This is how ajv works by design. We use it for schema validation. |
+| Shell access | `execa` / `cross-spawn` | Required: the stdio transport spawns MCP servers as subprocesses. This is the tool's core function. |
+| Network access | HTTP transport and the eventsource stack | Required for testing servers over Streamable HTTP. |
+| Environment variable access | `${ENV}` interpolation in config | Intentional, and interpolated secrets are redacted from all reports — see `src/report/redact.ts`. |
+
+### Dependency posture
+
+mcpward declares **8 direct runtime dependencies**, but the installed tree is ~111 packages because `@modelcontextprotocol/sdk` bundles its server-side HTTP stack (`express`, `hono`, `cors`) even for client-only use. Reducing this footprint is tracked as a future improvement. We do not add runtime dependencies casually.

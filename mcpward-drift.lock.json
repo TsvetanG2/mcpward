@@ -1,0 +1,109 @@
+{
+  "protocolVersion": "2025-11-25",
+  "capabilities": {
+    "tools": {},
+    "resources": {},
+    "prompts": {}
+  },
+  "tools": {
+    "removed_tool": {
+      "descriptionHash": "sha256:146c1091fd2bf29e67d58c514c355e50d77c30b61523237b459de48d2d805ff8",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "outputSchema": null,
+      "annotations": null
+    },
+    "echo": {
+      "descriptionHash": "sha256:40d8aee68a2ba778eca24d09bcdb733114d321532c6a94cd3620f5b2ad51d0ac",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "The message to echo"
+          }
+        },
+        "required": [
+          "message"
+        ]
+      },
+      "outputSchema": null,
+      "annotations": null
+    },
+    "compute": {
+      "descriptionHash": "sha256:f7a3f6568dd486595e4d78f803bb3c051146123eb25d7de177a166d3aca1916e",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "number",
+            "description": "The input value"
+          }
+        },
+        "required": [
+          "value"
+        ]
+      },
+      "outputSchema": null,
+      "annotations": null
+    },
+    "query": {
+      "descriptionHash": "sha256:d57b5bfb773a62fe4b7dd920811c35747cff52f2edb54e5af0e18ff332f88842",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The ID to query"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "outputSchema": null,
+      "annotations": null
+    },
+    "read_data": {
+      "descriptionHash": "sha256:405ef34966d12a6d1a86c5aed4b332524e0e61db9c23906322fd0e12979a8605",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Path to read"
+          }
+        },
+        "required": [
+          "path"
+        ]
+      },
+      "outputSchema": null,
+      "annotations": {
+        "readOnlyHint": true
+      }
+    },
+    "stable_tool": {
+      "descriptionHash": "sha256:6a22635d1850334b9cc05d5215e9687afa7d23d92ec083a65af20f30e641be23",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "input": {
+            "type": "string",
+            "description": "Some input"
+          }
+        }
+      },
+      "outputSchema": null,
+      "annotations": null
+    }
+  },
+  "meta": {
+    "mcpwardVersion": "0.1.0",
+    "capturedAt": "2026-07-21T23:33:17.604Z",
+    "serverName": "drift-server",
+    "serverVersion": "1.0.0"
+  }
+}
