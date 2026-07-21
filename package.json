@@ -72,7 +72,7 @@
     "@modelcontextprotocol/sdk": "^1.12.1",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
-    "commander": "^13.1.0",
+    "commander": "^15.0.0",
     "execa": "^9.5.3",
     "picocolors": "^1.1.1",
     "yaml": "^2.8.0",
