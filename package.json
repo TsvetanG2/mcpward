@@ -1,6 +1,6 @@
 {
   "name": "mcpward",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Black-box security & contract testing for MCP servers — rug-pull, tool-poisoning, schema-drift & protocol checks for CI (JUnit + SARIF).",
   "type": "module",
   "main": "./dist/index.js",
