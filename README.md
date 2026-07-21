@@ -8,25 +8,6 @@ Black-box security & contract testing for MCP servers. Runs locally and in CI wi
 
 <!-- TODO: Add asciinema demo showing rug-pull + poisoned tool detection -->
 
-## Features
-
-### Implemented ✅
-- **Protocol compliance checks** — handshake, version negotiation, capabilities, ping
-- **Schema validation** — tool names, descriptions, inputSchema (JSON Schema)
-- **Console & JSON reporters** — pretty terminal output + machine-readable JSON
-- **Exit codes** — `0` pass, `1` fail, `2` config error (CI-friendly)
-- **stdio transport** — connect to any MCP server via subprocess
-
-### Coming Soon 🚧
-- **Rug-pull detection** — catch silent description/schema mutations between versions
-- **Tool-poisoning heuristics** — detect injection patterns, hidden unicode, secret-soliciting schemas
-- **SARIF output** — surface findings in GitHub Security tab
-- **Drift detection** — baseline snapshots + breaking change classification
-- **HTTP transport** — connect to remote MCP servers
-- **Behavioral testing** — declarative test suites with assertions
-- **Latency budgets** — p50/p95 checks
-- **JUnit output** — for CI test result integration
-
 ## Quick Start
 
 ```bash
@@ -36,27 +17,45 @@ npx mcpward init
 # Run all checks
 npx mcpward run
 
-# Capture baseline for drift detection (coming soon)
+# Capture baseline for drift detection
 npx mcpward baseline
 
-# Check for drift against baseline (coming soon)
+# Check for drift against baseline
 npx mcpward diff
 ```
 
-## How We Differ
+## Why mcpward?
 
-| Feature | mcpward | mcpvet | MCP-Contract-CI |
-|---------|---------|--------|-----------------|
-| **Rug-pull by description mutation** | 🚧 | ❌ | ❌ |
-| **Two-layer error contract** | 🚧 | ❌ | ❌ |
-| **Tool-poisoning heuristics** | 🚧 | ❌ | ❌ |
-| **SARIF output (GitHub Security)** | 🚧 | ❌ | ❌ |
-| Protocol compliance checks | ✅ | ✅ | ❌ |
-| Schema validation | ✅ | ✅ | ✅ |
-| Drift detection | 🚧 | ✅ | ✅ |
-| JUnit output | 🚧 | ✅ | ❌ |
-| stdio transport | ✅ | ✅ | ✅ |
-| HTTP transport | 🚧 | ✅ | ❌ |
+MCP servers are consumed as black boxes by AI agents. Between versions, a tool's description can silently change (a "rug-pull"), schemas can break, or descriptions can carry injection payloads. Your agent breaks—or gets hijacked—with no signal.
+
+**mcpward catches these problems before production.**
+
+### What makes it different
+
+**Rug-pull detection** — Other tools catch when a tool is renamed or removed. mcpward also detects when a tool's *description* silently changes. Descriptions are hashed in the lockfile; any mutation is flagged as `description_changed`.
+
+**Tool-poisoning heuristics** — Static analysis detects injection-like phrasing ("ignore previous instructions"), hidden unicode characters, schemas soliciting secrets (`api_key`, `password`), and `readOnlyHint` mismatches. Findings export to SARIF for GitHub Security tab.
+
+**Two-layer error contract** — MCP has two error types: protocol errors (JSON-RPC) and tool errors (`isError: true`). mcpward verifies servers use the right layer for the right situation.
+
+**Behavioral test suites** — Declarative YAML test cases with JSONPath assertions, `tool_is_error` checks, and latency budgets.
+
+## Features
+
+- **Protocol compliance** — handshake, version negotiation, capabilities, ping
+- **Schema validation** — tool names, descriptions, inputSchema (JSON Schema)
+- **Drift detection** — baseline snapshots with breaking change classification
+- **Security heuristics** — injection patterns, hidden unicode, secret-soliciting schemas
+- **Behavioral testing** — declarative test suites with assertions
+- **Latency budgets** — p50/p95 percentile checks
+- **Multiple reporters** — console, JSON, SARIF
+- **CI-friendly** — exit codes `0`/`1`/`2`, machine-readable output
+
+### Coming Soon
+
+- HTTP transport
+- JUnit output
+- GitHub Action wrapper
 
 ## Configuration
 
@@ -72,19 +71,18 @@ server:
 checks:
   compliance: true
   schema: true
-  security: true  # coming soon
-  drift:          # coming soon
+  security: true
+  drift:
     baseline: ./mcpward.lock.json
     fail_on:
       - tool_removed
       - description_changed
       - breaking_schema_change
       - annotation_changed
-  latency:        # coming soon
+  latency:
     samples: 5
     p95_budget_ms: 1000
 
-# Behavioral test suites (coming soon)
 suites:
   - tool: read_file
     cases:
@@ -92,6 +90,8 @@ suites:
         args: { path: "/tmp/sandbox/hello.txt" }
         expect:
           tool_is_error: false
+          jsonpath:
+            "$.content[0].type": "text"
 ```
 
 ### Environment Variables
@@ -106,25 +106,63 @@ server:
     Authorization: "Bearer ${MCP_TOKEN}"
 ```
 
-## Current Checks
+## Check Families
 
-### Compliance (`compliance/*`)
+### Compliance
+
 | Check | Description |
 |-------|-------------|
-| `compliance/handshake` | Protocol handshake completed successfully |
+| `compliance/handshake` | Protocol handshake completed |
 | `compliance/protocol-version` | Valid protocol version negotiated |
 | `compliance/server-info` | Server name and version present |
 | `compliance/capabilities` | Server declares capabilities |
 | `compliance/ping` | Server responds to ping |
 
-### Schema (`schema/*`)
+### Schema
+
 | Check | Description |
 |-------|-------------|
-| `schema/tool-name` | Tool names match `^[a-zA-Z0-9_-]+$` |
-| `schema/tool-description` | Tools have non-empty descriptions |
-| `schema/tool-input-schema` | Valid JSON Schema with `type: "object"` |
-| `schema/tool-annotations` | Annotation values are valid |
-| `schema/unique-names` | No duplicate tool names |
+| `schema/tool-name` | Names match `^[a-zA-Z0-9_-]+$` |
+| `schema/tool-description` | Non-empty descriptions |
+| `schema/tool-input-schema` | Valid JSON Schema |
+| `schema/tool-annotations` | Valid annotation values |
+| `schema/unique-names` | No duplicate names |
+
+### Security
+
+| Check | Description |
+|-------|-------------|
+| `security/injection-pattern` | Injection-like phrasing in descriptions |
+| `security/hidden-unicode` | Zero-width or bidirectional characters |
+| `security/secret-in-schema` | Schema fields soliciting secrets |
+| `security/annotation-mismatch` | readOnlyHint on destructive tools |
+
+### Drift
+
+| Change | Classification | Default fail? |
+|--------|----------------|---------------|
+| Tool removed | `tool_removed` | yes |
+| Tool added | `tool_added` | no |
+| Description changed | `description_changed` | yes |
+| Required field added / type narrowed | `breaking_schema_change` | yes |
+| Optional field added / type widened | `nonbreaking_schema_change` | no |
+| readOnlyHint true→false | `annotation_changed` | yes |
+
+### Behavioral
+
+| Check | Description |
+|-------|-------------|
+| `behavioral/tool-is-error` | Assert `isError` matches expectation |
+| `behavioral/jsonpath` | Assert values at JSONPath locations |
+| `behavioral/output-schema` | Validate output against schema |
+| `behavioral/protocol-error` | Assert protocol error codes |
+
+### Latency
+
+| Check | Description |
+|-------|-------------|
+| `latency/summary` | Overall p50/p95 vs budget |
+| `latency/tool` | Per-tool latency measurements |
 
 ## CI Integration
 
@@ -134,14 +172,13 @@ server:
 - name: Run mcpward
   run: npx mcpward run
 
-- name: Run mcpward (JSON output)
-  run: npx mcpward run --json --out mcpward-results.json
+- name: Run with SARIF output
+  run: npx mcpward run --reporter sarif --out results.sarif
 
-- name: Upload results
-  uses: actions/upload-artifact@v4
+- name: Upload SARIF to GitHub Security
+  uses: github/codeql-action/upload-sarif@v3
   with:
-    name: mcpward-results
-    path: mcpward-results.json
+    sarif_file: results.sarif
 ```
 
 ## Exit Codes
@@ -155,16 +192,9 @@ server:
 ## Development
 
 ```bash
-# Install dependencies
 pnpm install
-
-# Build
 pnpm run build
-
-# Run tests
 pnpm run test
-
-# Lint
 pnpm run lint
 ```
 

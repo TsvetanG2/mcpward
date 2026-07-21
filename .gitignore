@@ -40,3 +40,4 @@ yarn.lock
 CLAUDE.md
 SPEC.md
 session-log.md
+.claude/
