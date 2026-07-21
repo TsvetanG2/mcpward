@@ -1,0 +1,57 @@
+name: Feature request
+description: Suggest a check, heuristic, or capability
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        mcpward is deliberately **headless, deterministic, black-box and CI-shaped**. GUIs, dashboards, hosted services, and interactive exploration are out of scope — those are well covered by the MCP Inspector and MCPJam. Proposals that sharpen black-box detection are very welcome.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - New security heuristic (tool poisoning)
+        - New drift classification
+        - New compliance or schema check
+        - Behavioral assertion type
+        - Reporter / output format
+        - Transport or connectivity
+        - CLI / config ergonomics
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: What goes undetected or is painful today? Real-world examples help.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: What should mcpward do? If it is a check, what makes it pass and what makes it fail?
+    validations:
+      required: true
+
+  - type: textarea
+    id: fixture
+    attributes:
+      label: How would we test it?
+      description: |
+        Every check needs a fixture that is *supposed to fail it* plus a negative test. What would the malicious/broken server look like? How do we keep `good-server` clean (no false positives)?
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: This does not require a GUI, dashboard, or hosted service
+          required: true
+        - label: This works black-box, against servers the user did not write
+          required: true
