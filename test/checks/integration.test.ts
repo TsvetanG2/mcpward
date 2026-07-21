@@ -30,6 +30,7 @@ async function createTestConnection(serverPath: string) {
   const serverInfo = client.getServerVersion();
   const capabilities = client.getServerCapabilities();
 
+  const timeouts = { connect_ms: 10000, call_ms: 30000, run_ms: 300000 };
   return {
     client,
     protocolVersion: '2025-11-25',
@@ -38,8 +39,12 @@ async function createTestConnection(serverPath: string) {
       version: serverInfo?.version ?? '0.0.0',
     },
     capabilities: capabilities ?? {},
+    timeouts,
     close: async () => {
       await client.close();
+    },
+    callTool: async (params: { name: string; arguments?: Record<string, unknown> }) => {
+      return client.callTool(params);
     },
   };
 }
@@ -191,6 +196,29 @@ describe('Schema Checks', () => {
         await connection.close();
       }
     }, 30000);
+
+    it('detects duplicate tool names', async () => {
+      const connection = await createTestConnection('fixtures/malformed-server/index.ts');
+
+      try {
+        const results = await runSchemaChecks({ connection });
+
+        const duplicateFailure = results.find(
+          (r) =>
+            r.status === 'fail' &&
+            r.id === 'schema/unique-names'
+        );
+
+        expect(duplicateFailure).toBeDefined();
+        expect(duplicateFailure?.message).toContain('valid_tool');
+      } finally {
+        await connection.close();
+      }
+    }, 30000);
+
+    // NOTE: Invalid annotation types cannot be tested via live server because
+    // the MCP SDK validates annotations with Zod before returning results.
+    // Test annotation validation with unit tests instead.
   });
 });
 

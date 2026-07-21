@@ -21,6 +21,8 @@ export interface McpConnection {
   capabilities: Record<string, unknown>;
   timeouts: ResolvedTimeoutConfig;
   close: () => Promise<void>;
+  /** Call a tool with the configured timeout */
+  callTool: (params: { name: string; arguments?: Record<string, unknown> }) => Promise<unknown>;
 }
 
 /**
@@ -106,6 +108,13 @@ async function connectStdio(
     close: async () => {
       await client.close();
     },
+    callTool: async (params: { name: string; arguments?: Record<string, unknown> }) => {
+      return withTimeout(
+        client.callTool(params),
+        timeouts.call_ms,
+        `tool call "${params.name}"`
+      );
+    },
   };
 }
 
@@ -168,6 +177,13 @@ async function connectHttp(
     timeouts,
     close: async () => {
       await client.close();
+    },
+    callTool: async (params: { name: string; arguments?: Record<string, unknown> }) => {
+      return withTimeout(
+        client.callTool(params),
+        timeouts.call_ms,
+        `tool call "${params.name}"`
+      );
     },
   };
 }

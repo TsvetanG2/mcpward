@@ -113,7 +113,7 @@ async function runTestCase(
   if (!expectations) {
     // No expectations - just run the tool to check it doesn't crash
     try {
-      await connection.client.callTool({ name: toolName, arguments: testCase.args });
+      await connection.callTool({ name: toolName, arguments: testCase.args });
       results.push({
         id: 'behavioral/case',
         family: 'behavioral',
@@ -143,7 +143,7 @@ async function runTestCase(
   // Otherwise, we expect a successful call
   let result: { content: unknown[]; isError?: boolean };
   try {
-    result = (await connection.client.callTool({
+    result = (await connection.callTool({
       name: toolName,
       arguments: testCase.args,
     })) as { content: unknown[]; isError?: boolean };
@@ -273,7 +273,7 @@ async function runProtocolErrorCase(
   const expectedCode = testCase.expect?.protocol_error_code;
 
   try {
-    await connection.client.callTool({ name: toolName, arguments: testCase.args });
+    await connection.callTool({ name: toolName, arguments: testCase.args });
 
     // If we get here, no error was thrown - fail
     return [

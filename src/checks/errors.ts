@@ -90,7 +90,7 @@ async function checkUnknownToolError(connection: McpConnection): Promise<CheckRe
   const unknownToolName = '__mcpward_unknown_tool_' + Date.now();
 
   try {
-    await connection.client.callTool({ name: unknownToolName, arguments: {} });
+    await connection.callTool({ name: unknownToolName, arguments: {} });
 
     // If we get here, no error was thrown - this is wrong
     return {
@@ -142,7 +142,7 @@ async function checkInvalidParamsError(
 ): Promise<CheckResult> {
   try {
     // Call with empty args - should fail for tools with required params
-    await connection.client.callTool({ name: tool.name, arguments: {} });
+    await connection.callTool({ name: tool.name, arguments: {} });
 
     // If tool succeeds with empty args but has required params, it's a contract violation
     // However, some tools may handle this gracefully with isError: true

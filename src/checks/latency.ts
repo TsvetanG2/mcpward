@@ -104,7 +104,7 @@ async function measureToolLatency(
   for (let i = 0; i < samples; i++) {
     const start = performance.now();
     try {
-      await connection.client.callTool({ name: tool.name, arguments: args });
+      await connection.callTool({ name: tool.name, arguments: args });
     } catch {
       // Tool may fail, but we still measure latency
     }

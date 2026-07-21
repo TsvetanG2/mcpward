@@ -52,6 +52,21 @@ export async function runCommand(
     return 2;
   }
 
+  // Setup signal handlers for cleanup
+  let interrupted = false;
+  const cleanup = async () => {
+    if (!interrupted) {
+      interrupted = true;
+      if (verbose) {
+        console.log(pc.dim('\nInterrupted, cleaning up...'));
+      }
+      await connection.close();
+      process.exit(130); // Standard exit code for SIGINT
+    }
+  };
+  process.on('SIGINT', cleanup);
+  process.on('SIGTERM', cleanup);
+
   try {
     const results: CheckResult[] = [];
 
@@ -179,6 +194,9 @@ export async function runCommand(
 
     return getExitCode(results);
   } finally {
+    // Remove signal handlers
+    process.off('SIGINT', cleanup);
+    process.off('SIGTERM', cleanup);
     await connection.close();
   }
 }

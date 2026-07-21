@@ -9,6 +9,8 @@
  * - Tool with empty description
  * - Tool with invalid name (contains spaces)
  * - Tool with invalid inputSchema (missing type)
+ * - Tool with duplicate name
+ * - Tool with invalid annotation values
  * - Tool that returns protocol error instead of tool error for business logic failure
  */
 
@@ -115,6 +117,18 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           },
         },
       },
+      {
+        // Problem: Duplicate name (same as valid_tool)
+        name: 'valid_tool',
+        description: 'This is a duplicate tool name, which violates unique-names.',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {},
+        },
+      },
+      // NOTE: We cannot test invalid annotation types here because the MCP SDK
+      // validates them with Zod before our checks run. Test annotation validation
+      // with unit tests instead.
     ],
   };
 });
