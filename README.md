@@ -8,6 +8,11 @@ Black-box security & contract testing for MCP servers. Runs locally and in CI wi
 
 <!-- TODO: Add asciinema demo showing rug-pull + poisoned tool detection -->
 
+## Requirements
+
+- Node.js ≥ 20
+- An MCP server to test (stdio or HTTP transport)
+
 ## Quick Start
 
 ```bash
@@ -24,13 +29,61 @@ npx mcpward baseline
 npx mcpward diff
 ```
 
+### Example Output
+
+When checks pass:
+
+```
+mcpward v0.1.0
+──────────────────────────────────────────────────
+Server: my-server v1.0.0
+Protocol: 2025-11-25
+
+COMPLIANCE (5 passed)
+  5 check(s) passed
+
+SCHEMA (13 passed)
+  13 check(s) passed
+
+SECURITY (1 passed)
+  1 check(s) passed
+
+Summary: 19 passed
+All checks passed
+```
+
+When security issues are found:
+
+```
+SECURITY (9 failed)
+  ✗ Tool "injection_tool" description contains injection-like pattern:
+    "Ignore all previous instructions"
+  ✗ Tool "safe​tool" name contains hidden unicode: U+200B (zero-width)
+  ✗ Tool "api_connector" schema solicits secrets: api_key, password
+  ✗ Tool "delete_files" has readOnlyHint=true but name implies mutation
+
+Summary: 10 passed | 9 failed
+9 check(s) failed
+```
+
 ## Why mcpward?
 
 MCP servers are consumed as black boxes by AI agents. Between versions, a tool's description can silently change (a "rug-pull"), schemas can break, or descriptions can carry injection payloads. Your agent breaks—or gets hijacked—with no signal.
 
 **mcpward catches these problems before production.**
 
-### What makes it different
+### How we differ
+
+| Feature | mcpward | mcpvet | MCP-Contract-CI |
+|---------|---------|--------|-----------------|
+| Rug-pull (description mutation) | ✅ | ❌ | ❌ |
+| Tool-poisoning heuristics | ✅ | ❌ | ❌ |
+| SARIF export (GitHub Security) | ✅ | ❌ | ❌ |
+| Two-layer error contract | ✅ | ❌ | ❌ |
+| Schema drift detection | ✅ | ✅ | ✅ |
+| JUnit output | ✅ | ✅ | ❌ |
+| Behavioral test suites | ✅ | ❌ | ✅ |
+| HTTP transport | ✅ | ✅ | ❌ |
 
 **Rug-pull detection** — Other tools catch when a tool is renamed or removed. mcpward also detects when a tool's *description* silently changes. Descriptions are hashed in the lockfile; any mutation is flagged as `description_changed`.
 
@@ -64,6 +117,12 @@ server:
   args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp/sandbox"]
   env: {}
 
+# Optional: Timeout configuration
+timeouts:
+  connect_ms: 10000    # Connection timeout (default: 10s)
+  call_ms: 30000       # Per-tool-call timeout (default: 30s)
+  run_ms: 300000       # Total run timeout (default: 5min)
+
 checks:
   compliance: true
   schema: true
@@ -88,6 +147,10 @@ suites:
           tool_is_error: false
           jsonpath:
             "$.content[0].type": "text"
+      - name: returns error for missing file
+        args: { path: "/nonexistent" }
+        expect:
+          tool_is_error: true
 ```
 
 ### Environment Variables
@@ -101,6 +164,18 @@ server:
   headers:
     Authorization: "Bearer ${MCP_TOKEN}"
 ```
+
+### Behavioral Test Expectations
+
+The `expect` block in test cases supports:
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `tool_is_error` | boolean | Assert the tool response has `isError: true/false` |
+| `protocol_error_code` | number | Assert a JSON-RPC error code (e.g., -32602) |
+| `jsonpath` | object | Assert values at JSONPath locations |
+| `output_matches_schema` | boolean | Validate output against tool's outputSchema |
+| `golden` | string | Path to golden snapshot file for comparison |
 
 ## Check Families
 

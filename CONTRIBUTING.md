@@ -33,7 +33,9 @@ We do not validate checks against real third-party servers, because we do not co
 | Fixture | Ground truth |
 | --- | --- |
 | `good-server` | Fully compliant, correct two-layer errors, fast, clean descriptions |
-| `malformed-server` | Invalid JSON-RPC, wrong error codes, wrong error layer, crashes |
+| `malformed-server` | Schema violations: empty/missing descriptions, invalid names, duplicate names, bad inputSchema |
+| `error-contract-server` | For testing two-layer error contract validation |
+| `hanging-server` | Never responds to tool calls (timeout testing) |
 | `drift/v1` → `drift/v2` | Exactly one change per classification class |
 | `slow-server` | Deliberately over the latency budget |
 | `poisoned-server` | Injection text, hidden unicode, secret-soliciting schema |
