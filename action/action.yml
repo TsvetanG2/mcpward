@@ -19,9 +19,13 @@ inputs:
     description: 'Path to write report file (for json/junit/sarif reporters)'
     required: false
   version:
-    description: 'mcpward version to use'
+    description: 'mcpward version to use (ignored if local is true)'
     required: false
-    default: 'latest'
+    default: '0.1.0'
+  local:
+    description: 'Use local build (node dist/cli.js) instead of npx. For testing in mcpward repo.'
+    required: false
+    default: 'false'
   working-directory:
     description: 'Working directory for running mcpward'
     required: false
@@ -48,8 +52,12 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: |
-        # Build command
-        CMD="npx mcpward@${{ inputs.version }} run --config ${{ inputs.config }}"
+        # Build command - use local build or npx
+        if [ "${{ inputs.local }}" = "true" ]; then
+          CMD="node dist/cli.js run --config ${{ inputs.config }}"
+        else
+          CMD="npx mcpward@${{ inputs.version }} run --config ${{ inputs.config }}"
+        fi
 
         # Add reporter
         if [ "${{ inputs.reporter }}" != "console" ]; then

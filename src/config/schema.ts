@@ -59,6 +59,16 @@ const LatencyConfigSchema = z
   })
   .optional();
 
+// Timeout configuration (inner object with required fields after defaults)
+const TimeoutConfigInnerSchema = z.object({
+  connect_ms: z.number().int().positive().default(10000),
+  call_ms: z.number().int().positive().default(30000),
+  run_ms: z.number().int().positive().default(300000),
+});
+
+// Timeout configuration (optional in config, but has defaults)
+const TimeoutConfigSchema = TimeoutConfigInnerSchema.optional();
+
 // Checks configuration
 const ChecksSchema = z
   .object({
@@ -97,6 +107,7 @@ export const ConfigSchema = z.object({
   server: ServerSchema,
   expect: ExpectSchema,
   checks: ChecksSchema,
+  timeouts: TimeoutConfigSchema,
   suites: z.array(TestSuiteSchema).optional().default([]),
 });
 
@@ -106,5 +117,7 @@ export type StdioTransport = z.infer<typeof StdioTransportSchema>;
 export type HttpTransport = z.infer<typeof HttpTransportSchema>;
 export type DriftConfig = z.infer<typeof DriftConfigSchema>;
 export type LatencyConfig = z.infer<typeof LatencyConfigSchema>;
+export type TimeoutConfig = z.infer<typeof TimeoutConfigSchema>;
+export type ResolvedTimeoutConfig = z.infer<typeof TimeoutConfigInnerSchema>;
 export type TestSuite = z.infer<typeof TestSuiteSchema>;
 export type TestCase = z.infer<typeof TestCaseSchema>;

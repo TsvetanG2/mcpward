@@ -16,8 +16,8 @@ server:
   # headers:
   #   Authorization: "Bearer \${MCP_TOKEN}"
 
-expect:
-  # protocol_version: "2025-06-18"  # Optional: assert specific version
+# expect:
+#   protocol_version: "2025-06-18"  # Optional: assert specific version
 
 checks:
   compliance: true
