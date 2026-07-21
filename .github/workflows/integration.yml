@@ -74,7 +74,7 @@ jobs:
 
       - name: Upload result
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: integration-${{ matrix.server.name }}
           path: result-${{ matrix.server.name }}.json
