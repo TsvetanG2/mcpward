@@ -34,6 +34,16 @@ export async function runLatencyChecks(
   let tools: Tool[];
   try {
     const toolsResult = await ctx.connection.client.listTools();
+    if (!toolsResult.tools || !Array.isArray(toolsResult.tools)) {
+      results.push({
+        id: 'latency/list-tools',
+        family: 'latency',
+        status: 'fail',
+        severity: 'error',
+        message: 'Server returned invalid tools list',
+      });
+      return results;
+    }
     tools = toolsResult.tools as Tool[];
   } catch (err) {
     results.push({

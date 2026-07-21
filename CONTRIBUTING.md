@@ -2,6 +2,13 @@
 
 Thanks for considering a contribution. This document covers the rules that are specific to this project — especially the testing philosophy, which is stricter than most repos and is non-negotiable.
 
+## Key Documents
+
+Before contributing, please read:
+
+- **[CLAUDE.md](CLAUDE.md)** — Project guidelines and guardrails for development (especially helpful if using AI assistance)
+- **[docs/SPEC.md](docs/SPEC.md)** — Full MVP specification with check families, drift classification, and architecture details
+
 ## Prime directive
 
 `mcpward` is **not** an MCP inspector. Interactive/manual debugging is well covered by [`modelcontextprotocol/inspector`](https://github.com/modelcontextprotocol/inspector) and [MCPJam](https://github.com/MCPJam/inspector); in-process unit testing of servers you author is covered by `fastmcp`. `mcpward` stays **headless, deterministic, black-box, and CI-shaped**.

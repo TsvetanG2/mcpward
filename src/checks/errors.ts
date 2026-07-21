@@ -45,6 +45,16 @@ export async function runErrorContractChecks(
   let tools: Tool[];
   try {
     const toolsResult = await ctx.connection.client.listTools();
+    if (!toolsResult.tools || !Array.isArray(toolsResult.tools)) {
+      results.push({
+        id: 'errors/list-tools',
+        family: 'errors',
+        status: 'fail',
+        severity: 'error',
+        message: 'Server returned invalid tools list',
+      });
+      return results;
+    }
     tools = toolsResult.tools as Tool[];
   } catch (err) {
     results.push({

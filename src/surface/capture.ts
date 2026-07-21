@@ -85,13 +85,13 @@ export async function saveLockfile(
   path: string
 ): Promise<void> {
   const json = JSON.stringify(surface, null, 2);
-  await writeFile(path, json, 'utf8');
+  await writeFile(path, json, 'utf-8');
 }
 
 /**
  * Loads a server surface from a lockfile.
  */
 export async function loadLockfile(path: string): Promise<ServerSurface> {
-  const content = await readFile(path, 'utf8');
+  const content = await readFile(path, 'utf-8');
   return JSON.parse(content) as ServerSurface;
 }

@@ -71,6 +71,12 @@ describe('evaluateJsonPath', () => {
   it('throws for invalid path not starting with $', () => {
     expect(() => evaluateJsonPath('name', testData)).toThrow();
   });
+
+  it('throws for negative array indices', () => {
+    expect(() => evaluateJsonPath('$.items[-1]', testData)).toThrow(
+      'Negative array indices are not supported'
+    );
+  });
 });
 
 describe('assertJsonPaths', () => {

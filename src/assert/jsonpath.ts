@@ -103,6 +103,9 @@ function parsePathSegments(path: string): PathSegment[] {
       if (isNaN(index)) {
         throw new Error(`Invalid array index: ${indexStr}`);
       }
+      if (index < 0) {
+        throw new Error(`Negative array indices are not supported: ${index}`);
+      }
       segments.push({ type: 'index', index });
     }
   }

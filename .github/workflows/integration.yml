@@ -46,12 +46,20 @@ jobs:
         run: mkdir -p /tmp/mcpward-sandbox && echo "hello" > /tmp/mcpward-sandbox/hello.txt
 
       - name: Generate config for ${{ matrix.server.name }}
+        env:
+          SERVER_PKG: ${{ matrix.server.pkg }}
+          SERVER_ARGS: ${{ matrix.server.args }}
         run: |
-          cat > integration.yaml <<'YAML'
+          if [ -n "$SERVER_ARGS" ]; then
+            ARGS_LINE="args: [\"-y\", \"$SERVER_PKG\", \"$SERVER_ARGS\"]"
+          else
+            ARGS_LINE="args: [\"-y\", \"$SERVER_PKG\"]"
+          fi
+          cat > integration.yaml <<YAML
           server:
             transport: stdio
             command: npx
-            args: ["-y", "${{ matrix.server.pkg }}"${{ matrix.server.args && format(', "{0}"', matrix.server.args) || '' }}]
+            $ARGS_LINE
           checks:
             compliance: true
             schema: true
@@ -60,7 +68,9 @@ jobs:
           cat integration.yaml
 
       - name: Run mcpward
-        run: node dist/cli.js run --config integration.yaml --reporter json --out result-${{ matrix.server.name }}.json
+        env:
+          SERVER_NAME: ${{ matrix.server.name }}
+        run: node dist/cli.js run --config integration.yaml --reporter json --out "result-${SERVER_NAME}.json"
 
       - name: Upload result
         if: always()

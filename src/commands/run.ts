@@ -18,6 +18,7 @@ import { renderConsoleReport } from '../report/console.js';
 import { renderJsonReport } from '../report/json.js';
 import { renderSarifReport } from '../report/sarif.js';
 import { renderJunitReport } from '../report/junit.js';
+import { redactReport } from '../report/redact.js';
 import type { Config } from '../config/schema.js';
 
 const VERSION = '0.1.0';
@@ -60,7 +61,11 @@ export async function runCommand(
       if (verbose) {
         console.log(pc.dim('\nInterrupted, cleaning up...'));
       }
-      await connection.close();
+      try {
+        await connection.close();
+      } catch {
+        // Ignore close errors during signal handling
+      }
       process.exit(130); // Standard exit code for SIGINT
     }
   };
@@ -162,6 +167,9 @@ export async function runCommand(
       results,
     };
 
+    // Redact secrets before rendering (applies to all reporters)
+    redactReport(report);
+
     // Output report
     if (reporter === 'json') {
       const json = renderJsonReport(report);
@@ -197,6 +205,13 @@ export async function runCommand(
     // Remove signal handlers
     process.off('SIGINT', cleanup);
     process.off('SIGTERM', cleanup);
-    await connection.close();
+    // Only close if not already closed by signal handler
+    if (!interrupted) {
+      try {
+        await connection.close();
+      } catch {
+        // Ignore close errors
+      }
+    }
   }
 }

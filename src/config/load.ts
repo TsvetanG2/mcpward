@@ -3,9 +3,11 @@ import { existsSync } from 'node:fs';
 import { parse as parseYaml } from 'yaml';
 import { ConfigSchema, type Config } from './schema.js';
 import { ZodError } from 'zod';
+import { registerSecret, clearSecrets } from '../report/redact.js';
 
 /**
  * Interpolates ${ENV_VAR} placeholders in a string with environment variables.
+ * Registers interpolated values as secrets for redaction.
  */
 function interpolateEnv(value: string): string {
   return value.replace(/\$\{([^}]+)\}/g, (_match, varName: string) => {
@@ -13,6 +15,8 @@ function interpolateEnv(value: string): string {
     if (envValue === undefined) {
       throw new Error(`Environment variable "${varName}" is not set`);
     }
+    // Register the resolved value as a secret for redaction
+    registerSecret(envValue);
     return envValue;
   });
 }
@@ -62,7 +66,10 @@ export async function loadConfig(configPath: string): Promise<Config> {
   const content = await readFile(configPath, 'utf-8');
   const rawConfig = parseYaml(content);
 
-  // Interpolate environment variables
+  // Clear any previously registered secrets (for test isolation)
+  clearSecrets();
+
+  // Interpolate environment variables (this registers secrets for redaction)
   const interpolated = interpolateObject(rawConfig);
 
   // Validate with Zod

@@ -1,12 +1,15 @@
 # mcpward — catch rug-pulls, tool poisoning, and schema drift in your MCP servers before your agents do.
 
 [![CI](https://github.com/TsvetanG2/mcpward/actions/workflows/ci.yml/badge.svg)](https://github.com/TsvetanG2/mcpward/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/mcpward)](https://www.npmjs.com/package/mcpward)
+[![npm version](https://img.shields.io/npm/v/mcpward)](https://www.npmjs.com/package/mcpward)
+[![npm downloads](https://img.shields.io/npm/dm/mcpward)](https://www.npmjs.com/package/mcpward)
+[![node version](https://img.shields.io/node/v/mcpward)](https://www.npmjs.com/package/mcpward)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Black-box security & contract testing for MCP servers. Runs locally and in CI with deterministic, machine-readable reports (console / JSON / JUnit / SARIF).
 
-<!-- TODO: Add asciinema demo showing rug-pull + poisoned tool detection -->
+<!-- Demo placeholder: Will show rug-pull + poisoned tool detection in CI -->
+![mcpward demo](docs/demo.gif "mcpward catching a rug-pull and poisoned tool in CI")
 
 ## Requirements
 

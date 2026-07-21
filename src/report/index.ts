@@ -11,5 +11,14 @@ export {
 
 export { renderConsoleReport, type ConsoleReporterOptions } from './console.js';
 export { renderJsonReport, type JsonReporterOptions } from './json.js';
-export { renderSarifReport } from './sarif.js';
+export { renderSarifReport, toHelpAnchor } from './sarif.js';
 export { renderJunitReport } from './junit.js';
+
+export {
+  redactReport,
+  redactString,
+  redactValue,
+  registerSecret,
+  clearSecrets,
+  getSecretCount,
+} from './redact.js';

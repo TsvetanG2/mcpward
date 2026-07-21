@@ -69,6 +69,18 @@ export async function runSchemaChecks(
   let tools: Tool[];
   try {
     const toolsResult = await ctx.connection.client.listTools();
+    if (!toolsResult.tools || !Array.isArray(toolsResult.tools)) {
+      results.push({
+        id: 'schema/list-tools',
+        family: 'schema',
+        status: 'fail',
+        severity: 'error',
+        message: 'Server returned invalid tools list',
+        expected: 'Array of tools',
+        actual: typeof toolsResult.tools,
+      });
+      return results;
+    }
     tools = toolsResult.tools as Tool[];
   } catch (err) {
     results.push({

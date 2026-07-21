@@ -51,38 +51,45 @@ runs:
       id: run
       shell: bash
       working-directory: ${{ inputs.working-directory }}
+      env:
+        IN_CONFIG: ${{ inputs.config }}
+        IN_VERSION: ${{ inputs.version }}
+        IN_REPORTER: ${{ inputs.reporter }}
+        IN_OUTPUT: ${{ inputs.output }}
+        IN_LOCAL: ${{ inputs.local }}
       run: |
-        # Build command - use local build or npx
-        if [ "${{ inputs.local }}" = "true" ]; then
-          CMD="node dist/cli.js run --config ${{ inputs.config }}"
-        else
-          CMD="npx mcpward@${{ inputs.version }} run --config ${{ inputs.config }}"
+        set -uo pipefail
+
+        # Build command args as array (safe from injection)
+        args=(run --config "$IN_CONFIG")
+
+        if [ "$IN_REPORTER" != "console" ]; then
+          args+=(--reporter "$IN_REPORTER")
         fi
 
-        # Add reporter
-        if [ "${{ inputs.reporter }}" != "console" ]; then
-          CMD="$CMD --reporter ${{ inputs.reporter }}"
+        if [ -n "$IN_OUTPUT" ]; then
+          args+=(--out "$IN_OUTPUT")
+          printf 'report-path=%s\n' "$IN_OUTPUT" >> "$GITHUB_OUTPUT"
         fi
 
-        # Add output path
-        if [ -n "${{ inputs.output }}" ]; then
-          CMD="$CMD --out ${{ inputs.output }}"
-          echo "report-path=${{ inputs.output }}" >> $GITHUB_OUTPUT
-        fi
-
-        # Run and capture exit code
+        # Run mcpward and capture exit code
+        # We disable errexit temporarily to capture the exit code
         set +e
-        $CMD
+        if [ "$IN_LOCAL" = "true" ]; then
+          node dist/cli.js "${args[@]}"
+        else
+          npx "mcpward@$IN_VERSION" "${args[@]}"
+        fi
         EXIT_CODE=$?
         set -e
 
-        echo "exit-code=$EXIT_CODE" >> $GITHUB_OUTPUT
+        printf 'exit-code=%s\n' "$EXIT_CODE" >> "$GITHUB_OUTPUT"
 
-        # Fail the step if checks failed
-        if [ $EXIT_CODE -eq 1 ]; then
+        # Fail the step with appropriate error message
+        if [ "$EXIT_CODE" -eq 1 ]; then
           echo "::error::mcpward checks failed"
           exit 1
-        elif [ $EXIT_CODE -eq 2 ]; then
+        elif [ "$EXIT_CODE" -eq 2 ]; then
           echo "::error::mcpward configuration or connection error"
           exit 2
         fi

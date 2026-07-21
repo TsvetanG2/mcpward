@@ -1,0 +1,452 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Golden Snapshot Tests > Console Reporter > matches snapshot (no colors, non-verbose) 1`] = `
+"
+[1mmcpward[22m [2mv0.1.0[22m
+[2m──────────────────────────────────────────────────[22m
+[1mServer:[22m test-server [2mv1.0.0[22m
+[1mProtocol:[22m 2025-11-25
+
+[1m[36mCOMPLIANCE[39m[22m [2m([32m1 passed[39m)[22m
+[2m  1 check(s) passed[22m
+
+[1m[36mSCHEMA[39m[22m [2m([31m1 failed[39m)[22m
+  [31m✗[39m [31mTool name "invalid name" contains invalid characters[39m
+[2m    at invalid name[22m
+[2m    expected: "Name matching ^[a-zA-Z0-9_-]+$"[22m
+[2m    actual:   "invalid name"[22m
+
+[1m[36mSECURITY[39m[22m [2m([31m1 failed[39m)[22m
+  [31m✗[39m [31mTool "evil_tool" description contains injection-like pattern[39m
+[2m    at evil_tool[22m
+[2m    actual:   ["Ignore all previous instructions"][22m
+
+[1m[36mDRIFT[39m[22m [2m([33m1 warnings[39m)[22m
+  [33m⚠[39m [33mNew tool "new_feature" was added[39m
+[2m    at new_feature[22m
+
+[1m[36mBEHAVIORAL[39m[22m [2m([32m1 passed[39m)[22m
+[2m  1 check(s) passed[22m
+
+[1m[36mERRORS[39m[22m [2m([32m1 passed[39m)[22m
+[2m  1 check(s) passed[22m
+
+[1m[36mLATENCY[39m[22m [2m([32m0 passed[39m)[22m
+[2m  0 check(s) passed[22m
+
+
+[1mSummary:[22m [32m3 passed[39m[2m | [22m[31m2 failed[39m[2m | [22m[33m1 warnings[39m[2m | [22m[2m1 skipped[22m
+[2mTotal: 7 checks[22m
+
+[31m[1m2 check(s) failed[22m[39m"
+`;
+
+exports[`Golden Snapshot Tests > Console Reporter > matches snapshot (no colors, verbose) 1`] = `
+"
+[1mmcpward[22m [2mv0.1.0[22m
+[2m──────────────────────────────────────────────────[22m
+[1mServer:[22m test-server [2mv1.0.0[22m
+[1mProtocol:[22m 2025-11-25
+
+[1m[36mCOMPLIANCE[39m[22m [2m([32m1 passed[39m)[22m
+  [32m✓[39m [2mProtocol handshake completed successfully[22m
+[2m    at server[22m
+
+[1m[36mSCHEMA[39m[22m [2m([31m1 failed[39m)[22m
+  [31m✗[39m [31mTool name "invalid name" contains invalid characters[39m
+[2m    at invalid name[22m
+[2m    expected: "Name matching ^[a-zA-Z0-9_-]+$"[22m
+[2m    actual:   "invalid name"[22m
+
+[1m[36mSECURITY[39m[22m [2m([31m1 failed[39m)[22m
+  [31m✗[39m [31mTool "evil_tool" description contains injection-like pattern[39m
+[2m    at evil_tool[22m
+[2m    actual:   ["Ignore all previous instructions"][22m
+
+[1m[36mDRIFT[39m[22m [2m([33m1 warnings[39m)[22m
+  [33m⚠[39m [33mNew tool "new_feature" was added[39m
+[2m    at new_feature[22m
+
+[1m[36mBEHAVIORAL[39m[22m [2m([32m1 passed[39m)[22m
+  [32m✓[39m [2mTest case "echo test" passed[22m
+[2m    at echo[22m
+
+[1m[36mERRORS[39m[22m [2m([32m1 passed[39m)[22m
+  [32m✓[39m [2mUnknown tool correctly returned protocol error[22m
+[2m    at __unknown__[22m
+
+[1m[36mLATENCY[39m[22m [2m([32m0 passed[39m)[22m
+  [2m○[22m [2mLatency checks skipped (no budget configured)[22m
+
+
+[1mSummary:[22m [32m3 passed[39m[2m | [22m[31m2 failed[39m[2m | [22m[33m1 warnings[39m[2m | [22m[2m1 skipped[22m
+[2mTotal: 7 checks[22m
+
+[31m[1m2 check(s) failed[22m[39m"
+`;
+
+exports[`Golden Snapshot Tests > JSON Reporter > matches snapshot 1`] = `
+"{
+  "version": "0.1.0",
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "server": {
+    "name": "test-server",
+    "version": "1.0.0",
+    "protocolVersion": "2025-11-25"
+  },
+  "summary": {
+    "total": 7,
+    "passed": 3,
+    "failed": 2,
+    "warnings": 1,
+    "skipped": 1
+  },
+  "results": [
+    {
+      "id": "compliance/handshake",
+      "family": "compliance",
+      "status": "pass",
+      "severity": "info",
+      "message": "Protocol handshake completed successfully",
+      "location": "server"
+    },
+    {
+      "id": "schema/tool-name",
+      "family": "schema",
+      "status": "fail",
+      "severity": "error",
+      "message": "Tool name \\"invalid name\\" contains invalid characters",
+      "expected": "Name matching ^[a-zA-Z0-9_-]+$",
+      "actual": "invalid name",
+      "location": "invalid name"
+    },
+    {
+      "id": "security/injection-pattern",
+      "family": "security",
+      "status": "fail",
+      "severity": "error",
+      "message": "Tool \\"evil_tool\\" description contains injection-like pattern",
+      "actual": [
+        "Ignore all previous instructions"
+      ],
+      "location": "evil_tool"
+    },
+    {
+      "id": "drift/tool-added",
+      "family": "drift",
+      "status": "warn",
+      "severity": "warning",
+      "message": "New tool \\"new_feature\\" was added",
+      "location": "new_feature"
+    },
+    {
+      "id": "behavioral/case",
+      "family": "behavioral",
+      "status": "pass",
+      "severity": "info",
+      "message": "Test case \\"echo test\\" passed",
+      "location": "echo"
+    },
+    {
+      "id": "errors/unknown-tool",
+      "family": "errors",
+      "status": "pass",
+      "severity": "info",
+      "message": "Unknown tool correctly returned protocol error",
+      "location": "__unknown__"
+    },
+    {
+      "id": "latency/summary",
+      "family": "latency",
+      "status": "skip",
+      "severity": "info",
+      "message": "Latency checks skipped (no budget configured)"
+    }
+  ]
+}"
+`;
+
+exports[`Golden Snapshot Tests > JUnit Reporter > matches snapshot 1`] = `
+"<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="mcpward" tests="7" failures="2" errors="0" skipped="1" time="0.001">
+  <testsuite name="compliance" tests="1" failures="0" errors="0" skipped="0" time="0.001">
+    <testcase name="Protocol handshake completed successfully" classname="compliance/handshake" time="0.001">
+    </testcase>
+  </testsuite>
+  <testsuite name="schema" tests="1" failures="1" errors="0" skipped="0" time="0.001">
+    <testcase name="Tool name &quot;invalid name&quot; contains invalid characters" classname="schema/tool-name" time="0.001">
+      <failure message="Tool name &quot;invalid name&quot; contains invalid characters" type="AssertionError"><![CDATA[Location: invalid name
+Expected: "Name matching ^[a-zA-Z0-9_-]+$"
+Actual: "invalid name"]]></failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="security" tests="1" failures="1" errors="0" skipped="0" time="0.001">
+    <testcase name="Tool &quot;evil_tool&quot; description contains injection-like pattern" classname="security/injection-pattern" time="0.001">
+      <failure message="Tool &quot;evil_tool&quot; description contains injection-like pattern" type="AssertionError"><![CDATA[Location: evil_tool
+Actual: ["Ignore all previous instructions"]]]></failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="drift" tests="1" failures="0" errors="0" skipped="0" time="0.001">
+    <testcase name="New tool &quot;new_feature&quot; was added" classname="drift/tool-added" time="0.001">
+      <system-out><![CDATA[WARNING: New tool &quot;new_feature&quot; was added]]></system-out>
+    </testcase>
+  </testsuite>
+  <testsuite name="behavioral" tests="1" failures="0" errors="0" skipped="0" time="0.001">
+    <testcase name="Test case &quot;echo test&quot; passed" classname="behavioral/case" time="0.001">
+    </testcase>
+  </testsuite>
+  <testsuite name="errors" tests="1" failures="0" errors="0" skipped="0" time="0.001">
+    <testcase name="Unknown tool correctly returned protocol error" classname="errors/unknown-tool" time="0.001">
+    </testcase>
+  </testsuite>
+  <testsuite name="latency" tests="1" failures="0" errors="0" skipped="1" time="0.001">
+    <testcase name="Latency checks skipped (no budget configured)" classname="latency/summary" time="0.001">
+    </testcase>
+  </testsuite>
+</testsuites>"
+`;
+
+exports[`Golden Snapshot Tests > SARIF Reporter > matches snapshot 1`] = `
+"{
+  "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "mcpward",
+          "version": "0.1.0",
+          "informationUri": "https://github.com/TsvetanG2/mcpward",
+          "rules": [
+            {
+              "id": "compliance-handshake",
+              "name": "compliance/handshake",
+              "shortDescription": {
+                "text": "Protocol handshake check"
+              },
+              "fullDescription": {
+                "text": "Verifies that the MCP server completes the protocol handshake successfully, returning valid server info and capabilities."
+              },
+              "helpUri": "https://github.com/TsvetanG2/mcpward/blob/main/docs/rules.md#compliancehandshake",
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "category": "correctness",
+                "security": false
+              }
+            },
+            {
+              "id": "schema-tool-name",
+              "name": "schema/tool-name",
+              "shortDescription": {
+                "text": "Tool name validation"
+              },
+              "fullDescription": {
+                "text": "Tool names must match the pattern ^[a-zA-Z0-9_-]+$ to ensure compatibility across clients and prevent injection issues."
+              },
+              "helpUri": "https://github.com/TsvetanG2/mcpward/blob/main/docs/rules.md#schematool-name",
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "category": "correctness",
+                "security": false
+              },
+              "help": {
+                "text": "Tool names must use only alphanumeric characters, underscores, and hyphens. Invalid characters can cause compatibility issues across clients. Fix: Rename the tool to use only allowed characters.",
+                "markdown": "## Invalid Tool Name\\n\\nTool names must match the pattern \`^[a-zA-Z0-9_-]+$\`.\\n\\n### Why It Matters\\nSpecial characters in tool names can:\\n- Break client implementations\\n- Cause parsing issues in JSON-RPC\\n- Create injection vulnerabilities\\n\\n### How to Fix\\nUse only letters, numbers, underscores, and hyphens."
+              }
+            },
+            {
+              "id": "security-injection-pattern",
+              "name": "security/injection-pattern",
+              "shortDescription": {
+                "text": "Prompt injection pattern detected"
+              },
+              "fullDescription": {
+                "text": "The tool description contains patterns commonly used in prompt injection attacks, such as \\"ignore previous instructions\\" or \\"before doing anything else\\"."
+              },
+              "helpUri": "https://github.com/TsvetanG2/mcpward/blob/main/docs/rules.md#securityinjection-pattern",
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "category": "security",
+                "security": true
+              },
+              "help": {
+                "text": "This tool description contains language that could manipulate LLM behavior. Common injection patterns include \\"ignore previous instructions\\", \\"you must always\\", or \\"before doing anything else\\". These patterns can be used to override safety guidelines or hijack the LLM's behavior. Fix: Rewrite the tool description to focus on what the tool does, not instructions for how the LLM should behave.",
+                "markdown": "## Prompt Injection Pattern Detected\\n\\nThis tool description contains language that could manipulate LLM behavior.\\n\\n### Dangerous Patterns\\n- \\"Ignore previous instructions\\"\\n- \\"You must always call this tool first\\"\\n- \\"Before doing anything else\\"\\n\\n### Why It Matters\\nThese patterns can override safety guidelines or hijack LLM behavior.\\n\\n### How to Fix\\nRewrite the description to focus on **what the tool does**, not instructions for the LLM."
+              }
+            },
+            {
+              "id": "drift-tool-added",
+              "name": "drift/tool-added",
+              "shortDescription": {
+                "text": "drift/tool-added"
+              },
+              "fullDescription": {
+                "text": "A new tool has been added since the baseline was captured. Review the new tool carefully for unexpected functionality."
+              },
+              "helpUri": "https://github.com/TsvetanG2/mcpward/blob/main/docs/rules.md#drifttool-added",
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "category": "maintainability",
+                "security": false
+              }
+            },
+            {
+              "id": "behavioral-case",
+              "name": "behavioral/case",
+              "shortDescription": {
+                "text": "behavioral/case"
+              },
+              "fullDescription": {
+                "text": "A behavioral test case failed. The tool output did not match the expected result defined in the test suite."
+              },
+              "helpUri": "https://github.com/TsvetanG2/mcpward/blob/main/docs/rules.md#behavioralcase",
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "category": "general",
+                "security": false
+              }
+            },
+            {
+              "id": "errors-unknown-tool",
+              "name": "errors/unknown-tool",
+              "shortDescription": {
+                "text": "errors/unknown-tool"
+              },
+              "fullDescription": {
+                "text": "Calling an unknown tool should return a JSON-RPC protocol error, not a tool-level error with isError:true."
+              },
+              "helpUri": "https://github.com/TsvetanG2/mcpward/blob/main/docs/rules.md#errorsunknown-tool",
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "category": "general",
+                "security": false
+              }
+            },
+            {
+              "id": "latency-summary",
+              "name": "latency/summary",
+              "shortDescription": {
+                "text": "latency/summary"
+              },
+              "fullDescription": {
+                "text": "latency/summary"
+              },
+              "helpUri": "https://github.com/TsvetanG2/mcpward/blob/main/docs/rules.md#latencysummary",
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "category": "general",
+                "security": false
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "schema-tool-name",
+          "level": "error",
+          "message": {
+            "text": "Tool name \\"invalid name\\" contains invalid characters"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "mcpward.yaml",
+                  "uriBaseId": "%SRCROOT%"
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "invalid name",
+                  "kind": "tool"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "expected": "Name matching ^[a-zA-Z0-9_-]+$",
+            "actual": "invalid name",
+            "family": "schema"
+          }
+        },
+        {
+          "ruleId": "security-injection-pattern",
+          "level": "error",
+          "message": {
+            "text": "Tool \\"evil_tool\\" description contains injection-like pattern"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "mcpward.yaml",
+                  "uriBaseId": "%SRCROOT%"
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "evil_tool",
+                  "kind": "tool"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "actual": [
+              "Ignore all previous instructions"
+            ],
+            "family": "security"
+          }
+        },
+        {
+          "ruleId": "drift-tool-added",
+          "level": "warning",
+          "message": {
+            "text": "New tool \\"new_feature\\" was added"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "mcpward.yaml",
+                  "uriBaseId": "%SRCROOT%"
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "new_feature",
+                  "kind": "tool"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "family": "drift"
+          }
+        }
+      ],
+      "invocations": [
+        {
+          "executionSuccessful": false,
+          "endTimeUtc": "2024-01-15T10:30:00.000Z"
+        }
+      ]
+    }
+  ]
+}"
+`;
