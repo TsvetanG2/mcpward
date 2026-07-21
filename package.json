@@ -43,11 +43,19 @@
     "testing",
     "devtools"
   ],
-  "author": "",
+  "author": "TsvetanG2",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TsvetanG2/mcpward.git"
+  },
+  "homepage": "https://github.com/TsvetanG2/mcpward#readme",
+  "bugs": {
+    "url": "https://github.com/TsvetanG2/mcpward/issues"
+  },
   "packageManager": "pnpm@9.15.0",
   "engines": {
-    "node": ">=22"
+    "node": ">=20"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",

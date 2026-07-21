@@ -17,6 +17,7 @@ import {
 import { renderConsoleReport } from '../report/console.js';
 import { renderJsonReport } from '../report/json.js';
 import { renderSarifReport } from '../report/sarif.js';
+import { renderJunitReport } from '../report/junit.js';
 import type { Config } from '../config/schema.js';
 
 const VERSION = '0.1.0';
@@ -162,6 +163,14 @@ export async function runCommand(
         console.log(pc.dim(`SARIF report written to ${options.out}`));
       } else {
         console.log(sarif);
+      }
+    } else if (reporter === 'junit') {
+      const junit = renderJunitReport(report);
+      if (options.out) {
+        await writeFile(options.out, junit, 'utf-8');
+        console.log(pc.dim(`JUnit report written to ${options.out}`));
+      } else {
+        console.log(junit);
       }
     } else {
       // Console reporter

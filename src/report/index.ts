@@ -12,3 +12,4 @@ export {
 export { renderConsoleReport, type ConsoleReporterOptions } from './console.js';
 export { renderJsonReport, type JsonReporterOptions } from './json.js';
 export { renderSarifReport } from './sarif.js';
+export { renderJunitReport } from './junit.js';

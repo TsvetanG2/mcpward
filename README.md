@@ -48,14 +48,10 @@ MCP servers are consumed as black boxes by AI agents. Between versions, a tool's
 - **Security heuristics** — injection patterns, hidden unicode, secret-soliciting schemas
 - **Behavioral testing** — declarative test suites with assertions
 - **Latency budgets** — p50/p95 percentile checks
-- **Multiple reporters** — console, JSON, SARIF
+- **Multiple reporters** — console, JSON, JUnit, SARIF
 - **CI-friendly** — exit codes `0`/`1`/`2`, machine-readable output
-
-### Coming Soon
-
-- HTTP transport
-- JUnit output
-- GitHub Action wrapper
+- **HTTP transport** — connect to remote MCP servers
+- **GitHub Action** — ready-to-use composite action
 
 ## Configuration
 
@@ -169,9 +165,21 @@ server:
 ### GitHub Actions
 
 ```yaml
+# Basic usage
 - name: Run mcpward
   run: npx mcpward run
 
+# JUnit output for test results
+- name: Run with JUnit output
+  run: npx mcpward run --reporter junit --out results.xml
+
+- name: Upload test results
+  uses: actions/upload-artifact@v4
+  with:
+    name: mcpward-results
+    path: results.xml
+
+# SARIF output for GitHub Security tab
 - name: Run with SARIF output
   run: npx mcpward run --reporter sarif --out results.sarif
 
@@ -179,6 +187,14 @@ server:
   uses: github/codeql-action/upload-sarif@v3
   with:
     sarif_file: results.sarif
+
+# Using the mcpward action
+- name: Run mcpward
+  uses: TsvetanG2/mcpward/action@main
+  with:
+    config: mcpward.yaml
+    reporter: junit
+    output: results.xml
 ```
 
 ## Exit Codes

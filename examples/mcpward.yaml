@@ -1,0 +1,71 @@
+# Example mcpward configuration
+#
+# This file shows all available configuration options.
+
+server:
+  # Transport type: stdio or http
+  transport: stdio
+
+  # For stdio transport:
+  command: npx
+  args: ['-y', '@modelcontextprotocol/server-filesystem', '/tmp/sandbox']
+  env:
+    LOG_LEVEL: error
+
+  # For http transport (uncomment to use):
+  # transport: http
+  # url: https://your-mcp-server.example.com/mcp
+  # headers:
+  #   Authorization: 'Bearer ${MCP_TOKEN}'
+
+# Optional: expected protocol version
+expect:
+  protocol_version: '2025-06-18'
+
+# Check configuration
+checks:
+  # Protocol compliance checks
+  compliance: true
+
+  # Schema validation
+  schema: true
+
+  # Security/tool-poisoning heuristics
+  security: true
+
+  # Drift detection (requires baseline)
+  drift:
+    baseline: ./mcpward.lock.json
+    fail_on:
+      - tool_removed
+      - description_changed
+      - breaking_schema_change
+      - annotation_changed
+
+  # Latency budgets
+  latency:
+    samples: 5
+    p95_budget_ms: 1000
+
+# Behavioral test suites
+suites:
+  - tool: read_file
+    cases:
+      - name: reads an existing file
+        args:
+          path: /tmp/sandbox/hello.txt
+        expect:
+          tool_is_error: false
+          jsonpath:
+            '$.content[0].type': text
+
+      - name: missing file returns tool error
+        args:
+          path: /tmp/sandbox/nonexistent.txt
+        expect:
+          tool_is_error: true
+
+      - name: invalid params return protocol error
+        args: {}
+        expect:
+          protocol_error_code: -32602

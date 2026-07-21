@@ -1,0 +1,128 @@
+# Example GitHub Actions workflow for mcpward
+#
+# This workflow shows different ways to use mcpward in CI:
+# 1. Basic check with console output
+# 2. JUnit output for test result integration
+# 3. SARIF output for GitHub Security tab
+# 4. Using the mcpward action
+
+name: MCP Server Validation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # Basic usage with console output
+  basic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run mcpward
+        run: npx mcpward run
+
+  # JUnit output for GitHub Actions test summary
+  junit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run mcpward with JUnit output
+        run: npx mcpward run --reporter junit --out mcpward-results.xml
+        continue-on-error: true
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcpward-results
+          path: mcpward-results.xml
+
+      - name: Publish test results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: mcpward checks
+          path: mcpward-results.xml
+          reporter: java-junit
+
+  # SARIF output for GitHub Security tab
+  security:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run mcpward with SARIF output
+        run: npx mcpward run --reporter sarif --out mcpward.sarif
+        continue-on-error: true
+
+      - name: Upload SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: mcpward.sarif
+
+  # Using the mcpward action
+  action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run mcpward
+        uses: TsvetanG2/mcpward/action@main
+        with:
+          config: mcpward.yaml
+          reporter: junit
+          output: results.xml
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mcpward-action-results
+          path: results.xml
+
+  # Drift detection workflow
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # On main branch, update baseline
+      - name: Update baseline
+        if: github.ref == 'refs/heads/main'
+        run: |
+          npx mcpward baseline
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add mcpward.lock.json
+          git diff --staged --quiet || git commit -m "chore: update mcpward baseline"
+          git push
+
+      # On PRs, check for drift
+      - name: Check for drift
+        if: github.event_name == 'pull_request'
+        run: npx mcpward diff

@@ -1,0 +1,80 @@
+name: 'mcpward'
+description: 'Black-box security & contract testing for MCP servers'
+author: 'TsvetanG2'
+
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+inputs:
+  config:
+    description: 'Path to mcpward.yaml config file'
+    required: false
+    default: 'mcpward.yaml'
+  reporter:
+    description: 'Output format: console, json, junit, sarif'
+    required: false
+    default: 'console'
+  output:
+    description: 'Path to write report file (for json/junit/sarif reporters)'
+    required: false
+  version:
+    description: 'mcpward version to use'
+    required: false
+    default: 'latest'
+  working-directory:
+    description: 'Working directory for running mcpward'
+    required: false
+    default: '.'
+
+outputs:
+  exit-code:
+    description: 'Exit code from mcpward (0=pass, 1=fail, 2=error)'
+    value: ${{ steps.run.outputs.exit-code }}
+  report-path:
+    description: 'Path to the generated report file (if output was specified)'
+    value: ${{ steps.run.outputs.report-path }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Run mcpward
+      id: run
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        # Build command
+        CMD="npx mcpward@${{ inputs.version }} run --config ${{ inputs.config }}"
+
+        # Add reporter
+        if [ "${{ inputs.reporter }}" != "console" ]; then
+          CMD="$CMD --reporter ${{ inputs.reporter }}"
+        fi
+
+        # Add output path
+        if [ -n "${{ inputs.output }}" ]; then
+          CMD="$CMD --out ${{ inputs.output }}"
+          echo "report-path=${{ inputs.output }}" >> $GITHUB_OUTPUT
+        fi
+
+        # Run and capture exit code
+        set +e
+        $CMD
+        EXIT_CODE=$?
+        set -e
+
+        echo "exit-code=$EXIT_CODE" >> $GITHUB_OUTPUT
+
+        # Fail the step if checks failed
+        if [ $EXIT_CODE -eq 1 ]; then
+          echo "::error::mcpward checks failed"
+          exit 1
+        elif [ $EXIT_CODE -eq 2 ]; then
+          echo "::error::mcpward configuration or connection error"
+          exit 2
+        fi

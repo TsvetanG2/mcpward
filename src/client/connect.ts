@@ -1,5 +1,6 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { LATEST_PROTOCOL_VERSION } from '@modelcontextprotocol/sdk/types.js';
 import type { Config, StdioTransport, HttpTransport } from '../config/schema.js';
 
@@ -80,11 +81,57 @@ async function connectStdio(config: StdioTransport): Promise<McpConnection> {
 }
 
 /**
- * Connects to an MCP server over HTTP transport.
- * Note: HTTP transport will be implemented in Phase 5.
+ * Connects to an MCP server over HTTP transport (Streamable HTTP).
  */
-async function connectHttp(_config: HttpTransport): Promise<McpConnection> {
-  throw new Error('HTTP transport not yet implemented (Phase 5)');
+async function connectHttp(config: HttpTransport): Promise<McpConnection> {
+  const url = new URL(config.url);
+
+  // Build headers with optional Authorization
+  const headers: Record<string, string> = {};
+  if (config.headers) {
+    for (const [key, value] of Object.entries(config.headers)) {
+      headers[key] = value;
+    }
+  }
+
+  const transport = new StreamableHTTPClientTransport(url, {
+    requestInit: {
+      headers,
+    },
+  });
+
+  const client = new Client(
+    {
+      name: 'mcpward',
+      version: '0.1.0',
+    },
+    {
+      capabilities: {},
+    }
+  );
+
+  await client.connect(transport);
+
+  // Get server info from the initialization result
+  const serverInfo = client.getServerVersion();
+  const capabilities = client.getServerCapabilities();
+
+  if (!serverInfo) {
+    throw new Error('Server did not provide version information');
+  }
+
+  return {
+    client,
+    protocolVersion: LATEST_PROTOCOL_VERSION,
+    serverInfo: {
+      name: serverInfo.name,
+      version: serverInfo.version,
+    },
+    capabilities: capabilities ?? {},
+    close: async () => {
+      await client.close();
+    },
+  };
 }
 
 /**
