@@ -3,6 +3,11 @@ import pc from 'picocolors';
 import { connect } from '../client/connect.js';
 import { runComplianceChecks } from '../checks/compliance.js';
 import { runSchemaChecks } from '../checks/schema.js';
+import { runDriftChecks } from '../checks/drift.js';
+import { runSecurityChecks } from '../checks/security.js';
+import { runBehavioralChecks } from '../checks/behavioral.js';
+import { runErrorContractChecks } from '../checks/errors.js';
+import { runLatencyChecks } from '../checks/latency.js';
 import {
   type CheckResult,
   type CheckReport,
@@ -11,6 +16,7 @@ import {
 } from '../report/model.js';
 import { renderConsoleReport } from '../report/console.js';
 import { renderJsonReport } from '../report/json.js';
+import { renderSarifReport } from '../report/sarif.js';
 import type { Config } from '../config/schema.js';
 
 const VERSION = '0.1.0';
@@ -71,6 +77,62 @@ export async function runCommand(
       results.push(...schemaResults);
     }
 
+    // Run drift checks if enabled and baseline exists
+    if (config.checks?.drift) {
+      if (verbose) {
+        console.log(pc.dim('Running drift checks...'));
+      }
+      const driftResults = await runDriftChecks({
+        connection,
+        config: config.checks.drift,
+      });
+      results.push(...driftResults);
+    }
+
+    // Run security checks if enabled
+    if (config.checks?.security !== false) {
+      if (verbose) {
+        console.log(pc.dim('Running security checks...'));
+      }
+      const securityResults = await runSecurityChecks({
+        connection,
+      });
+      results.push(...securityResults);
+    }
+
+    // Run behavioral test suites if defined
+    if (config.suites && config.suites.length > 0) {
+      if (verbose) {
+        console.log(pc.dim('Running behavioral test suites...'));
+      }
+      const behavioralResults = await runBehavioralChecks({
+        connection,
+        suites: config.suites,
+      });
+      results.push(...behavioralResults);
+    }
+
+    // Run error contract checks
+    if (verbose) {
+      console.log(pc.dim('Running error contract checks...'));
+    }
+    const errorResults = await runErrorContractChecks({
+      connection,
+    });
+    results.push(...errorResults);
+
+    // Run latency checks if configured
+    if (config.checks?.latency) {
+      if (verbose) {
+        console.log(pc.dim('Running latency checks...'));
+      }
+      const latencyResults = await runLatencyChecks({
+        connection,
+        config: config.checks.latency,
+      });
+      results.push(...latencyResults);
+    }
+
     // Build report
     const report: CheckReport = {
       version: VERSION,
@@ -92,6 +154,14 @@ export async function runCommand(
         console.log(pc.dim(`Report written to ${options.out}`));
       } else {
         console.log(json);
+      }
+    } else if (reporter === 'sarif') {
+      const sarif = renderSarifReport(report);
+      if (options.out) {
+        await writeFile(options.out, sarif, 'utf-8');
+        console.log(pc.dim(`SARIF report written to ${options.out}`));
+      } else {
+        console.log(sarif);
       }
     } else {
       // Console reporter

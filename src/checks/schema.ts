@@ -31,22 +31,27 @@ export interface SchemaCheckContext {
   connection: McpConnection;
 }
 
-interface Tool {
+export interface JsonSchema {
+  type?: string;
+  properties?: Record<string, unknown>;
+  required?: string[];
+  [key: string]: unknown;
+}
+
+export interface ToolAnnotations {
+  readOnlyHint?: boolean;
+  destructiveHint?: boolean;
+  idempotentHint?: boolean;
+  openWorldHint?: boolean;
+  [key: string]: unknown;
+}
+
+export interface Tool {
   name: string;
   description?: string;
-  inputSchema?: {
-    type?: string;
-    properties?: Record<string, unknown>;
-    required?: string[];
-    [key: string]: unknown;
-  };
-  annotations?: {
-    readOnlyHint?: boolean;
-    destructiveHint?: boolean;
-    idempotentHint?: boolean;
-    openWorldHint?: boolean;
-    [key: string]: unknown;
-  };
+  inputSchema?: JsonSchema;
+  outputSchema?: JsonSchema;
+  annotations?: ToolAnnotations;
 }
 
 /**
