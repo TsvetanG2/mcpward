@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { writeFile, unlink, mkdir } from 'node:fs/promises';
+import { writeFile, unlink, mkdtemp } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { loadConfig } from '../../src/config/load.js';
@@ -202,8 +202,7 @@ server:
 
       try {
         // Create config that uses the secret
-        const tempDir = join(tmpdir(), 'mcpward-redact-test-' + Date.now());
-        await mkdir(tempDir, { recursive: true });
+        const tempDir = await mkdtemp(join(tmpdir(), 'mcpward-redact-test-'));
         const configPath = join(tempDir, 'mcpward.yaml');
 
         // Use stdio transport (which will succeed) but reference the secret
