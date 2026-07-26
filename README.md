@@ -32,7 +32,7 @@ npm install -g mcpward
 mcpward --version
 ```
 
-Requires Node.js ≥ 20. Works against MCP servers written in any language, over stdio or Streamable HTTP.
+Works against MCP servers written in any language, over stdio or Streamable HTTP.
 
 ## Quick Start
 
@@ -80,7 +80,51 @@ $ echo $?
 
 Four contract changes, none of which would surface at runtime until something broke.
 
-**When security issues are found:**
+## How changes are classified
+
+Not every change should fail a build. Adding an optional parameter is safe; adding a required one breaks existing callers. The classifier encodes this judgment as a pure function with exhaustive fixture-backed tests.
+
+| Change | Classification | Fails by default? |
+|--------|----------------|-------------------|
+| Tool removed | `tool_removed` | yes |
+| Tool added | `tool_added` | no |
+| Description changed | `description_changed` | yes |
+| Required field added / field removed / type changed | `breaking_schema_change` | yes |
+| Optional field added | `nonbreaking_schema_change` | no |
+| `readOnlyHint` true→false or `destructiveHint` false→true | `annotation_changed` | yes |
+
+**Concrete examples:** A tool gains a new required `multiplier` parameter → `breaking_schema_change` (existing calls will fail). A tool adds an optional `limit` parameter → `nonbreaking_schema_change` (callers can ignore it). An optional field becomes required → `breaking_schema_change`. A field is removed entirely → `breaking_schema_change` (callers may rely on it).
+
+### Policy: choosing what fails CI
+
+The `fail_on` setting is your policy engine — it decides which change classes fail the build and which only report:
+
+```yaml
+checks:
+  drift:
+    baseline: ./mcpward.lock.json
+    fail_on:
+      - tool_removed
+      - description_changed
+      - breaking_schema_change
+      - annotation_changed
+      # tool_added and nonbreaking_schema_change will report but not fail
+```
+
+Some teams fail on any description change; others only on removals. Encode your tolerance here. See [`docs/rules.md`](docs/rules.md) for the full rule reference.
+
+## Why mcpward?
+
+Your agent calls `tools/list` and trusts whatever comes back. Tool descriptions are not documentation — they are the instructions the model reads to decide what a tool does. When a server you depend on ships an update, four things can change without any signal reaching you:
+
+- a tool's **description** is rewritten (same name, same schema — nothing else catches this)
+- a **required parameter** appears, and your existing calls start failing
+- **`readOnlyHint`** flips from `true` to `false`, so a tool you allow-listed can now mutate state
+- a tool **disappears**
+
+mcpward pins the server's contract to a lockfile and fails your build when it drifts — the same discipline you already apply to every other dependency.
+
+**Security checks** catch tool-poisoning patterns before they reach your agent:
 
 ```
 SECURITY (9 failed)
@@ -89,36 +133,7 @@ SECURITY (9 failed)
   ✗ Tool "safe​tool" name contains hidden unicode: U+200B (zero-width)
   ✗ Tool "api_connector" schema solicits secrets: api_key, password
   ✗ Tool "delete_files" has readOnlyHint=true but name implies mutation
-
-Summary: 10 passed | 9 failed
 ```
-
-**When all checks pass:**
-
-```
-mcpward v0.1.0
-──────────────────────────────────────────────────
-Server: my-server v1.0.0
-Protocol: 2025-11-25
-
-COMPLIANCE (5 passed)
-SCHEMA (13 passed)
-SECURITY (1 passed)
-
-Summary: 19 passed
-All checks passed
-```
-
-## Why mcpward?
-
-Your agent calls `tools/list` and trusts whatever comes back. Tool descriptions are not documentation — they are the instructions the model reads to decide what a tool does. So when a server you depend on ships an update, four things can change without any signal reaching you:
-
-- a tool's **description** is rewritten (same name, same schema — nothing else catches this)
-- a **required parameter** appears, and your existing calls start failing
-- **`readOnlyHint`** flips from `true` to `false`, so a tool you allow-listed can now mutate state
-- a tool **disappears**
-
-mcpward pins the server's contract to a lockfile and fails your build when it drifts — the same discipline you already apply to every other dependency.
 
 ## Where mcpward fits
 
@@ -170,20 +185,18 @@ That last row is the practical reason to reach for mcpward on internal or client
 
 **Two-layer error contract** deserves a note, because nothing else checks it. MCP distinguishes protocol errors (a JSON-RPC `error` object) from tool errors (a *successful* result carrying `isError: true`). A tool that fails its job should return the second, not the first. Servers get this backwards routinely, and it changes how a client must handle the failure.
 
-See [`docs/rules.md`](docs/rules.md) for every check mcpward performs and what each finding means.
-
 ## Features
 
-- **Protocol compliance** — handshake, version negotiation, capabilities, ping
-- **Schema validation** — tool names, descriptions, inputSchema (JSON Schema)
-- **Drift detection** — baseline snapshots with breaking change classification
-- **Security heuristics** — injection patterns, hidden unicode, secret-soliciting schemas
-- **Behavioral testing** — declarative test suites with assertions
-- **Latency budgets** — p50/p95 percentile checks
-- **Multiple reporters** — console, JSON, JUnit, SARIF
-- **CI-friendly** — exit codes `0`/`1`/`2`, machine-readable output
-- **HTTP transport** — connect to remote MCP servers
-- **GitHub Action** — ready-to-use composite action
+- **Classifies every schema change as breaking or non-breaking** — fails CI only on the ones you configure, reports the rest
+- **Detects description rewrites (rug-pulls)** — hashes tool descriptions; catches silent changes that text diffs miss
+- **Catches tool-poisoning patterns** — injection phrasing, hidden unicode, secret-soliciting schemas, annotation mismatches
+- **Validates error contracts** — verifies servers use protocol errors vs tool errors correctly (unique to mcpward)
+- **Runs behavioral test suites** — declarative cases with JSONPath assertions against tool outputs
+- **Enforces latency budgets** — fails when p95 exceeds your threshold
+- **Outputs JUnit + SARIF** — integrates with GitHub Actions test results and Security tab
+- **Works fully offline** — no accounts, no API calls, nothing leaves your machine
+
+See [`docs/rules.md`](docs/rules.md) for every check mcpward performs and what each finding means.
 
 ## Configuration
 
@@ -196,7 +209,6 @@ server:
   args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp/sandbox"]
   env: {}
 
-# Optional: Timeout configuration
 timeouts:
   connect_ms: 10000    # Connection timeout (default: 10s)
   call_ms: 30000       # Per-tool-call timeout (default: 30s)
@@ -246,8 +258,6 @@ server:
 
 ### Behavioral Test Expectations
 
-The `expect` block in test cases supports:
-
 | Option | Type | Description |
 |--------|------|-------------|
 | `tool_is_error` | boolean | Assert the tool response has `isError: true/false` |
@@ -289,14 +299,7 @@ The `expect` block in test cases supports:
 
 ### Drift
 
-| Change | Classification | Default fail? |
-|--------|----------------|---------------|
-| Tool removed | `tool_removed` | yes |
-| Tool added | `tool_added` | no |
-| Description changed | `description_changed` | yes |
-| Required field added / type narrowed | `breaking_schema_change` | yes |
-| Optional field added / type widened | `nonbreaking_schema_change` | no |
-| readOnlyHint true→false | `annotation_changed` | yes |
+See [How changes are classified](#how-changes-are-classified) for the full classification table and policy configuration.
 
 ### Behavioral
 
@@ -313,8 +316,6 @@ The `expect` block in test cases supports:
 |-------|-------------|
 | `latency/summary` | Overall p50/p95 vs budget |
 | `latency/tool` | Per-tool latency measurements |
-
-Full reference for every rule, with remediation guidance: [`docs/rules.md`](docs/rules.md).
 
 ## CI Integration
 
@@ -366,6 +367,14 @@ Findings appear in the repository's **Security → Code scanning** tab, with rul
 | `2` | Configuration or connection error — nothing was tested |
 
 The distinction between `1` and `2` matters: `2` means the run never happened, which should be treated differently from a genuine failure.
+
+## Roadmap
+
+- **PR comment reporting** — post classified drift as a reviewable comment next to the code diff ([#13](https://github.com/TsvetanG2/mcpward/issues/13))
+- **Show old vs new text for description changes** — surface the actual diff, not just "description changed" ([#14](https://github.com/TsvetanG2/mcpward/issues/14))
+- **Canonicalization audit** — normalize tool surface before hashing to avoid false-positive drift ([#12](https://github.com/TsvetanG2/mcpward/issues/12))
+- **Constraint-level schema analysis** — detect narrowed `maxItems`, removed `enum` values, and other JSON Schema constraint changes (currently property-level only)
+- **Supply chain / server identity** — the contract pins tool names and schemas, not the implementation; capturing binary or container digest alongside the contract is a future direction
 
 ## Development
 
