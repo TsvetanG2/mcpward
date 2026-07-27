@@ -154,16 +154,16 @@ mcpward answers a different question: *"did this server's contract change since 
 | | mcpward | mcp-scan |
 |---|---|---|
 | Primary use | CI gate on a dependency | Audit your installed servers |
-| Rug-pull / description drift | ✅ | ✅ |
-| Tool-poisoning heuristics | ✅ | ✅ (stronger, research-backed) |
-| Cross-origin escalation / tool shadowing | ❌ | ✅ |
-| Live proxy + runtime guardrails | ❌ | ✅ |
-| Protocol compliance checks | ✅ | ❌ |
-| Two-layer error contract | ✅ | ❌ |
-| Behavioral test suites | ✅ | ❌ |
-| Latency budgets | ✅ | ❌ |
-| JUnit + SARIF for CI | ✅ | ❌ |
-| Runs fully offline, no data leaves your machine | ✅ | ⚠️ shares tool names and descriptions with invariantlabs.ai |
+| Rug-pull / description drift | yes | yes |
+| Tool-poisoning heuristics | yes | yes (stronger, research-backed) |
+| Cross-origin escalation / tool shadowing | no | yes |
+| Live proxy + runtime guardrails | no | yes |
+| Protocol compliance checks | yes | no |
+| Two-layer error contract | yes | no |
+| Behavioral test suites | yes | no |
+| Latency budgets | yes | no |
+| JUnit + SARIF for CI | yes | no |
+| Runs fully offline, no data leaves your machine | yes | ** shares tool names and descriptions with invariantlabs.ai ** |
 
 That last row is the practical reason to reach for mcpward on internal or client-owned servers: **nothing leaves your machine.** No account, no API key, no service to trust.
 
@@ -171,17 +171,17 @@ That last row is the practical reason to reach for mcpward on internal or client
 
 | Feature | mcpward | mcpvet | MCP-Contract-CI |
 |---|---|---|---|
-| Description-level drift | ✅ | ❌ | ❌ |
-| Schema drift detection | ✅ | ✅ | ✅ |
-| Breaking vs non-breaking classification | ✅ | partial | ✅ |
-| Protocol compliance | ✅ | ✅ | ❌ |
-| Two-layer error contract | ✅ | ❌ | ❌ |
-| Tool-poisoning heuristics | ✅ | ❌ | ❌ |
-| SARIF export | ✅ | ❌ | ❌ |
-| JUnit output | ✅ | ✅ | ❌ |
-| Behavioral test suites | ✅ | ❌ | ✅ |
-| Latency budgets | ✅ | ❌ | ❌ |
-| HTTP transport | ✅ | ✅ | ❌ |
+| Description-level drift | yes | no | no |
+| Schema drift detection | yes | yes | yes |
+| Breaking vs non-breaking classification | yes | partial | yes |
+| Protocol compliance | yes | yes | no |
+| Two-layer error contract | yes | no | no |
+| Tool-poisoning heuristics | yes | no | no |
+| SARIF export | yes | no | no |
+| JUnit output | yes | yes | no |
+| Behavioral test suites | yes | no | yes |
+| Latency budgets | yes | no | no |
+| HTTP transport | yes | yes | no |
 
 **Two-layer error contract** deserves a note, because nothing else checks it. MCP distinguishes protocol errors (a JSON-RPC `error` object) from tool errors (a *successful* result carrying `isError: true`). A tool that fails its job should return the second, not the first. Servers get this backwards routinely, and it changes how a client must handle the failure.
 
