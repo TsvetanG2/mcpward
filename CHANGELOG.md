@@ -8,6 +8,50 @@ Until `1.0.0`, minor versions may contain breaking changes to the config format.
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-08-05
+
+This release combines **M0 (Canonicalization)** and **M1 (Lockfile v2)** from the roadmap. M0 eliminates false positives from formatting differences. M1 adds provenance tracking and auth-scoped baselines.
+
+### Added
+
+- **Canonicalization (M0)** — Tool descriptions and schemas are canonicalized before hashing to eliminate false positives from:
+  - Reordered JSON keys
+  - Different line endings (`\r\n` vs `\n`)
+  - Different Unicode normalization (NFD vs NFC)
+  - Whitespace variations
+- **Lockfile v2 format (M1)** — New `schemaVersion: 2` with provenance tracking:
+  - `target` — Server identity (command+args for stdio, origin+path for HTTP). Never includes secrets, env values, query strings, or headers.
+  - `authContext` — Auth detection and fingerprinting. Detects auth from env vars (stdio) or headers (HTTP), computes stable sha256 fingerprint (truncated to 16 hex chars). **Never stores actual credentials.**
+  - `environment` — CI detection, Node.js version, platform.
+  - `description` — Full canonical description text stored in lockfile for before/after diffs (configurable via `checks.drift.full_text`, default `true`).
+- **Auth-mismatch warning** — When comparing baselines captured under different credentials, emits `drift/auth-context-mismatch` warning explaining that drift may be due to different permissions.
+- **V1 lockfile migration** — Lockfiles from v0.1.x load with default provenance values and a warning recommending re-baseline.
+- **Canonical version tracking** — `canonicalVersion` field in lockfile metadata. When lockfile's canonical version differs from current, diff warns that comparison may produce artifacts.
+- **Credential fingerprinting** — Stable non-reversible fingerprint (sha256 truncated to 16 chars) allows detecting "same credential as last time" without storing secrets in git-committed lockfile.
+
+### Changed
+
+- **Default baseline path** — Changed from `mcpward-drift.lock.json` to `mcpward.lock.json` (matches `mcpward baseline` default and aligns with config schema default).
+- **`captureServerSurface()` API** — Now takes optional `Config` parameter for provenance tracking. Backwards compatible (config optional, uses defaults if not provided).
+- **MCPWARD_VERSION** — Fixed hardcoded `0.1.0` in lockfile metadata. Now reads from `package.json` dynamically, so lockfiles correctly reflect the mcpward version that created them.
+
+### Fixed
+
+- **TypeScript version pinning** — Changed `^5.8.3` → `~5.9.3` to prevent TypeScript 7.x on fresh install (caret range was too loose). This is the same fix already applied in the Cognigy server repo.
+- **False positives from formatting** — Servers that reorder JSON keys, switch line endings, or use different Unicode normalization no longer produce `description_changed` findings.
+- **Zero-width character detection** — Canonicalization preserves zero-width and bidi characters so security checks (`security/hidden-unicode`) still detect tool poisoning. Verified by `poisoned-canonical` fixture.
+
+### Breaking Changes
+
+- **Lockfile format v1 → v2** — Schema change from v0.1.x. V1 lockfiles still load (migration with defaults + warning), but recommend running `mcpward baseline` to capture full provenance.
+- **Default baseline path** — Renamed from `mcpward-drift.lock.json` to `mcpward.lock.json`. Existing configs with explicit `baseline` path are unaffected.
+
+### Migration Guide
+
+1. **Update lockfile** — Run `mcpward baseline` to update to v2 format with full provenance tracking.
+2. **V1 lockfiles still work** — Old lockfiles load automatically with migration, but provenance fields (target, authContext, environment) will show "unknown". Re-baseline recommended.
+3. **Rename baseline file (optional)** — If using default path, rename `mcpward-drift.lock.json` → `mcpward.lock.json`, or set explicit `checks.drift.baseline` in config.
+
 ## [0.1.0] — 2026-07-21
 
 Initial release.
@@ -29,5 +73,6 @@ Initial release.
 - **GitHub composite Action** for one-step CI integration.
 - `${ENV_VAR}` interpolation in config for secrets and tokens.
 
-[Unreleased]: https://github.com/TsvetanG2/mcpward/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/TsvetanG2/mcpward/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/TsvetanG2/mcpward/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/TsvetanG2/mcpward/releases/tag/v0.1.0

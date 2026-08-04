@@ -30,7 +30,7 @@ export async function baselineCommand(
     console.log(pc.green('✓') + ` Connected to ${connection.serverInfo.name} v${connection.serverInfo.version}`);
 
     // Capture surface
-    const surface = await captureServerSurface(connection);
+    const surface = await captureServerSurface(connection, config);
     const toolCount = Object.keys(surface.tools).length;
     console.log(pc.green('✓') + ` Captured ${toolCount} tool(s)`);
 

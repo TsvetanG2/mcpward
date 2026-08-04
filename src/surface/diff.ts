@@ -22,6 +22,7 @@ import type {
   DriftResult,
   JsonSchema,
 } from './types.js';
+import { canonicalizeSchema } from './canonical.js';
 
 /**
  * Compares baseline and current surfaces, returning classified changes.
@@ -32,6 +33,21 @@ export function diffSurfaces(
   current: ServerSurface
 ): DriftResult {
   const changes: DriftChange[] = [];
+
+  // Check for canonicalization version mismatch
+  // Old lockfiles (v1) won't have this field
+  const baselineCanonicalVer = baseline.meta.canonicalVersion ?? 0;
+  const currentCanonicalVer = current.meta.canonicalVersion ?? 0;
+
+  if (baselineCanonicalVer !== currentCanonicalVer) {
+    // This is not a real drift change, but a warning that the comparison
+    // crosses a canonicalization change boundary
+    console.warn(
+      `Warning: Baseline was captured with canonicalization v${baselineCanonicalVer}, ` +
+        `current uses v${currentCanonicalVer}. Some changes may be artifacts of the ` +
+        `canonicalization change. Recommend re-running 'mcpward baseline' to update.`
+    );
+  }
 
   const baselineTools = new Set(Object.keys(baseline.tools));
   const currentTools = new Set(Object.keys(current.tools));
@@ -132,6 +148,9 @@ function diffTool(
 /**
  * Compares two JSON schemas and classifies the change as breaking or non-breaking.
  *
+ * Canonicalizes defensively before comparison - a lockfile written by an older
+ * mcpward version may not be in canonical form.
+ *
  * Breaking changes:
  * - Added required field (clients won't provide it)
  * - Removed field (clients may rely on it)
@@ -153,38 +172,42 @@ function diffSchema(
 ): DriftChange[] {
   const changes: DriftChange[] = [];
 
+  // Canonicalize defensively (old lockfiles may not be canonical)
+  const baselineCanonical = canonicalizeSchema(baseline);
+  const currentCanonical = canonicalizeSchema(current);
+
   // Schema was added (null → something): non-breaking
-  if (baseline === null && current !== null) {
+  if (baselineCanonical === null && currentCanonical !== null) {
     changes.push({
       tool: toolName,
       class: 'nonbreaking_schema_change',
       message: `Tool "${toolName}" ${schemaType} was added`,
       previous: null,
-      current: current,
+      current: currentCanonical,
     });
     return changes;
   }
 
   // Schema was removed (something → null): breaking
-  if (baseline !== null && current === null) {
+  if (baselineCanonical !== null && currentCanonical === null) {
     changes.push({
       tool: toolName,
       class: 'breaking_schema_change',
       message: `Tool "${toolName}" ${schemaType} was removed`,
-      previous: baseline,
+      previous: baselineCanonical,
       current: null,
     });
     return changes;
   }
 
   // Both null: no change
-  if (baseline === null && current === null) {
+  if (baselineCanonical === null && currentCanonical === null) {
     return changes;
   }
 
   // At this point both baseline and current are non-null
-  const baselineSchema = baseline as JsonSchema;
-  const currentSchema = current as JsonSchema;
+  const baselineSchema = baselineCanonical as JsonSchema;
+  const currentSchema = currentCanonical as JsonSchema;
 
   // Both present: compare properties
   const baselineProps = baselineSchema.properties ?? {};

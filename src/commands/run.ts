@@ -105,6 +105,7 @@ export async function runCommand(
       }
       const driftResults = await runDriftChecks({
         connection,
+        fullConfig: config,
         config: config.checks.drift,
       });
       results.push(...driftResults);

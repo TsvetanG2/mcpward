@@ -48,6 +48,13 @@ const DriftConfigSchema = z
         'breaking_schema_change',
         'annotation_changed',
       ]),
+    /**
+     * Store full description text in lockfile for before/after diffs.
+     * Default true - size cost is small, diff quality gain is significant.
+     * Set false for very large tool surfaces (100+ tools) if lockfile size matters.
+     * Added in M1 (lockfile v2).
+     */
+    full_text: z.boolean().optional().default(true),
   })
   .optional();
 

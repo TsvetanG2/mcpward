@@ -79,7 +79,7 @@ describe('Drift Detection Integration', () => {
     it('captures v1 server surface correctly', async () => {
       const connection = await connect(v1Config);
       try {
-        const surface = await captureServerSurface(connection);
+        const surface = await captureServerSurface(connection, v1Config);
 
         // Verify expected tools are captured
         expect(Object.keys(surface.tools).sort()).toEqual([
@@ -105,7 +105,7 @@ describe('Drift Detection Integration', () => {
     it('captures v2 server surface correctly', async () => {
       const connection = await connect(v2Config);
       try {
-        const surface = await captureServerSurface(connection);
+        const surface = await captureServerSurface(connection, v2Config);
 
         // Verify expected tools (removed_tool absent, added_tool present)
         expect(Object.keys(surface.tools).sort()).toEqual([
@@ -145,7 +145,7 @@ describe('Drift Detection Integration', () => {
       const v2Connection = await connect(v2Config);
       let v2Surface;
       try {
-        v2Surface = await captureServerSurface(v2Connection);
+        v2Surface = await captureServerSurface(v2Connection, v2Config);
       } finally {
         await v2Connection.close();
       }
@@ -206,6 +206,7 @@ describe('Drift Detection Integration', () => {
       try {
         const results = await runDriftChecks({
           connection: v2Connection,
+          fullConfig: v2Config,
           config: v2Config.checks?.drift,
         });
 
@@ -242,12 +243,19 @@ describe('Drift Detection Integration', () => {
       // Run drift checks against same v1 server
       const v1Connection2 = await connect(v1Config);
       try {
+        const v1ConfigWithBaseline = {
+          ...v1Config,
+          checks: {
+            drift: {
+              baseline: BASELINE_PATH,
+              fail_on: ['tool_removed', 'description_changed'],
+            },
+          },
+        };
         const results = await runDriftChecks({
           connection: v1Connection2,
-          config: {
-            baseline: BASELINE_PATH,
-            fail_on: ['tool_removed', 'description_changed'],
-          },
+          fullConfig: v1ConfigWithBaseline,
+          config: v1ConfigWithBaseline.checks.drift,
         });
 
         // Should have no failures
@@ -267,12 +275,19 @@ describe('Drift Detection Integration', () => {
     it('skips drift checks when baseline is missing', async () => {
       const connection = await connect(v1Config);
       try {
+        const v1ConfigMissingBaseline = {
+          ...v1Config,
+          checks: {
+            drift: {
+              baseline: '/nonexistent/path/baseline.lock.json',
+              fail_on: [],
+            },
+          },
+        };
         const results = await runDriftChecks({
           connection,
-          config: {
-            baseline: '/nonexistent/path/baseline.lock.json',
-            fail_on: [],
-          },
+          fullConfig: v1ConfigMissingBaseline,
+          config: v1ConfigMissingBaseline.checks.drift,
         });
 
         // Should have a skip result
@@ -301,7 +316,7 @@ describe('Drift Detection Integration', () => {
       const v2Connection = await connect(v2Config);
       let v2Surface;
       try {
-        v2Surface = await captureServerSurface(v2Connection);
+        v2Surface = await captureServerSurface(v2Connection, v2Config);
       } finally {
         await v2Connection.close();
       }
