@@ -3,6 +3,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { LATEST_PROTOCOL_VERSION } from '@modelcontextprotocol/sdk/types.js';
 import type { Config, StdioTransport, HttpTransport, ResolvedTimeoutConfig } from '../config/schema.js';
+import { MCPWARD_VERSION } from '../version.js';
 
 /** Default timeout values in milliseconds */
 const DEFAULT_TIMEOUTS = {
@@ -72,7 +73,7 @@ async function connectStdio(
   const client = new Client(
     {
       name: 'mcpward',
-      version: '0.1.0',
+      version: MCPWARD_VERSION,
     },
     {
       capabilities: {},
@@ -144,7 +145,7 @@ async function connectHttp(
   const client = new Client(
     {
       name: 'mcpward',
-      version: '0.1.0',
+      version: MCPWARD_VERSION,
     },
     {
       capabilities: {},

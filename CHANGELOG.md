@@ -8,6 +8,27 @@ Until `1.0.0`, minor versions may contain breaking changes to the config format.
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-08-05
+
+Patch release fixing lint errors that blocked the v0.2.0 Release workflow, completing M1.2 (version consistency), and fixing environment-dependent golden snapshot tests.
+
+### Fixed
+
+- **ESLint errors in `src/surface/capture.ts` (P0)** — Fixed 3 lint errors that prevented npm publish:
+  - Removed inferrable type annotation from `captureToolSurface()` parameter (`fullText = true` instead of `fullText: boolean = true`).
+  - Restructured non-null assertions in `buildAuthContext()` to guard on array element instead of length (env and header branches). This satisfies `@typescript-eslint/no-non-null-assertion` without disabling the rule.
+- **Version consistency (P1 — M1.2 completion)** — Created shared `src/version.ts` module as single source of truth for mcpward version. Fixed 5 hardcoded `'0.1.0'` strings that diverged from package.json:
+  - `src/cli.ts` — `--version` command now reads from package.json
+  - `src/client/connect.ts` — MCP handshake `clientInfo.version` (both stdio and HTTP transports)
+  - `src/commands/run.ts` — Report header version
+  - `src/commands/diff.ts` — Report header version
+  - `src/surface/capture.ts` — Lockfile `meta.mcpwardVersion`
+  - Added `test/version.test.ts` with 6 tests ensuring no hardcoded versions remain
+- **Golden snapshot tests (P2)** — Fixed environment-dependent snapshots in `test/report/golden.test.ts`:
+  - Set `NO_COLOR=1` in `vitest.config.ts` to disable picocolors deterministically
+  - Regenerated console reporter snapshots to contain clean plaintext instead of ANSI escape codes
+  - Tests now pass identically in CI (`CI=true`) and local environments
+
 ## [0.2.0] — 2026-08-05
 
 This release combines **M0 (Canonicalization)** and **M1 (Lockfile v2)** from the roadmap. M0 eliminates false positives from formatting differences. M1 adds provenance tracking and auth-scoped baselines.
@@ -73,6 +94,7 @@ Initial release.
 - **GitHub composite Action** for one-step CI integration.
 - `${ENV_VAR}` interpolation in config for secrets and tokens.
 
-[Unreleased]: https://github.com/TsvetanG2/mcpward/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/TsvetanG2/mcpward/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/TsvetanG2/mcpward/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/TsvetanG2/mcpward/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/TsvetanG2/mcpward/releases/tag/v0.1.0

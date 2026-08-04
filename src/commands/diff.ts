@@ -4,6 +4,7 @@ import { connect } from '../client/connect.js';
 import { runDriftChecks } from '../checks/drift.js';
 import { renderConsoleReport } from '../report/console.js';
 import { summarizeResults, getExitCode, type CheckReport } from '../report/model.js';
+import { MCPWARD_VERSION } from '../version.js';
 
 export interface DiffOptions {
   config: string;
@@ -47,7 +48,7 @@ export async function diffCommand(
     } else {
       // Build report for console output
       const report: CheckReport = {
-        version: '0.1.0',
+        version: MCPWARD_VERSION,
         timestamp: new Date().toISOString(),
         server: {
           name: connection.serverInfo.name,

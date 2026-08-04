@@ -20,8 +20,7 @@ import { renderSarifReport } from '../report/sarif.js';
 import { renderJunitReport } from '../report/junit.js';
 import { redactReport } from '../report/redact.js';
 import type { Config } from '../config/schema.js';
-
-const VERSION = '0.1.0';
+import { MCPWARD_VERSION } from '../version.js';
 
 export interface RunOptions {
   config: string;
@@ -157,7 +156,7 @@ export async function runCommand(
 
     // Build report
     const report: CheckReport = {
-      version: VERSION,
+      version: MCPWARD_VERSION,
       timestamp: new Date().toISOString(),
       server: {
         name: connection.serverInfo.name,

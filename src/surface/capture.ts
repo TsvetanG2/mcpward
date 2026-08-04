@@ -7,8 +7,6 @@
 
 import { createHash } from 'crypto';
 import { readFile, writeFile } from 'fs/promises';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
 import type { McpConnection } from '../client/connect.js';
 import type { Tool, JsonSchema } from '../checks/schema.js';
 import type { ServerSurface, ToolSurface } from './types.js';
@@ -17,15 +15,7 @@ import {
   canonicalizeDescription,
   canonicalizeSchema,
 } from './canonical.js';
-
-// Read mcpward version from package.json
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const packageJsonPath = join(__dirname, '../../package.json');
-const packageJson = JSON.parse(
-  await readFile(packageJsonPath, 'utf-8')
-) as { version: string };
-const MCPWARD_VERSION = packageJson.version;
+import { MCPWARD_VERSION } from '../version.js';
 
 /**
  * Computes SHA-256 hash of a description string.
@@ -87,7 +77,7 @@ function fingerprintCredential(
  */
 export function captureToolSurface(
   tool: Tool,
-  fullText: boolean = true
+  fullText = true
 ): ToolSurface {
   const inputSchema = (tool.inputSchema as JsonSchema) ?? null;
   const outputSchema = (tool.outputSchema as JsonSchema) ?? null;
@@ -210,7 +200,9 @@ function buildAuthContext(
       /^(API_KEY|TOKEN|AUTH|SECRET|PASSWORD|CREDENTIAL)/i.test(key)
     );
 
-    if (authKeys.length === 0) {
+    // Fingerprint first auth key found
+    const firstKey = authKeys[0];
+    if (firstKey === undefined) {
       return {
         kind: 'none',
         keys: [],
@@ -219,8 +211,6 @@ function buildAuthContext(
       };
     }
 
-    // Fingerprint first auth key found
-    const firstKey = authKeys[0]!; // Safe: authKeys.length > 0
     const credential = server.env?.[firstKey];
     const fingerprint = fingerprintCredential(credential, serverIdentity);
 
@@ -237,7 +227,9 @@ function buildAuthContext(
       /^(authorization|x-api-key|x-auth|bearer)/i.test(key)
     );
 
-    if (authKeys.length === 0) {
+    // Fingerprint first auth header found
+    const firstKey = authKeys[0];
+    if (firstKey === undefined) {
       return {
         kind: 'none',
         keys: [],
@@ -246,8 +238,6 @@ function buildAuthContext(
       };
     }
 
-    // Fingerprint first auth header found
-    const firstKey = authKeys[0]!; // Safe: authKeys.length > 0
     const credential = server.headers?.[firstKey];
     const fingerprint = fingerprintCredential(credential, serverIdentity);
 

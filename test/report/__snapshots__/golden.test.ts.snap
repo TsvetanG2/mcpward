@@ -2,87 +2,87 @@
 
 exports[`Golden Snapshot Tests > Console Reporter > matches snapshot (no colors, non-verbose) 1`] = `
 "
-[1mmcpward[22m [2mv0.1.0[22m
-[2m──────────────────────────────────────────────────[22m
-[1mServer:[22m test-server [2mv1.0.0[22m
-[1mProtocol:[22m 2025-11-25
+mcpward v0.1.0
+──────────────────────────────────────────────────
+Server: test-server v1.0.0
+Protocol: 2025-11-25
 
-[1m[36mCOMPLIANCE[39m[22m [2m([32m1 passed[39m)[22m
-[2m  1 check(s) passed[22m
+COMPLIANCE (1 passed)
+  1 check(s) passed
 
-[1m[36mSCHEMA[39m[22m [2m([31m1 failed[39m)[22m
-  [31m✗[39m [31mTool name "invalid name" contains invalid characters[39m
-[2m    at invalid name[22m
-[2m    expected: "Name matching ^[a-zA-Z0-9_-]+$"[22m
-[2m    actual:   "invalid name"[22m
+SCHEMA (1 failed)
+  ✗ Tool name "invalid name" contains invalid characters
+    at invalid name
+    expected: "Name matching ^[a-zA-Z0-9_-]+$"
+    actual:   "invalid name"
 
-[1m[36mSECURITY[39m[22m [2m([31m1 failed[39m)[22m
-  [31m✗[39m [31mTool "evil_tool" description contains injection-like pattern[39m
-[2m    at evil_tool[22m
-[2m    actual:   ["Ignore all previous instructions"][22m
+SECURITY (1 failed)
+  ✗ Tool "evil_tool" description contains injection-like pattern
+    at evil_tool
+    actual:   ["Ignore all previous instructions"]
 
-[1m[36mDRIFT[39m[22m [2m([33m1 warnings[39m)[22m
-  [33m⚠[39m [33mNew tool "new_feature" was added[39m
-[2m    at new_feature[22m
+DRIFT (1 warnings)
+  ⚠ New tool "new_feature" was added
+    at new_feature
 
-[1m[36mBEHAVIORAL[39m[22m [2m([32m1 passed[39m)[22m
-[2m  1 check(s) passed[22m
+BEHAVIORAL (1 passed)
+  1 check(s) passed
 
-[1m[36mERRORS[39m[22m [2m([32m1 passed[39m)[22m
-[2m  1 check(s) passed[22m
+ERRORS (1 passed)
+  1 check(s) passed
 
-[1m[36mLATENCY[39m[22m [2m([32m0 passed[39m)[22m
-[2m  0 check(s) passed[22m
+LATENCY (0 passed)
+  0 check(s) passed
 
 
-[1mSummary:[22m [32m3 passed[39m[2m | [22m[31m2 failed[39m[2m | [22m[33m1 warnings[39m[2m | [22m[2m1 skipped[22m
-[2mTotal: 7 checks[22m
+Summary: 3 passed | 2 failed | 1 warnings | 1 skipped
+Total: 7 checks
 
-[31m[1m2 check(s) failed[22m[39m"
+2 check(s) failed"
 `;
 
 exports[`Golden Snapshot Tests > Console Reporter > matches snapshot (no colors, verbose) 1`] = `
 "
-[1mmcpward[22m [2mv0.1.0[22m
-[2m──────────────────────────────────────────────────[22m
-[1mServer:[22m test-server [2mv1.0.0[22m
-[1mProtocol:[22m 2025-11-25
+mcpward v0.1.0
+──────────────────────────────────────────────────
+Server: test-server v1.0.0
+Protocol: 2025-11-25
 
-[1m[36mCOMPLIANCE[39m[22m [2m([32m1 passed[39m)[22m
-  [32m✓[39m [2mProtocol handshake completed successfully[22m
-[2m    at server[22m
+COMPLIANCE (1 passed)
+  ✓ Protocol handshake completed successfully
+    at server
 
-[1m[36mSCHEMA[39m[22m [2m([31m1 failed[39m)[22m
-  [31m✗[39m [31mTool name "invalid name" contains invalid characters[39m
-[2m    at invalid name[22m
-[2m    expected: "Name matching ^[a-zA-Z0-9_-]+$"[22m
-[2m    actual:   "invalid name"[22m
+SCHEMA (1 failed)
+  ✗ Tool name "invalid name" contains invalid characters
+    at invalid name
+    expected: "Name matching ^[a-zA-Z0-9_-]+$"
+    actual:   "invalid name"
 
-[1m[36mSECURITY[39m[22m [2m([31m1 failed[39m)[22m
-  [31m✗[39m [31mTool "evil_tool" description contains injection-like pattern[39m
-[2m    at evil_tool[22m
-[2m    actual:   ["Ignore all previous instructions"][22m
+SECURITY (1 failed)
+  ✗ Tool "evil_tool" description contains injection-like pattern
+    at evil_tool
+    actual:   ["Ignore all previous instructions"]
 
-[1m[36mDRIFT[39m[22m [2m([33m1 warnings[39m)[22m
-  [33m⚠[39m [33mNew tool "new_feature" was added[39m
-[2m    at new_feature[22m
+DRIFT (1 warnings)
+  ⚠ New tool "new_feature" was added
+    at new_feature
 
-[1m[36mBEHAVIORAL[39m[22m [2m([32m1 passed[39m)[22m
-  [32m✓[39m [2mTest case "echo test" passed[22m
-[2m    at echo[22m
+BEHAVIORAL (1 passed)
+  ✓ Test case "echo test" passed
+    at echo
 
-[1m[36mERRORS[39m[22m [2m([32m1 passed[39m)[22m
-  [32m✓[39m [2mUnknown tool correctly returned protocol error[22m
-[2m    at __unknown__[22m
+ERRORS (1 passed)
+  ✓ Unknown tool correctly returned protocol error
+    at __unknown__
 
-[1m[36mLATENCY[39m[22m [2m([32m0 passed[39m)[22m
-  [2m○[22m [2mLatency checks skipped (no budget configured)[22m
+LATENCY (0 passed)
+  ○ Latency checks skipped (no budget configured)
 
 
-[1mSummary:[22m [32m3 passed[39m[2m | [22m[31m2 failed[39m[2m | [22m[33m1 warnings[39m[2m | [22m[2m1 skipped[22m
-[2mTotal: 7 checks[22m
+Summary: 3 passed | 2 failed | 1 warnings | 1 skipped
+Total: 7 checks
 
-[31m[1m2 check(s) failed[22m[39m"
+2 check(s) failed"
 `;
 
 exports[`Golden Snapshot Tests > JSON Reporter > matches snapshot 1`] = `

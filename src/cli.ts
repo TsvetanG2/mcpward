@@ -7,6 +7,7 @@ import { initCommand } from './commands/init.js';
 import { runCommand, type RunOptions } from './commands/run.js';
 import { baselineCommand, type BaselineOptions } from './commands/baseline.js';
 import { diffCommand, type DiffOptions } from './commands/diff.js';
+import { MCPWARD_VERSION } from './version.js';
 
 interface GlobalOptions {
   config: string;
@@ -23,7 +24,7 @@ program
   .description(
     'Black-box security & contract testing for MCP servers — catch rug-pulls, tool poisoning, and schema drift before your agents do.'
   )
-  .version('0.1.0');
+  .version(MCPWARD_VERSION);
 
 // Global options
 program
