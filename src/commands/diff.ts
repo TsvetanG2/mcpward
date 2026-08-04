@@ -37,6 +37,7 @@ export async function diffCommand(
     const driftConfig = config.checks?.drift;
     const results = await runDriftChecks({
       connection,
+      fullConfig: config,
       config: driftConfig,
     });
 

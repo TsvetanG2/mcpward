@@ -8,13 +8,20 @@ import type { JsonSchema, ToolAnnotations } from '../checks/schema.js';
  * Captured tool surface for lockfile storage.
  */
 export interface ToolSurface {
-  /** SHA-256 hash of the description for rug-pull detection */
+  /** SHA-256 hash of the canonical description for rug-pull detection */
   descriptionHash: string;
 
-  /** Verbatim inputSchema for schema diff */
+  /**
+   * Full canonical description text for rendering before/after diffs.
+   * Null when capture.full_text config is disabled.
+   * Added in lockfile v2 (M1).
+   */
+  description: string | null;
+
+  /** Canonical inputSchema for schema diff */
   inputSchema: JsonSchema | null;
 
-  /** Verbatim outputSchema if present */
+  /** Canonical outputSchema if present */
   outputSchema: JsonSchema | null;
 
   /** Tool annotations */
@@ -43,14 +50,86 @@ export interface ServerSurface {
 
   /** Lockfile metadata */
   meta: {
+    /**
+     * Lockfile schema version. Incremented when format changes.
+     * v1: Initial format (no schemaVersion field)
+     * v2: Added target, authContext, environment, description storage (M1)
+     */
+    schemaVersion: 2;
+
     /** mcpward version that created this lockfile */
     mcpwardVersion: string;
-    /** Timestamp of capture */
+
+    /**
+     * Canonicalization version used when creating this lockfile.
+     * When this differs from the current canonicalization version, diff warns
+     * that the comparison crosses a canonicalization change and recommends re-baselining.
+     */
+    canonicalVersion: number;
+
+    /** Timestamp of capture (ISO 8601) */
     capturedAt: string;
-    /** Server name */
+
+    /** Server name from serverInfo */
     serverName: string;
-    /** Server version */
+
+    /** Server version from serverInfo */
     serverVersion: string;
+
+    /**
+     * Target server identity - what was connected to.
+     * Added in v2 (M1 - provenance tracking).
+     */
+    target: {
+      /** Transport type used */
+      transport: 'stdio' | 'http';
+      /**
+       * Stable identity of the server target.
+       * stdio: command + args, NO env values (e.g., "npx @modelcontextprotocol/server-filesystem /tmp")
+       * http: origin + path, NO query string, NO headers (e.g., "https://api.example.com/mcp")
+       */
+      identity: string;
+    };
+
+    /**
+     * Authentication context - how auth was supplied and fingerprint.
+     * Added in v2 (M1 - auth-scoped baselines).
+     */
+    authContext: {
+      /** How auth was supplied */
+      kind: 'none' | 'env' | 'header' | 'unknown';
+      /**
+       * Names of auth-bearing env vars or headers.
+       * NAMES ONLY, NEVER VALUES - values would leak secrets into lockfile.
+       * Example: ["OPENAI_API_KEY"] or ["Authorization"]
+       */
+      keys: string[];
+      /**
+       * Stable non-reversible fingerprint of the credential material.
+       * sha256(credential + serverIdentity) truncated to 16 hex chars.
+       * Allows detecting "same credential as last time" without storing secrets.
+       * Null when no auth or fingerprinting fails.
+       */
+      fingerprint: string | null;
+      /**
+       * Optional user-declared label for this auth context.
+       * Example: "ci-readonly", "admin", "development"
+       */
+      label: string | null;
+    };
+
+    /**
+     * Environment where the capture was performed.
+     * Added in v2 (M1 - provenance tracking).
+     */
+    environment: {
+      /** Running in CI environment (detected from CI env var) */
+      ci: boolean;
+      /** Node.js version (process.version) */
+      nodeVersion: string;
+      /** Platform (process.platform) */
+      platform: string;
+    };
   };
 }
 

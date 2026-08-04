@@ -8,7 +8,7 @@
 import { existsSync } from 'fs';
 import type { CheckResult } from '../report/model.js';
 import type { McpConnection } from '../client/connect.js';
-import type { DriftConfig } from '../config/schema.js';
+import type { Config, DriftConfig } from '../config/schema.js';
 import {
   captureServerSurface,
   loadLockfile,
@@ -20,6 +20,9 @@ import {
 
 export interface DriftCheckContext {
   connection: McpConnection;
+  /** Full config (needed for captureServerSurface) */
+  fullConfig: Config;
+  /** Drift-specific config (for backwards compat) */
   config?: DriftConfig;
 }
 
@@ -109,7 +112,7 @@ export async function runDriftChecks(
   // Capture current surface
   let current;
   try {
-    current = await captureServerSurface(ctx.connection);
+    current = await captureServerSurface(ctx.connection, ctx.fullConfig);
   } catch (err) {
     results.push({
       id: 'drift/capture-failed',
@@ -120,6 +123,32 @@ export async function runDriftChecks(
       actual: err instanceof Error ? err.message : String(err),
     });
     return results;
+  }
+
+  // Check for auth context mismatch (M1 - auth-scoped baselines)
+  const baselineFingerprint = baseline.meta.authContext?.fingerprint;
+  const currentFingerprint = current.meta.authContext?.fingerprint;
+
+  if (
+    baselineFingerprint &&
+    currentFingerprint &&
+    baselineFingerprint !== currentFingerprint
+  ) {
+    // Different auth contexts - warn that drift may be noise
+    const baselineLabel = baseline.meta.authContext?.label || 'unlabeled';
+    const currentLabel = current.meta.authContext?.label || 'unlabeled';
+
+    results.push({
+      id: 'drift/auth-context-mismatch',
+      family: 'drift',
+      status: 'warn',
+      severity: 'warning',
+      message:
+        `Auth context mismatch: baseline captured under "${baselineLabel}", ` +
+        `current under "${currentLabel}". Drift may be due to different permissions.`,
+      expected: baselineFingerprint,
+      actual: currentFingerprint,
+    });
   }
 
   // Diff surfaces
