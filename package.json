@@ -77,7 +77,7 @@
     "execa": "^10.0.0",
     "picocolors": "^1.1.1",
     "yaml": "^2.8.0",
-    "zod": "^3.25.61"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.29.0",
