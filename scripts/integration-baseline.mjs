@@ -12,11 +12,11 @@
  *   node scripts/integration-baseline.mjs
  */
 
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync, writeFileSync, mkdirSync, mkdtempSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
-import { mkdirSync } from 'fs';
+import { tmpdir } from 'os';
 import { normalizeReport } from './integration-common.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -43,9 +43,9 @@ mkdirSync(join(ROOT, 'test/integration/baselines'), { recursive: true });
 // Prepare sandbox for filesystem server (Windows + Linux compatible)
 const sandboxDir = process.platform === 'win32'
   ? join(ROOT, 'test', '.integration-sandbox')
-  : '/tmp/mcpward-sandbox';
+  : mkdtempSync(join(tmpdir(), 'mcpward-sandbox-'));
 mkdirSync(sandboxDir, { recursive: true });
-writeFileSync(join(sandboxDir, 'hello.txt'), 'hello\n');
+writeFileSync(join(sandboxDir, 'hello.txt'), 'hello\n', { flag: 'wx' });
 
 for (const server of servers) {
   console.log(`Capturing baseline for ${server.name}...`);
