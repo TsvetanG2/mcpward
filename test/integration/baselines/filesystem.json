@@ -1,0 +1,96 @@
+{
+  "server": "@modelcontextprotocol/server-filesystem@2026.7.10",
+  "capturedWith": "mcpward@0.2.1",
+  "note": "Reference server violates parts of the MCP spec. See docs for details.",
+  "findings": [
+    {
+      "family": "errors",
+      "id": "errors/invalid-params",
+      "status": "warn",
+      "location": "create_directory"
+    },
+    {
+      "family": "errors",
+      "id": "errors/invalid-params",
+      "status": "warn",
+      "location": "directory_tree"
+    },
+    {
+      "family": "errors",
+      "id": "errors/invalid-params",
+      "status": "warn",
+      "location": "edit_file"
+    },
+    {
+      "family": "errors",
+      "id": "errors/invalid-params",
+      "status": "warn",
+      "location": "get_file_info"
+    },
+    {
+      "family": "errors",
+      "id": "errors/invalid-params",
+      "status": "warn",
+      "location": "list_directory"
+    },
+    {
+      "family": "errors",
+      "id": "errors/invalid-params",
+      "status": "warn",
+      "location": "list_directory_with_sizes"
+    },
+    {
+      "family": "errors",
+      "id": "errors/invalid-params",
+      "status": "warn",
+      "location": "move_file"
+    },
+    {
+      "family": "errors",
+      "id": "errors/invalid-params",
+      "status": "warn",
+      "location": "read_file"
+    },
+    {
+      "family": "errors",
+      "id": "errors/invalid-params",
+      "status": "warn",
+      "location": "read_media_file"
+    },
+    {
+      "family": "errors",
+      "id": "errors/invalid-params",
+      "status": "warn",
+      "location": "read_multiple_files"
+    },
+    {
+      "family": "errors",
+      "id": "errors/invalid-params",
+      "status": "warn",
+      "location": "read_text_file"
+    },
+    {
+      "family": "errors",
+      "id": "errors/invalid-params",
+      "status": "warn",
+      "location": "search_files"
+    },
+    {
+      "family": "errors",
+      "id": "errors/invalid-params",
+      "status": "warn",
+      "location": "write_file"
+    },
+    {
+      "family": "errors",
+      "id": "errors/summary",
+      "status": "fail"
+    },
+    {
+      "family": "errors",
+      "id": "errors/unknown-tool",
+      "status": "fail",
+      "location": "__mcpward_unknown_tool_*"
+    }
+  ]
+}

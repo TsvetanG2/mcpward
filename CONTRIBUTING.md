@@ -84,6 +84,31 @@ The JSON, JUnit, and SARIF output shapes and the exit codes (`0`/`1`/`2`) are co
 4. Verify `good-server` stays clean.
 5. Ensure the finding maps to a sensible SARIF rule with a `location`.
 
+## Integration baselines
+
+The `.github/workflows/integration.yml` workflow runs `mcpward` against real, version-pinned reference MCP servers (`@modelcontextprotocol/server-filesystem`, `server-memory`, `server-everything`) to catch gaps between our model of the protocol and reality.
+
+**These reference servers genuinely violate parts of the MCP spec** — they return findings, and mcpward reports them correctly. The workflow does NOT fail when findings are detected. Instead, it compares the actual findings against a committed baseline stored in `test/integration/baselines/`. The job fails only when:
+
+- **A new finding appears** (regression in the server, or mcpward detected something it didn't before)
+- **An expected finding disappears** (server was fixed, OR mcpward stopped detecting it — this is a potential false negative, the worst class of bug)
+- **A finding's status changed** (fail ↔ warn ↔ skip)
+
+### Re-capturing baselines
+
+When a pinned server version is bumped or a new check is added, re-capture the baseline:
+
+```bash
+pnpm run build
+pnpm run integration:baseline
+```
+
+This generates three baseline files (`filesystem.json`, `memory.json`, `everything.json`) in `test/integration/baselines/`.
+
+**Review the git diff carefully.** A baseline change must be reviewed like code. A finding disappearing is not automatically good — it can mean mcpward stopped catching something, which is a serious regression.
+
+Never regenerate baselines blindly to make CI green. That defeats the entire purpose of the system.
+
 ## Commit and PR conventions
 
 - Use [Conventional Commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `docs:`, `test:`, `chore:`, `refactor:`. Breaking changes get `!` or a `BREAKING CHANGE:` footer.

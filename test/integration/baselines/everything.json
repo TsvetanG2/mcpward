@@ -1,0 +1,19 @@
+{
+  "server": "@modelcontextprotocol/server-everything@2026.7.4",
+  "capturedWith": "mcpward@0.2.1",
+  "note": "Reference server - comprehensive test server. Placeholder baseline - regenerate in CI.",
+  "findings": [
+    {
+      "family": "errors",
+      "id": "errors/summary",
+      "status": "fail",
+      "location": null
+    },
+    {
+      "family": "errors",
+      "id": "errors/unknown-tool",
+      "status": "fail",
+      "location": "__mcpward_unknown_tool_*"
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "server": "@modelcontextprotocol/server-memory@2026.7.4",
+  "capturedWith": "mcpward@0.2.1",
+  "note": "Reference server violates the two-layer error contract. Placeholder baseline - regenerate in CI.",
+  "findings": [
+    {
+      "family": "errors",
+      "id": "errors/invalid-params",
+      "status": "warn",
+      "location": "add_observations"
+    },
+    {
+      "family": "errors",
+      "id": "errors/invalid-params",
+      "status": "warn",
+      "location": "create_entities"
+    },
+    {
+      "family": "errors",
+      "id": "errors/invalid-params",
+      "status": "warn",
+      "location": "create_relations"
+    },
+    {
+      "family": "errors",
+      "id": "errors/invalid-params",
+      "status": "warn",
+      "location": "delete_entities"
+    },
+    {
+      "family": "errors",
+      "id": "errors/invalid-params",
+      "status": "warn",
+      "location": "delete_observations"
+    },
+    {
+      "family": "errors",
+      "id": "errors/invalid-params",
+      "status": "warn",
+      "location": "delete_relations"
+    },
+    {
+      "family": "errors",
+      "id": "errors/invalid-params",
+      "status": "warn",
+      "location": "open_nodes"
+    },
+    {
+      "family": "errors",
+      "id": "errors/invalid-params",
+      "status": "warn",
+      "location": "search_nodes"
+    },
+    {
+      "family": "errors",
+      "id": "errors/summary",
+      "status": "fail",
+      "location": null
+    },
+    {
+      "family": "errors",
+      "id": "errors/unknown-tool",
+      "status": "fail",
+      "location": "__mcpward_unknown_tool_*"
+    }
+  ]
+}

@@ -45,6 +45,9 @@ jobs:
       - name: Prepare sandbox
         run: mkdir -p /tmp/mcpward-sandbox && echo "hello" > /tmp/mcpward-sandbox/hello.txt
 
+      # NOTE: Server matrix comes from test/integration/servers.json
+      # Single source of truth shared with scripts/integration-baseline.mjs
+
       - name: Generate config for ${{ matrix.server.name }}
         env:
           SERVER_PKG: ${{ matrix.server.pkg }}
@@ -68,9 +71,28 @@ jobs:
           cat integration.yaml
 
       - name: Run mcpward
+        id: mcpward
+        continue-on-error: true
         env:
           SERVER_NAME: ${{ matrix.server.name }}
         run: node dist/cli.js run --config integration.yaml --reporter json --out "result-${SERVER_NAME}.json"
+
+      - name: Check for fatal error (exit 2)
+        if: steps.mcpward.outcome == 'failure'
+        env:
+          EXIT_CODE: ${{ steps.mcpward.outputs.exitcode }}
+        run: |
+          # Exit 2 = config/connection error — mcpward could not run, baseline check is meaningless
+          if [ "${{ steps.mcpward.outcome }}" = "failure" ]; then
+            echo "ERROR: mcpward failed (likely exit 2 — config/connection error)"
+            echo "Baseline comparison cannot proceed. Check mcpward output above."
+            exit 1
+          fi
+
+      - name: Compare against baseline
+        env:
+          SERVER_NAME: ${{ matrix.server.name }}
+        run: node scripts/integration-check.mjs "${SERVER_NAME}" "result-${SERVER_NAME}.json"
 
       - name: Upload result
         if: always()
