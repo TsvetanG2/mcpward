@@ -6,7 +6,7 @@
  */
 
 import { existsSync } from 'fs';
-import type { CheckResult } from '../report/model.js';
+import type { CheckResult, Severity } from '../report/model.js';
 import type { McpConnection } from '../client/connect.js';
 import type { Config, DriftConfig } from '../config/schema.js';
 import {
@@ -15,7 +15,7 @@ import {
   diffSurfaces,
   filterFailingChanges,
   type DriftChange,
-  type DriftClass,
+  type DriftSeverity,
 } from '../surface/index.js';
 
 export interface DriftCheckContext {
@@ -27,17 +27,24 @@ export interface DriftCheckContext {
 }
 
 /**
- * Maps drift classes to severity levels.
+ * Maps drift severity to CheckResult severity (M2).
+ *
+ * CRITICAL: Do NOT conflate these two severities:
+ * - DriftSeverity: blast radius of the contract change (high/medium/low)
+ * - CheckResult.Severity: reporting level (error/warning/info)
+ *
+ * They are separate axes. The mapping is deliberate:
+ * - high (silent security changes) → error
+ * - medium (loud schema breaks) → warning
+ * - low (visible changes) → info
  */
-function getSeverity(driftClass: DriftClass): 'error' | 'warning' | 'info' {
-  switch (driftClass) {
-    case 'tool_removed':
-    case 'description_changed':
-    case 'breaking_schema_change':
-    case 'annotation_changed':
+function mapDriftSeverityToCheckSeverity(driftSeverity: DriftSeverity): Severity {
+  switch (driftSeverity) {
+    case 'high':
       return 'error';
-    case 'tool_added':
-    case 'nonbreaking_schema_change':
+    case 'medium':
+      return 'warning';
+    case 'low':
       return 'info';
   }
 }
@@ -49,13 +56,13 @@ function changeToResult(
   change: DriftChange,
   shouldFail: boolean
 ): CheckResult {
-  const severity = getSeverity(change.class);
+  const baseSeverity = mapDriftSeverityToCheckSeverity(change.severity);
 
   return {
     id: `drift/${change.class}`,
     family: 'drift',
-    status: shouldFail ? 'fail' : (severity === 'error' ? 'warn' : 'pass'),
-    severity: shouldFail ? 'error' : severity,
+    status: shouldFail ? 'fail' : (baseSeverity === 'error' ? 'warn' : 'pass'),
+    severity: shouldFail ? 'error' : baseSeverity,
     message: change.message,
     expected: change.previous,
     actual: change.current,

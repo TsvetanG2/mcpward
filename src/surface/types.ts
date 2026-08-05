@@ -145,6 +145,19 @@ export type DriftClass =
   | 'annotation_changed';
 
 /**
+ * Drift severity levels based on blast radius (M2).
+ *
+ * Severity describes the security/operational impact of a change, NOT whether it breaks.
+ * This is a SEPARATE axis from drift class.
+ *
+ * - high: Changes that affect client security or auto-approval behavior (permission expansion,
+ *   rug-pull descriptions, readOnlyHint flips)
+ * - medium: Changes that break loudly at the call site (schema breaks, output shape changes)
+ * - low: Changes that are visible and expected (tool added/removed, optional params)
+ */
+export type DriftSeverity = 'high' | 'medium' | 'low';
+
+/**
  * A single drift finding.
  */
 export interface DriftChange {
@@ -153,6 +166,14 @@ export interface DriftChange {
 
   /** Classification of the change */
   class: DriftClass;
+
+  /**
+   * Severity level based on blast radius (M2).
+   * Separate from breaking/non-breaking - a removed tool is breaking but low severity
+   * because it fails loudly and gets fixed in minutes. A readOnlyHint flip is high severity
+   * because it silently changes what clients auto-approve.
+   */
+  severity: DriftSeverity;
 
   /** Human-readable description */
   message: string;

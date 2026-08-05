@@ -30,17 +30,38 @@ const ExpectSchema = z
 const DriftConfigSchema = z
   .object({
     baseline: z.string().optional().default('./mcpward.lock.json'),
+    /**
+     * Fail condition - either a list of drift classes OR a severity threshold (M2).
+     *
+     * Array of drift classes (legacy, still supported):
+     *   fail_on: ['tool_removed', 'description_changed', ...]
+     *
+     * Severity threshold (M2 - recommended):
+     *   fail_on: 'high'     - fail only on high severity (rug-pulls, permission expansion)
+     *   fail_on: 'medium'   - fail on high and medium (includes schema breaks)
+     *   fail_on: 'low'      - fail on everything
+     *
+     * Severity is based on blast radius, NOT whether it breaks:
+     * - high: silent security changes (description_changed, annotation_changed)
+     * - medium: loud schema breaks (breaking_schema_change)
+     * - low: visible changes (tool_added, tool_removed, nonbreaking_schema_change)
+     */
     fail_on: z
-      .array(
-        z.enum([
-          'tool_removed',
-          'tool_added',
-          'description_changed',
-          'breaking_schema_change',
-          'nonbreaking_schema_change',
-          'annotation_changed',
-        ])
-      )
+      .union([
+        // Legacy: array of drift classes
+        z.array(
+          z.enum([
+            'tool_removed',
+            'tool_added',
+            'description_changed',
+            'breaking_schema_change',
+            'nonbreaking_schema_change',
+            'annotation_changed',
+          ])
+        ),
+        // M2: severity threshold
+        z.enum(['high', 'medium', 'low']),
+      ])
       .optional()
       .default([
         'tool_removed',

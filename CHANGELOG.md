@@ -8,6 +8,56 @@ Until `1.0.0`, minor versions may contain breaking changes to the config format.
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-08-05
+
+This release implements **M2 (Severity classification + description diffs)** from the roadmap. Adds a blast-radius-based severity axis separate from breaking/non-breaking classification, improved type change detection, and before/after description rendering with invisible character detection.
+
+### Added
+
+- **Severity axis (M2.1)** — Drift changes now include severity based on blast radius, NOT whether they break:
+  - `high` — Silent security changes: `description_changed` (rug-pull), `annotation_changed` (permission expansion via readOnlyHint/destructiveHint flips)
+  - `medium` — Loud schema breaks: `breaking_schema_change` (new required field, removed field, narrowed type)
+  - `low` — Visible expected changes: `tool_added`, `tool_removed`, `nonbreaking_schema_change`
+  - **CRITICAL**: `tool_removed` is **LOW** severity, not HIGH. Breaks loudly at call site and gets fixed in minutes. Not a silent security change.
+- **Severity threshold config (M2.1)** — `fail_on` now accepts severity threshold OR drift class array:
+  - `fail_on: 'high'` — Fail only on silent security changes (rug-pulls, permission expansion)
+  - `fail_on: 'medium'` — Fail on high + medium (includes schema breaks)
+  - `fail_on: 'low'` — Fail on everything
+  - `fail_on: ['tool_removed', 'description_changed', ...]` — Legacy array mode still supported
+- **Type change classification (M2.2)** — `diffSchema` now distinguishes:
+  - Widening (`string` → `string|number`): `nonbreaking_schema_change`, low severity
+  - Narrowing (`string|number` → `string`): `breaking_schema_change`, medium severity
+  - Unrelated (`string` → `object`): `breaking_schema_change`, medium severity
+- **Description diff rendering (M2.4)** — Console reporter now shows before/after description text for `description_changed` findings:
+  - Truncates to 200 chars with explicit "… (truncated, see JSON report)" marker
+  - Marks invisible characters (`<U+200B>` for zero-width space, `<U+202E>` for bidi overrides, etc.) for security visibility
+  - **CRITICAL**: Renders RAW text, not canonical form, so zero-width rug-pulls are visible
+  - JSON reporter includes full unabridged text in `expected`/`actual` fields
+  - Falls back to hash when `full_text` disabled or baseline is v1
+
+### Changed
+
+- **`DriftChange` interface** — New required `severity: DriftSeverity` field. All drift changes now carry severity metadata.
+- **`filterFailingChanges()` signature** — Now accepts `fail_on: string[] | 'high' | 'medium' | 'low'` (union type for backwards compatibility).
+- **Drift-to-report severity mapping** — `src/checks/drift.ts` maps `DriftSeverity` (blast radius) → `CheckResult.Severity` (reporting level):
+  - high → error, medium → warning, low → info
+  - **Two separate axes**: Do NOT conflate drift severity (contract impact) with check severity (reporting level)
+
+### Fixed
+
+- **Type change over-classification** — Previous implementation treated all type changes as breaking. Now correctly classifies widening as non-breaking with low severity.
+
+### Internal
+
+- Added `classifyTypeChange()` helper in `src/surface/diff.ts` with heuristics for union type widening/narrowing detection
+- Added `markInvisibleCharacters()` + `truncateText()` helpers in `src/report/console.ts` for safe description rendering
+- Added `mapDriftSeverityToCheckSeverity()` in `src/checks/drift.ts` with explicit documentation of the two-axis model
+- Updated `test/surface/diff.test.ts` with 13 new M2 tests:
+  - 6 severity level tests (one per drift class)
+  - 4 severity threshold filtering tests (high/medium/low + legacy array)
+  - 3 type change classification tests (widening/narrowing/unrelated)
+- Test count: 169 → 182 (all passing)
+
 ## [0.2.1] — 2026-08-05
 
 Patch release fixing lint errors that blocked the v0.2.0 Release workflow, completing M1.2 (version consistency), and fixing environment-dependent golden snapshot tests.

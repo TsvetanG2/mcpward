@@ -140,8 +140,33 @@ function renderResult(result: CheckResult, verbose: boolean): void {
     console.log(pc.dim(`    at ${result.location}`));
   }
 
-  // Expected/Actual for failures
-  if ((result.status === 'fail' || verbose) && (result.expected !== undefined || result.actual !== undefined)) {
+  // M2.4: Special rendering for description diffs
+  const isDescriptionChanged = result.id === 'drift/description_changed';
+  const hasDescriptionText =
+    isDescriptionChanged &&
+    typeof result.expected === 'string' &&
+    typeof result.actual === 'string' &&
+    result.expected.length > 64; // Hash is 64 chars, full text is longer
+
+  if (hasDescriptionText) {
+    // Render before/after description with invisible character marking
+    const maxLen = 200;
+    const previous = markInvisibleCharacters(
+      truncateText(result.expected as string, maxLen)
+    );
+    const current = markInvisibleCharacters(
+      truncateText(result.actual as string, maxLen)
+    );
+
+    console.log(pc.dim('    previous description:'));
+    console.log(pc.red(`      ${previous}`));
+    console.log(pc.dim('    current description:'));
+    console.log(pc.green(`      ${current}`));
+  } else if (
+    (result.status === 'fail' || verbose) &&
+    (result.expected !== undefined || result.actual !== undefined)
+  ) {
+    // Standard expected/actual formatting
     if (result.expected !== undefined) {
       console.log(pc.dim(`    expected: ${formatValue(result.expected)}`));
     }
@@ -169,6 +194,33 @@ function renderSummary(summary: CheckSummary): void {
 
   console.log(pc.bold('Summary:'), parts.join(pc.dim(' | ')));
   console.log(pc.dim(`Total: ${summary.total} checks`));
+}
+
+/**
+ * Marks invisible characters explicitly for security visibility (M2.4).
+ * Critical for rug-pull detection - a description changed only by an injected
+ * zero-width character must be visible to the reviewer.
+ */
+function markInvisibleCharacters(text: string): string {
+  return text
+    .replace(/\u200B/g, '<U+200B>') // Zero-width space
+    .replace(/\u200C/g, '<U+200C>') // Zero-width non-joiner
+    .replace(/\u200D/g, '<U+200D>') // Zero-width joiner
+    .replace(/\uFEFF/g, '<U+FEFF>') // Zero-width no-break space
+    .replace(/\u202A/g, '<U+202A>') // Left-to-right embedding
+    .replace(/\u202B/g, '<U+202B>') // Right-to-left embedding
+    .replace(/\u202C/g, '<U+202C>') // Pop directional formatting
+    .replace(/\u202D/g, '<U+202D>') // Left-to-right override
+    .replace(/\u202E/g, '<U+202E>'); // Right-to-left override
+}
+
+/**
+ * Truncates text to max length with ellipsis.
+ * Used for description diffs to keep console output readable.
+ */
+function truncateText(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text;
+  return text.slice(0, maxLength) + '… (truncated, see JSON report for full text)';
 }
 
 function formatValue(value: unknown): string {
