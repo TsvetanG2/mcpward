@@ -60,6 +60,12 @@ We will credit reporters in the advisory and `CHANGELOG.md` unless you prefer to
 
 Anything that breaks the second assumption is a valid vulnerability report.
 
+### Environment of a stdio server
+
+A stdio server is a subprocess, and it **inherits mcpward's environment** — except mcpward's own credentials (`MCPWARD_GITHUB_TOKEN`, `GITHUB_TOKEN`), which are always withheld. Values in the config's `server.env` are passed explicitly. This keeps servers that read their settings from the environment working without extra configuration.
+
+The consequence: any secret in the environment where mcpward runs is visible to the server under test. When testing a server you do not trust, **do not put unrelated secrets in that job's environment** — scope them to the steps that need them, and pass the server only what it needs through `server.env`.
+
 ## Supply chain
 
 ### Known advisories
