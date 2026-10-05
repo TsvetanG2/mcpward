@@ -588,7 +588,7 @@ Tests that calling an unknown tool returns a proper protocol error (not a tool e
 
 **What it checks:**
 - Unknown tool call returns a JSON-RPC error
-- The error code is a standard JSON-RPC code (`-32601`, `-32602` or `-32603`)
+- The error code is a JSON-RPC protocol error code: a standard one (`-32700`, `-32600` to `-32603`; `-32601` Method not found fits best) or one from the server-error range (`-32000` to `-32099`)
 
 **How to fix:**
 Ensure your server returns a protocol error (JSON-RPC error object) when an unknown tool is called, not a successful response with `isError: true`.
@@ -601,7 +601,7 @@ Tests that calling a tool without its required parameters returns a protocol err
 
 **What it checks:**
 - Missing required params return a JSON-RPC error
-- The error code is a standard JSON-RPC code (`-32602` for invalid params)
+- The error code is a JSON-RPC protocol error code (the same set as `errors/unknown-tool`; `-32602` Invalid params fits best)
 
 A call that returns a result instead — even one with `isError: true` — is a warning: the request was invalid, so it should be rejected at the protocol layer.
 
