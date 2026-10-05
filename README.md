@@ -170,46 +170,51 @@ MCP tooling splits into three jobs. Pick the one you actually have:
 | Job | Use |
 |---|---|
 | Poke a server by hand and see what it does | [MCP Inspector](https://github.com/modelcontextprotocol/inspector), [MCPJam](https://github.com/MCPJam/inspector) |
-| Audit the servers installed on your machine for malicious behaviour | [mcp-scan](https://github.com/invariantlabs-ai/mcp-scan) |
+| Audit the agents, MCP servers and skills installed on your machine | [Snyk Agent Scan](https://github.com/snyk/agent-scan) (formerly mcp-scan) |
 | Test a server as a dependency, in CI, and fail the build when its contract changes | **mcpward** |
 
-### Compared to mcp-scan
+### Compared to Snyk Agent Scan (formerly mcp-scan)
 
-[mcp-scan](https://github.com/invariantlabs-ai/mcp-scan) is excellent and considerably more mature — Invariant Labs' research is what named tool poisoning and rug pulls in MCP, and their tool-pinning has detected description changes via hashing since April 2025. If your question is *"are the MCP servers installed on my machine safe?"*, use mcp-scan. It scans Claude, Cursor, and Windsurf configs, offers a proxy mode with live guardrails, and detects cross-origin escalation (tool shadowing), which mcpward does not do at all.
+[Agent Scan](https://github.com/snyk/agent-scan) — mcp-scan from Invariant Labs, now maintained by Snyk — is excellent and considerably more mature. Invariant Labs' research is what named tool poisoning and rug pulls in MCP. If your question is *"are the agents, MCP servers and skills installed on my machine safe?"*, use Agent Scan. It discovers the configs of Claude, Cursor, VS Code, Windsurf and other agents, scans agent skills, can install runtime hooks (Agent Guard), and detects tool shadowing and toxic flows, which mcpward does not do at all.
 
 mcpward answers a different question: *"did this server's contract change since my last release?"*
 
-| | mcpward | mcp-scan |
+| | mcpward | Agent Scan |
 |---|---|---|
-| Primary use | CI gate on a dependency | Audit your installed servers |
-| Rug-pull / description drift | yes | yes |
-| Tool-poisoning heuristics | yes | yes (stronger, research-backed) |
-| Cross-origin escalation / tool shadowing | no | yes |
-| Live proxy + runtime guardrails | no | yes |
+| Primary use | CI gate on a dependency | Audit your installed agents and servers |
+| Baseline + drift (rug-pull) detection | yes, lockfile committed to your repo | keeps local scan state; no documented baseline/diff workflow |
+| Tool-poisoning heuristics | yes, local pattern matching | yes (stronger, model-backed analysis) |
+| Tool shadowing / toxic flows | no | yes |
+| Agent skills scanning | no | yes |
+| Runtime hooks for agents | no | yes (Agent Guard) |
 | Protocol compliance checks | yes | no |
 | Two-layer error contract | yes | no |
 | Behavioral test suites | yes | no |
 | Latency budgets | yes | no |
-| JUnit + SARIF for CI | yes | no |
-| Runs fully offline, no data leaves your machine | yes | ** shares tool names and descriptions with invariantlabs.ai ** |
+| CI output | JUnit, SARIF, JSON, Markdown, PR comment | JSON, `--ci` exit code |
+| Runs fully offline | yes | no — needs a Snyk API token and sends tool names, descriptions and server configs to the Snyk API (secrets redacted) |
 
 That last row is the practical reason to reach for mcpward on internal or client-owned servers: **nothing leaves your machine.** No account, no API key, no service to trust.
 
 ### Compared to other CI-oriented tools
 
-| Feature | mcpward | mcpvet | MCP-Contract-CI |
+| Feature | mcpward | [mcpvet](https://github.com/holydement0r/mcpvet) | [MCP Contract CI](https://github.com/ajpeng/MCP-Contract-CI) |
 |---|---|---|---|
 | Description-level drift | yes | no | no |
-| Schema drift detection | yes | yes | yes |
-| Breaking vs non-breaking classification | yes | partial | yes |
-| Protocol compliance | yes | yes | no |
+| Input schema drift | yes | yes | yes |
+| Output schema drift | yes (opt-in) | no | yes |
+| Prompt and resource drift | no | no | yes |
+| Breaking vs non-breaking classification | yes | breaking only | breaking only |
+| Protocol compliance | yes | partial (stdout corruption) | no |
+| Schema lint | yes | yes | no |
 | Two-layer error contract | yes | no | no |
-| Tool-poisoning heuristics | yes | no | no |
+| Tool-poisoning heuristics | yes | no (on roadmap) | no |
+| Behavioral test suites | yes | yes | yes (saved tool-call replay) |
+| Latency budgets | yes (p50/p95) | per-call limit | no |
 | SARIF export | yes | no | no |
 | JUnit output | yes | yes | no |
-| Behavioral test suites | yes | no | yes |
-| Latency budgets | yes | no | no |
-| HTTP transport | yes | yes | no |
+| PR comment | yes | no | yes |
+| Live server over HTTP | yes | yes | no (stdio replay, manifest diff) |
 
 ## Features
 
