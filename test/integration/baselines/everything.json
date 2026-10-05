@@ -1,19 +1,42 @@
 {
   "server": "@modelcontextprotocol/server-everything@2026.7.4",
-  "capturedWith": "mcpward@0.2.1",
-  "note": "Reference server - comprehensive test server. Placeholder baseline - regenerate in CI.",
+  "capturedWith": "mcpward@0.3.0",
+  "note": "Reference server violates parts of the MCP spec. See docs for details.",
   "findings": [
     {
       "family": "errors",
+      "id": "errors/invalid-params",
+      "status": "warn",
+      "location": "echo"
+    },
+    {
+      "family": "errors",
+      "id": "errors/invalid-params",
+      "status": "warn",
+      "location": "get-annotated-message"
+    },
+    {
+      "family": "errors",
+      "id": "errors/invalid-params",
+      "status": "warn",
+      "location": "get-structured-content"
+    },
+    {
+      "family": "errors",
+      "id": "errors/invalid-params",
+      "status": "warn",
+      "location": "get-sum"
+    },
+    {
+      "family": "errors",
       "id": "errors/summary",
-      "status": "fail",
-      "location": null
+      "status": "fail"
     },
     {
       "family": "errors",
       "id": "errors/unknown-tool",
       "status": "fail",
-      "location": "__mcpward_unknown_tool_*"
+      "location": "__mcpward_unknown_tool__"
     }
   ]
 }

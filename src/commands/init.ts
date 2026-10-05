@@ -2,8 +2,8 @@ import { writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import pc from 'picocolors';
 
-const DEFAULT_CONFIG = `# mcpward configuration
-# See: https://github.com/anthropics/mcpward
+export const DEFAULT_CONFIG = `# mcpward configuration
+# See: https://github.com/TsvetanG2/mcpward
 
 server:
   transport: stdio
@@ -25,11 +25,9 @@ checks:
   security: true
   drift:
     baseline: ./mcpward.lock.json
-    fail_on:
-      - tool_removed
-      - description_changed
-      - breaking_schema_change
-      - annotation_changed
+    # high = fail only on silent security changes (rug-pulls, permission widening);
+    # medium adds schema breaks; low fails on everything.
+    fail_on: high
   latency:
     samples: 5
     p95_budget_ms: 1000

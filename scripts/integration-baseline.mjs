@@ -45,7 +45,8 @@ const sandboxDir = process.platform === 'win32'
   ? join(ROOT, 'test', '.integration-sandbox')
   : mkdtempSync(join(tmpdir(), 'mcpward-sandbox-'));
 mkdirSync(sandboxDir, { recursive: true });
-writeFileSync(join(sandboxDir, 'hello.txt'), 'hello\n', { flag: 'wx' });
+// Overwrite, not 'wx': the Windows sandbox path is stable, so reruns must not crash
+writeFileSync(join(sandboxDir, 'hello.txt'), 'hello\n');
 
 for (const server of servers) {
   console.log(`Capturing baseline for ${server.name}...`);

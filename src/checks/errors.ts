@@ -14,6 +14,7 @@
 
 import type { CheckResult } from '../report/model.js';
 import type { McpConnection } from '../client/connect.js';
+import { listAllTools } from '../client/tools.js';
 import type { Tool } from './schema.js';
 
 export interface ErrorContractCheckContext {
@@ -44,7 +45,7 @@ export async function runErrorContractChecks(
   // Get tools list
   let tools: Tool[];
   try {
-    const toolsResult = await ctx.connection.client.listTools();
+    const toolsResult = { tools: await listAllTools(ctx.connection.client) };
     if (!toolsResult.tools || !Array.isArray(toolsResult.tools)) {
       results.push({
         id: 'errors/list-tools',
@@ -68,7 +69,7 @@ export async function runErrorContractChecks(
   }
 
   // Test 1: Unknown tool should return protocol error
-  results.push(await checkUnknownToolError(ctx.connection));
+  results.push(await checkUnknownToolError(ctx.connection, tools));
 
   // Test 2: For tools with required params, missing params should be protocol error
   for (const tool of tools) {
@@ -96,8 +97,17 @@ export async function runErrorContractChecks(
 /**
  * Checks that calling an unknown tool returns a protocol error.
  */
-async function checkUnknownToolError(connection: McpConnection): Promise<CheckResult> {
-  const unknownToolName = '__mcpward_unknown_tool_' + Date.now();
+async function checkUnknownToolError(
+  connection: McpConnection,
+  tools: Tool[]
+): Promise<CheckResult> {
+  // Deterministic name (reports must be reproducible); suffixed only if the server
+  // happens to expose a tool with exactly this name.
+  const existing = new Set(tools.map((t) => t.name));
+  let unknownToolName = '__mcpward_unknown_tool__';
+  for (let n = 1; existing.has(unknownToolName); n++) {
+    unknownToolName = `__mcpward_unknown_tool_${n}__`;
+  }
 
   try {
     await connection.callTool({ name: unknownToolName, arguments: {} });

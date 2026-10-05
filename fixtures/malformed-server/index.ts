@@ -23,7 +23,7 @@ import {
   ErrorCode,
 } from '@modelcontextprotocol/sdk/types.js';
 
-const server = new Server(
+export const server = new Server(
   {
     name: 'malformed-server',
     version: '1.0.0',
@@ -183,4 +183,5 @@ async function main() {
   await server.connect(transport);
 }
 
-main().catch(console.error);
+// Loaded by fixtures/http-host.ts for Streamable HTTP tests: skip stdio
+if (!process.env.MCPWARD_FIXTURE_NO_STDIO) main().catch(console.error);

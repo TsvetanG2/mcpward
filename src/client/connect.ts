@@ -1,6 +1,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { LATEST_PROTOCOL_VERSION } from '@modelcontextprotocol/sdk/types.js';
 import type { Config, StdioTransport, HttpTransport, ResolvedTimeoutConfig } from '../config/schema.js';
 import { MCPWARD_VERSION } from '../version.js';
@@ -27,15 +28,15 @@ export interface McpConnection {
 }
 
 /**
- * Wraps a promise with a timeout.
+ * Wraps a promise with a timeout. The timer is always cleared, so a settled call never
+ * keeps the event loop alive for the rest of the timeout.
  */
 function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => {
-      setTimeout(() => reject(new Error(`Timeout: ${message} (${ms}ms)`)), ms);
-    }),
-  ]);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<T>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`Timeout: ${message} (${ms}ms)`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
 /**
@@ -58,9 +59,67 @@ function mergeEnv(
 }
 
 /**
+ * Runs the initialize handshake over any transport and builds the connection.
+ *
+ * Shared by stdio and HTTP so both transports produce identical connection objects —
+ * the precondition for stdio↔HTTP result parity.
+ */
+async function connectTransport(
+  transport: Transport,
+  timeouts: ResolvedTimeoutConfig
+): Promise<McpConnection> {
+  // Record the protocol version the server actually negotiated. The SDK hands it to the
+  // transport via setProtocolVersion after initialize; we read it from there rather than
+  // assuming LATEST_PROTOCOL_VERSION (a server may legitimately negotiate an older one).
+  let negotiatedVersion: string | undefined;
+  const original = transport.setProtocolVersion?.bind(transport);
+  transport.setProtocolVersion = (version: string) => {
+    negotiatedVersion = version;
+    original?.(version);
+  };
+
+  const client = new Client(
+    {
+      name: 'mcpward',
+      version: MCPWARD_VERSION,
+    },
+    {
+      capabilities: {},
+    }
+  );
+
+  await withTimeout(client.connect(transport), timeouts.connect_ms, 'connection to server');
+
+  const serverInfo = client.getServerVersion();
+  const capabilities = client.getServerCapabilities();
+
+  if (!serverInfo) {
+    await client.close();
+    throw new Error('Server did not provide version information');
+  }
+
+  return {
+    client,
+    protocolVersion: negotiatedVersion ?? LATEST_PROTOCOL_VERSION,
+    serverInfo: {
+      name: serverInfo.name,
+      version: serverInfo.version,
+    },
+    capabilities: capabilities ?? {},
+    timeouts,
+    close: async () => {
+      await client.close();
+    },
+    callTool: async (params: { name: string; arguments?: Record<string, unknown> }) => {
+      return withTimeout(client.callTool(params), timeouts.call_ms, `tool call "${params.name}"`);
+    },
+  };
+}
+
+/**
  * Connects to an MCP server over stdio transport.
  */
-async function connectStdio(
+function connectStdio(
   config: StdioTransport,
   timeouts: ResolvedTimeoutConfig
 ): Promise<McpConnection> {
@@ -69,124 +128,22 @@ async function connectStdio(
     args: config.args,
     env: mergeEnv(process.env, config.env),
   });
-
-  const client = new Client(
-    {
-      name: 'mcpward',
-      version: MCPWARD_VERSION,
-    },
-    {
-      capabilities: {},
-    }
-  );
-
-  // Connect with timeout
-  await withTimeout(
-    client.connect(transport),
-    timeouts.connect_ms,
-    'connection to server'
-  );
-
-  // Get server info from the initialization result
-  const serverInfo = client.getServerVersion();
-  const capabilities = client.getServerCapabilities();
-
-  if (!serverInfo) {
-    throw new Error('Server did not provide version information');
-  }
-
-  // The SDK handles version negotiation internally
-  // If connection succeeds, the server supports LATEST_PROTOCOL_VERSION or newer
-  return {
-    client,
-    protocolVersion: LATEST_PROTOCOL_VERSION,
-    serverInfo: {
-      name: serverInfo.name,
-      version: serverInfo.version,
-    },
-    capabilities: capabilities ?? {},
-    timeouts,
-    close: async () => {
-      await client.close();
-    },
-    callTool: async (params: { name: string; arguments?: Record<string, unknown> }) => {
-      return withTimeout(
-        client.callTool(params),
-        timeouts.call_ms,
-        `tool call "${params.name}"`
-      );
-    },
-  };
+  return connectTransport(transport, timeouts);
 }
 
 /**
  * Connects to an MCP server over HTTP transport (Streamable HTTP).
  */
-async function connectHttp(
+function connectHttp(
   config: HttpTransport,
   timeouts: ResolvedTimeoutConfig
 ): Promise<McpConnection> {
-  const url = new URL(config.url);
-
-  // Build headers with optional Authorization
-  const headers: Record<string, string> = {};
-  if (config.headers) {
-    for (const [key, value] of Object.entries(config.headers)) {
-      headers[key] = value;
-    }
-  }
-
-  const transport = new StreamableHTTPClientTransport(url, {
+  const transport = new StreamableHTTPClientTransport(new URL(config.url), {
     requestInit: {
-      headers,
+      headers: { ...config.headers },
     },
   });
-
-  const client = new Client(
-    {
-      name: 'mcpward',
-      version: MCPWARD_VERSION,
-    },
-    {
-      capabilities: {},
-    }
-  );
-
-  // Connect with timeout
-  await withTimeout(
-    client.connect(transport),
-    timeouts.connect_ms,
-    'connection to server'
-  );
-
-  // Get server info from the initialization result
-  const serverInfo = client.getServerVersion();
-  const capabilities = client.getServerCapabilities();
-
-  if (!serverInfo) {
-    throw new Error('Server did not provide version information');
-  }
-
-  return {
-    client,
-    protocolVersion: LATEST_PROTOCOL_VERSION,
-    serverInfo: {
-      name: serverInfo.name,
-      version: serverInfo.version,
-    },
-    capabilities: capabilities ?? {},
-    timeouts,
-    close: async () => {
-      await client.close();
-    },
-    callTool: async (params: { name: string; arguments?: Record<string, unknown> }) => {
-      return withTimeout(
-        client.callTool(params),
-        timeouts.call_ms,
-        `tool call "${params.name}"`
-      );
-    },
-  };
+  return connectTransport(transport, timeouts);
 }
 
 /**

@@ -249,3 +249,36 @@ describe('loadConfig — zod 4 validation', () => {
     }
   });
 });
+
+describe('loadConfig — drift severity overrides', () => {
+  const SERVER = 'server:\n  transport: stdio\n  command: node\n';
+  const load = async (yaml: string) => {
+    const dir = join(tmpdir(), `mcpward-sev-${Date.now()}-${Math.random()}`);
+    await mkdir(dir, { recursive: true });
+    try {
+      const p = join(dir, 'mcpward.yaml');
+      await writeFile(p, yaml);
+      return await loadConfig(p);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  };
+
+  it('accepts a PARTIAL per-class severity map', async () => {
+    const config = await load(`${SERVER}checks:\n  drift:\n    fail_on: high\n    severity:\n      tool_removed: high\n`);
+    expect(config.checks?.drift?.fail_on).toBe('high');
+    expect(config.checks?.drift?.severity).toEqual({ tool_removed: 'high' });
+  });
+
+  it('rejects an unknown drift class in the severity map', async () => {
+    await expect(
+      load(`${SERVER}checks:\n  drift:\n    severity:\n      not_a_class: high\n`)
+    ).rejects.toThrow(/Invalid config/);
+  });
+
+  it('the `mcpward init` template parses against the current schema', async () => {
+    const { DEFAULT_CONFIG } = await import('../../src/commands/init.js');
+    const config = await load(DEFAULT_CONFIG);
+    expect(config.checks?.drift?.fail_on).toBe('high');
+  });
+});

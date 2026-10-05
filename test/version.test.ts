@@ -102,10 +102,14 @@ describe('Version consistency', () => {
     expect(connectContent).toContain("from '../version.js'");
     expect(connectContent).toContain('MCPWARD_VERSION');
 
-    // Verify both stdio and HTTP transports use it
+    // A single shared Client constructor serves both transports (connectTransport)
     const clientConstructorPattern = /new Client\(\s*\{[^}]*version:\s*MCPWARD_VERSION/s;
     const matches = connectContent.match(new RegExp(clientConstructorPattern, 'g'));
-    expect(matches).toHaveLength(2); // stdio + HTTP
+    expect(matches).toHaveLength(1);
+    expect(connectContent.match(/new Client\(/g)).toHaveLength(1);
+
+    // ...and both stdio and HTTP go through it
+    expect(connectContent.match(/return connectTransport\(transport, timeouts\)/g)).toHaveLength(2);
   });
 
   test('Report model uses MCPWARD_VERSION', () => {

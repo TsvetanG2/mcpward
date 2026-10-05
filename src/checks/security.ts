@@ -13,6 +13,7 @@
 
 import type { CheckResult } from '../report/model.js';
 import type { McpConnection } from '../client/connect.js';
+import { listAllTools } from '../client/tools.js';
 import type { Tool } from './schema.js';
 
 export interface SecurityCheckContext {
@@ -138,17 +139,44 @@ function findInjectionPatterns(text: string): string[] {
   return matches;
 }
 
+/** Unicode Tags block. Invisible; maps 1:1 onto ASCII, so it can smuggle text past a human reviewer. */
+const TAG_START = 0xe0000;
+const TAG_END = 0xe007f;
+const TAG_CANCEL = 0xe007f;
+/** U+1F3F4 WAVING BLACK FLAG — base of legitimate emoji tag sequences (e.g. the Scotland flag). */
+const BLACK_FLAG = 0x1f3f4;
+
+const isTag = (cp: number) => cp >= TAG_START && cp <= TAG_END;
+
 /**
  * Finds suspicious unicode characters in a string.
+ *
+ * Tag characters (U+E0000–E007F) are flagged as `tag-character` ("ASCII smuggling"),
+ * EXCEPT inside a well-formed emoji tag sequence: U+1F3F4, tags, U+E007F. Those are
+ * subdivision flags and flagging them would be a false positive.
  */
 function findSuspiciousUnicode(text: string): { char: string; codePoint: number; type: string }[] {
   const suspicious: { char: string; codePoint: number; type: string }[] = [];
+  const chars = Array.from(text);
+  const cps = chars.map((c) => c.codePointAt(0) ?? 0);
 
-  for (const char of text) {
-    const codePoint = char.codePointAt(0);
-    if (codePoint === undefined) continue;
+  for (let i = 0; i < chars.length; i++) {
+    const char = chars[i] ?? '';
+    const codePoint = cps[i] ?? 0;
 
-    if (SUSPICIOUS_UNICODE.zeroWidth.includes(codePoint)) {
+    if (codePoint === BLACK_FLAG) {
+      // Skip a well-formed emoji tag sequence; a malformed one falls through and is flagged.
+      let j = i + 1;
+      while (j < cps.length && isTag(cps[j] ?? 0) && cps[j] !== TAG_CANCEL) j++;
+      if (j > i + 1 && cps[j] === TAG_CANCEL) {
+        i = j;
+      }
+      continue;
+    }
+
+    if (isTag(codePoint)) {
+      suspicious.push({ char, codePoint, type: 'tag-character' });
+    } else if (SUSPICIOUS_UNICODE.zeroWidth.includes(codePoint)) {
       suspicious.push({ char, codePoint, type: 'zero-width' });
     } else if (SUSPICIOUS_UNICODE.bidi.includes(codePoint)) {
       suspicious.push({ char, codePoint, type: 'bidirectional-override' });
@@ -158,6 +186,25 @@ function findSuspiciousUnicode(text: string): { char: string; codePoint: number;
   }
 
   return suspicious;
+}
+
+/**
+ * Formats hidden-unicode findings. Tag characters are decoded to the ASCII they smuggle
+ * so the reviewer sees the hidden instruction, not just a code point list.
+ */
+function describeUnicode(found: { codePoint: number; type: string }[]): string {
+  const tags = found.filter((u) => u.type === 'tag-character');
+  const others = found.filter((u) => u.type !== 'tag-character');
+  const parts = others.map((u) => `U+${u.codePoint.toString(16).toUpperCase()} (${u.type})`);
+  if (tags.length > 0) {
+    const decoded = tags
+      .map((u) => u.codePoint - TAG_START)
+      .filter((c) => c >= 0x20 && c < 0x7f)
+      .map((c) => String.fromCharCode(c))
+      .join('');
+    parts.push(`${tags.length} tag character(s) (ASCII smuggling) decoding to "${decoded}"`);
+  }
+  return parts.join(', ');
 }
 
 /**
@@ -185,7 +232,7 @@ export async function runSecurityChecks(
   // Get tools list
   let tools: Tool[];
   try {
-    const toolsResult = await ctx.connection.client.listTools();
+    const toolsResult = { tools: await listAllTools(ctx.connection.client) };
     if (!toolsResult.tools || !Array.isArray(toolsResult.tools)) {
       results.push({
         id: 'security/list-tools',
@@ -267,7 +314,7 @@ function checkToolSecurity(tool: Tool): CheckResult[] {
       family: 'security',
       status: 'fail',
       severity: 'error',
-      message: `Tool "${name}" name contains hidden unicode: ${nameUnicode.map((u) => `U+${u.codePoint.toString(16).toUpperCase()} (${u.type})`).join(', ')}`,
+      message: `Tool "${name}" name contains hidden unicode: ${describeUnicode(nameUnicode)}`,
       actual: nameUnicode,
       location: name,
     });
@@ -282,7 +329,7 @@ function checkToolSecurity(tool: Tool): CheckResult[] {
         family: 'security',
         status: 'fail',
         severity: 'error',
-        message: `Tool "${name}" description contains hidden unicode: ${descUnicode.map((u) => `U+${u.codePoint.toString(16).toUpperCase()} (${u.type})`).join(', ')}`,
+        message: `Tool "${name}" description contains hidden unicode: ${describeUnicode(descUnicode)}`,
         actual: descUnicode,
         location: name,
       });
@@ -315,6 +362,20 @@ function checkToolSecurity(tool: Tool): CheckResult[] {
     for (const [fieldName, fieldSchema] of Object.entries(inputSchema.properties)) {
       const fieldDesc = (fieldSchema as { description?: string })?.description;
       if (fieldDesc) {
+        // Parameter descriptions are read by the model too — same hidden-unicode rule
+        const paramUnicode = findSuspiciousUnicode(fieldDesc);
+        if (paramUnicode.length > 0) {
+          results.push({
+            id: 'security/hidden-unicode',
+            family: 'security',
+            status: 'fail',
+            severity: 'error',
+            message: `Tool "${name}" parameter "${fieldName}" description contains hidden unicode: ${describeUnicode(paramUnicode)}`,
+            actual: paramUnicode,
+            location: `${name}.${fieldName}`,
+          });
+        }
+
         const paramInjection = findInjectionPatterns(fieldDesc);
         if (paramInjection.length > 0) {
           results.push({

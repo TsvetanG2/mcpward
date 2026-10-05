@@ -6,6 +6,7 @@
 
 import pc from 'picocolors';
 import type { CheckReport, CheckResult, CheckSummary } from './model.js';
+import { wordDiff, markInvisibleCharacters } from './text-diff.js';
 
 const STATUS_ICONS: Record<string, string> = {
   pass: pc.green('✓'),
@@ -142,26 +143,23 @@ function renderResult(result: CheckResult, verbose: boolean): void {
 
   // M2.4: Special rendering for description diffs
   const isDescriptionChanged = result.id === 'drift/description_changed';
+  const isHash = (v: unknown) => typeof v === 'string' && DESCRIPTION_HASH.test(v);
   const hasDescriptionText =
     isDescriptionChanged &&
     typeof result.expected === 'string' &&
     typeof result.actual === 'string' &&
-    result.expected.length > 64; // Hash is 64 chars, full text is longer
+    !isHash(result.expected) &&
+    !isHash(result.actual);
+
+  if (isDescriptionChanged && !hasDescriptionText) {
+    // Lockfile has no text for one side (full_text: false, or a v1 baseline)
+    console.log(
+      pc.dim('    full text unavailable (full_text disabled or v1 baseline) — re-run "mcpward baseline" to enable a diff')
+    );
+  }
 
   if (hasDescriptionText) {
-    // Render before/after description with invisible character marking
-    const maxLen = 200;
-    const previous = markInvisibleCharacters(
-      truncateText(result.expected as string, maxLen)
-    );
-    const current = markInvisibleCharacters(
-      truncateText(result.actual as string, maxLen)
-    );
-
-    console.log(pc.dim('    previous description:'));
-    console.log(pc.red(`      ${previous}`));
-    console.log(pc.dim('    current description:'));
-    console.log(pc.green(`      ${current}`));
+    renderDescriptionDiff(result.expected as string, result.actual as string);
   } else if (
     (result.status === 'fail' || verbose) &&
     (result.expected !== undefined || result.actual !== undefined)
@@ -196,22 +194,41 @@ function renderSummary(summary: CheckSummary): void {
   console.log(pc.dim(`Total: ${summary.total} checks`));
 }
 
+/** Shape of a stored description hash (see hashDescription in surface/capture.ts). */
+const DESCRIPTION_HASH = /^sha256:[0-9a-f]{64}$/;
+
+/** Console cap per side; the JSON report always carries the full text. */
+const MAX_DESCRIPTION_CHARS = 200;
+
 /**
- * Marks invisible characters explicitly for security visibility (M2.4).
- * Critical for rug-pull detection - a description changed only by an injected
- * zero-width character must be visible to the reviewer.
+ * Renders a description change (M2.4): a single word-level diff line (removed `[-…-]`,
+ * added `{+…+}`, so it stays readable with NO_COLOR), falling back to before/after when the
+ * text is too long. Invisible characters are always marked, never printed raw.
  */
-function markInvisibleCharacters(text: string): string {
-  return text
-    .replace(/\u200B/g, '<U+200B>') // Zero-width space
-    .replace(/\u200C/g, '<U+200C>') // Zero-width non-joiner
-    .replace(/\u200D/g, '<U+200D>') // Zero-width joiner
-    .replace(/\uFEFF/g, '<U+FEFF>') // Zero-width no-break space
-    .replace(/\u202A/g, '<U+202A>') // Left-to-right embedding
-    .replace(/\u202B/g, '<U+202B>') // Right-to-left embedding
-    .replace(/\u202C/g, '<U+202C>') // Pop directional formatting
-    .replace(/\u202D/g, '<U+202D>') // Left-to-right override
-    .replace(/\u202E/g, '<U+202E>'); // Right-to-left override
+function renderDescriptionDiff(previous: string, current: string): void {
+  const segments =
+    previous.length <= MAX_DESCRIPTION_CHARS && current.length <= MAX_DESCRIPTION_CHARS
+      ? wordDiff(previous, current)
+      : null;
+
+  if (segments) {
+    const line = segments
+      .map((seg) => {
+        const text = markInvisibleCharacters(seg.text);
+        if (seg.kind === 'removed') return pc.red(`[-${text}-]`);
+        if (seg.kind === 'added') return pc.green(`{+${text}+}`);
+        return text;
+      })
+      .join('');
+    console.log(pc.dim('    description diff:'));
+    console.log(`      ${line}`);
+    return;
+  }
+
+  console.log(pc.dim('    previous description:'));
+  console.log(pc.red(`      ${markInvisibleCharacters(truncateText(previous, MAX_DESCRIPTION_CHARS))}`));
+  console.log(pc.dim('    current description:'));
+  console.log(pc.green(`      ${markInvisibleCharacters(truncateText(current, MAX_DESCRIPTION_CHARS))}`));
 }
 
 /**

@@ -10,6 +10,7 @@
 
 import type { CheckResult } from '../report/model.js';
 import type { McpConnection } from '../client/connect.js';
+import { listAllTools } from '../client/tools.js';
 
 // Dynamic import for CJS modules - using any for complex module interop
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -68,7 +69,7 @@ export async function runSchemaChecks(
   // Get tools list
   let tools: Tool[];
   try {
-    const toolsResult = await ctx.connection.client.listTools();
+    const toolsResult = { tools: await listAllTools(ctx.connection.client) };
     if (!toolsResult.tools || !Array.isArray(toolsResult.tools)) {
       results.push({
         id: 'schema/list-tools',

@@ -75,7 +75,8 @@ program
     const opts = program.opts<GlobalOptions>();
     try {
       const config = await loadConfig(opts.config);
-      await baselineCommand(config, opts as BaselineOptions);
+      const exitCode = await baselineCommand(config, opts as BaselineOptions);
+      process.exit(exitCode);
     } catch (err) {
       console.error(pc.red('Error:'), err instanceof Error ? err.message : err);
       process.exit(2);
