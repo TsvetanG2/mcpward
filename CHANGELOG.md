@@ -17,6 +17,7 @@ This release implements **M8 — distribution**, the last milestone before 1.0.0
 - **Node.js 22 is now the minimum** (`engines.node: >=22`). Node 20 reached end-of-life in April 2026. CI tests Node 22 and 24; the GitHub Action runs on Node 22. Stay on mcpward 0.8.x if you cannot upgrade.
 - **GitHub Action at the repository root**: use `uses: TsvetanG2/mcpward@<tag>`. The old path `TsvetanG2/mcpward/action@…` keeps working (the two definitions are kept identical by a test). Pin a release tag; from 1.0.0 a moving major tag (`@v1`) is maintained.
 - The Action runs `npx --yes mcpward@<version>`, so installing the package never waits on an interactive prompt.
+- The Action uses `actions/setup-node@v7`; v4 ran on the deprecated Node 20 Actions runtime and printed a deprecation warning in every consumer's workflow.
 
 ### Added
 
