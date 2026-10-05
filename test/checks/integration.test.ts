@@ -11,7 +11,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { runComplianceChecks } from '../../src/checks/compliance.js';
 import { runSchemaChecks } from '../../src/checks/schema.js';
-import type { Config } from '../../src/config/schema.js';
+import { testConfig } from '../helpers/config.js';
 
 // Helper to create a test connection
 async function createTestConnection(serverPath: string) {
@@ -55,10 +55,10 @@ describe('Compliance Checks', () => {
       const connection = await createTestConnection('fixtures/good-server/index.ts');
 
       try {
-        const config: Config = {
+        const config = testConfig({
           server: { transport: 'stdio', command: 'npx', args: [] },
           suites: [],
-        };
+        });
 
         const results = await runComplianceChecks({ connection, config });
 
@@ -227,10 +227,10 @@ describe('Exit Codes', () => {
     const connection = await createTestConnection('fixtures/good-server/index.ts');
 
     try {
-      const config: Config = {
+      const config = testConfig({
         server: { transport: 'stdio', command: 'npx', args: [] },
         suites: [],
-      };
+      });
 
       const complianceResults = await runComplianceChecks({ connection, config });
       const schemaResults = await runSchemaChecks({ connection });

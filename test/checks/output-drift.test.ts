@@ -10,6 +10,7 @@ import { connect } from '../../src/client/connect.js';
 import { captureSurface, saveLockfile } from '../../src/surface/index.js';
 import { runDriftChecks } from '../../src/checks/drift.js';
 import type { Config } from '../../src/config/schema.js';
+import { testConfig } from '../helpers/config.js';
 
 const FIXTURES = join(process.cwd(), 'fixtures', 'drift');
 const V1 = join(FIXTURES, 'output-v1', 'index.ts');
@@ -20,7 +21,7 @@ const BASELINE = join(TEMP_DIR, 'output.lock.json');
 type OutputCfg = NonNullable<NonNullable<NonNullable<Config['checks']>['drift']>['output']>;
 
 function config(server: string, output: Partial<OutputCfg> = {}): Config {
-  return {
+  return testConfig({
     server: { transport: 'stdio', command: 'npx', args: ['tsx', server], env: {} },
     checks: {
       drift: {
@@ -32,7 +33,7 @@ function config(server: string, output: Partial<OutputCfg> = {}): Config {
       },
     },
     suites: [],
-  };
+  });
 }
 
 async function baselineFrom(cfg: Config) {

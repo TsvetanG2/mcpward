@@ -19,9 +19,10 @@ import { trigramDiceScorer } from '../../src/checks/similarity.js';
 import { schemaNestingDepth } from '../../src/surface/canonical.js';
 import type { Tool } from '../../src/checks/schema.js';
 import type { Config } from '../../src/config/schema.js';
+import { testConfig } from '../helpers/config.js';
 
 const FIXTURES = join(process.cwd(), 'fixtures');
-const serverConfig = (name: string): Config => ({
+const serverConfig = (name: string): Config => testConfig({
   server: {
     transport: 'stdio',
     command: 'npx',

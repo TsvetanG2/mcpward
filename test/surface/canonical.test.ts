@@ -186,7 +186,7 @@ describe('canonicalizeSchema', () => {
 
     expect(result.title).toBe('Café'); // NFC
     expect(result.description).toBe('Test café'); // NFC
-    expect(result.enum?.[0]).toBe('value1\u0301'.normalize('NFC')); // NFC
+    expect((result.enum as string[] | undefined)?.[0]).toBe('value1\u0301'.normalize('NFC')); // NFC
   });
 
   test('handles nested objects recursively', () => {

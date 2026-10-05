@@ -7,13 +7,14 @@ import { join } from 'path';
 import { connect } from '../../src/client/connect.js';
 import { runBehavioralChecks } from '../../src/checks/behavioral.js';
 import type { Config, TestSuite } from '../../src/config/schema.js';
+import { testConfig } from '../helpers/config.js';
 
 // Fixture paths
 const FIXTURES_DIR = join(process.cwd(), 'fixtures');
 const GOOD_SERVER = join(FIXTURES_DIR, 'good-server', 'index.ts');
 
 // Config for good server
-const makeConfig = (suites: TestSuite[]): Config => ({
+const makeConfig = (suites: TestSuite[]): Config => testConfig({
   server: {
     transport: 'stdio',
     command: 'npx',

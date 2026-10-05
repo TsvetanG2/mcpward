@@ -12,15 +12,15 @@ import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { connect } from '../../src/client/connect.js';
 import { listAllTools } from '../../src/client/tools.js';
 import { runSecurityChecks } from '../../src/checks/security.js';
-import type { Config } from '../../src/config/schema.js';
+import { testConfig } from '../helpers/config.js';
 
 const PAGINATED_SERVER = join(process.cwd(), 'fixtures', 'paginated-server', 'index.ts');
 
-const paginatedConfig: Config = {
+const paginatedConfig = testConfig({
   server: { transport: 'stdio', command: 'npx', args: ['tsx', PAGINATED_SERVER], env: {} },
   checks: {},
   suites: [],
-};
+});
 
 /** Fake client whose listTools replays the given pages keyed by cursor. */
 function fakeClient(

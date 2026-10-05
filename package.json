@@ -31,7 +31,7 @@
     "lint:fix": "eslint src test --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
     "prepublishOnly": "pnpm run build",
     "integration:baseline": "node scripts/integration-baseline.mjs"
   },

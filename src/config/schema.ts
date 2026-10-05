@@ -194,6 +194,8 @@ export const ConfigSchema = z.object({
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
+/** Config as written by a user, before defaults are applied. */
+export type ConfigInput = z.input<typeof ConfigSchema>;
 export type ServerConfig = z.infer<typeof ServerSchema>;
 export type StdioTransport = z.infer<typeof StdioTransportSchema>;
 export type HttpTransport = z.infer<typeof HttpTransportSchema>;

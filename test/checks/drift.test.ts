@@ -17,7 +17,7 @@ import {
   diffSurfaces,
 } from '../../src/surface/index.js';
 import { runDriftChecks } from '../../src/checks/drift.js';
-import type { Config } from '../../src/config/schema.js';
+import { testConfig } from '../helpers/config.js';
 
 // Fixture paths
 const FIXTURES_DIR = join(process.cwd(), 'fixtures');
@@ -27,7 +27,7 @@ const TEMP_DIR = join(process.cwd(), 'test', '.temp');
 const BASELINE_PATH = join(TEMP_DIR, 'test-baseline.lock.json');
 
 // Config for v1 server
-const v1Config: Config = {
+const v1Config = testConfig({
   server: {
     transport: 'stdio',
     command: 'npx',
@@ -36,10 +36,10 @@ const v1Config: Config = {
   },
   checks: {},
   suites: [],
-};
+});
 
 // Config for v2 server
-const v2Config: Config = {
+const v2Config = testConfig({
   server: {
     transport: 'stdio',
     command: 'npx',
@@ -58,7 +58,7 @@ const v2Config: Config = {
     },
   },
   suites: [],
-};
+});
 
 describe('Drift Detection Integration', () => {
   beforeAll(async () => {
@@ -243,7 +243,7 @@ describe('Drift Detection Integration', () => {
       // Run drift checks against same v1 server
       const v1Connection2 = await connect(v1Config);
       try {
-        const v1ConfigWithBaseline = {
+        const v1ConfigWithBaseline = testConfig({
           ...v1Config,
           checks: {
             drift: {
@@ -251,11 +251,11 @@ describe('Drift Detection Integration', () => {
               fail_on: ['tool_removed', 'description_changed'],
             },
           },
-        };
+        });
         const results = await runDriftChecks({
           connection: v1Connection2,
           fullConfig: v1ConfigWithBaseline,
-          config: v1ConfigWithBaseline.checks.drift,
+          config: v1ConfigWithBaseline.checks?.drift,
         });
 
         // Should have no failures
@@ -275,7 +275,7 @@ describe('Drift Detection Integration', () => {
     it('skips drift checks when baseline is missing', async () => {
       const connection = await connect(v1Config);
       try {
-        const v1ConfigMissingBaseline = {
+        const v1ConfigMissingBaseline = testConfig({
           ...v1Config,
           checks: {
             drift: {
@@ -283,11 +283,11 @@ describe('Drift Detection Integration', () => {
               fail_on: [],
             },
           },
-        };
+        });
         const results = await runDriftChecks({
           connection,
           fullConfig: v1ConfigMissingBaseline,
-          config: v1ConfigMissingBaseline.checks.drift,
+          config: v1ConfigMissingBaseline.checks?.drift,
         });
 
         // Should have a skip result

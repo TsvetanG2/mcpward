@@ -13,13 +13,14 @@ import { captureServerSurface, saveLockfile } from '../../src/surface/capture.js
 import { diffSurfaces } from '../../src/surface/diff.js';
 import { runSecurityChecks } from '../../src/checks/security.js';
 import type { Config } from '../../src/config/schema.js';
+import { testConfig } from '../helpers/config.js';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { mkdtemp, rm } from 'fs/promises';
 
 // Helper to create Config for stdio fixtures
 function makeConfig(fixturePath: string): Config {
-  return {
+  return testConfig({
     server: {
       transport: 'stdio',
       command: 'npx',
@@ -29,7 +30,7 @@ function makeConfig(fixturePath: string): Config {
     checks: {},
     timeouts: {},
     suites: [],
-  };
+  });
 }
 
 describe('Canonicalization integration', () => {

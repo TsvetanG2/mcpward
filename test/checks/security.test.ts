@@ -14,7 +14,7 @@ import { describe, it, expect } from 'vitest';
 import { join } from 'path';
 import { connect } from '../../src/client/connect.js';
 import { runSecurityChecks } from '../../src/checks/security.js';
-import type { Config } from '../../src/config/schema.js';
+import { testConfig } from '../helpers/config.js';
 
 // Fixture paths
 const FIXTURES_DIR = join(process.cwd(), 'fixtures');
@@ -22,7 +22,7 @@ const GOOD_SERVER = join(FIXTURES_DIR, 'good-server', 'index.ts');
 const POISONED_SERVER = join(FIXTURES_DIR, 'poisoned-server', 'index.ts');
 
 // Config for good server
-const goodServerConfig: Config = {
+const goodServerConfig = testConfig({
   server: {
     transport: 'stdio',
     command: 'npx',
@@ -31,10 +31,10 @@ const goodServerConfig: Config = {
   },
   checks: {},
   suites: [],
-};
+});
 
 // Config for poisoned server
-const poisonedServerConfig: Config = {
+const poisonedServerConfig = testConfig({
   server: {
     transport: 'stdio',
     command: 'npx',
@@ -43,7 +43,7 @@ const poisonedServerConfig: Config = {
   },
   checks: {},
   suites: [],
-};
+});
 
 describe('Security Checks', () => {
   describe('against good-server (ZERO false positives)', () => {
@@ -213,7 +213,7 @@ describe('Security Checks', () => {
   });
 
   describe('against smuggling-server (tag chars, param unicode)', () => {
-    const smugglingConfig: Config = {
+    const smugglingConfig = testConfig({
       server: {
         transport: 'stdio',
         command: 'npx',
@@ -222,7 +222,7 @@ describe('Security Checks', () => {
       },
       checks: {},
       suites: [],
-    };
+    });
 
     it('flags each smuggling vector and nothing else', async () => {
       const connection = await connect(smugglingConfig);

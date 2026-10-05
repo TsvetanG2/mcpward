@@ -10,7 +10,7 @@ import { describe, it, expect } from 'vitest';
 import { join } from 'path';
 import { connect } from '../../src/client/connect.js';
 import { runLatencyChecks } from '../../src/checks/latency.js';
-import type { Config } from '../../src/config/schema.js';
+import { testConfig } from '../helpers/config.js';
 
 // Fixture paths
 const FIXTURES_DIR = join(process.cwd(), 'fixtures');
@@ -18,7 +18,7 @@ const GOOD_SERVER = join(FIXTURES_DIR, 'good-server', 'index.ts');
 const SLOW_SERVER = join(FIXTURES_DIR, 'slow-server', 'index.ts');
 
 // Config for good server with latency checks
-const goodServerConfig: Config = {
+const goodServerConfig = testConfig({
   server: {
     transport: 'stdio',
     command: 'npx',
@@ -32,10 +32,10 @@ const goodServerConfig: Config = {
     },
   },
   suites: [],
-};
+});
 
 // Config for slow server with tight budget (should fail)
-const slowServerConfigTightBudget: Config = {
+const slowServerConfigTightBudget = testConfig({
   server: {
     transport: 'stdio',
     command: 'npx',
@@ -49,10 +49,10 @@ const slowServerConfigTightBudget: Config = {
     },
   },
   suites: [],
-};
+});
 
 // Config for slow server with loose budget (should pass)
-const slowServerConfigLooseBudget: Config = {
+const slowServerConfigLooseBudget = testConfig({
   server: {
     transport: 'stdio',
     command: 'npx',
@@ -66,7 +66,7 @@ const slowServerConfigLooseBudget: Config = {
     },
   },
   suites: [],
-};
+});
 
 describe('Latency Checks', () => {
   describe('against good-server', () => {
