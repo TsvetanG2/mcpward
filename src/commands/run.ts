@@ -19,6 +19,8 @@ import { renderConsoleReport } from '../report/console.js';
 import { renderJsonReport } from '../report/json.js';
 import { renderSarifReport } from '../report/sarif.js';
 import { renderJunitReport } from '../report/junit.js';
+import { renderMarkdownReport } from '../report/markdown.js';
+import { detectPrContext, upsertPrComment } from '../report/github.js';
 import { redactReport } from '../report/redact.js';
 import type { Config } from '../config/schema.js';
 import { MCPWARD_VERSION } from '../version.js';
@@ -29,6 +31,8 @@ export interface RunOptions {
   out?: string;
   json?: boolean;
   verbose?: boolean;
+  /** Post/update the report as a GitHub PR comment (M5). Opt-in. */
+  prComment?: boolean;
 }
 
 export async function runCommand(
@@ -200,6 +204,14 @@ export async function runCommand(
       } else {
         console.log(sarif);
       }
+    } else if (reporter === 'markdown') {
+      const markdown = renderMarkdownReport(report);
+      if (options.out) {
+        await writeFile(options.out, markdown, 'utf-8');
+        console.log(pc.dim(`Markdown report written to ${options.out}`));
+      } else {
+        console.log(markdown);
+      }
     } else if (reporter === 'junit') {
       const junit = renderJunitReport(report);
       if (options.out) {
@@ -211,6 +223,10 @@ export async function runCommand(
     } else {
       // Console reporter
       renderConsoleReport(report, { verbose });
+    }
+
+    if (options.prComment) {
+      await publishPrComment(report);
     }
 
     return getExitCode(results);
@@ -226,5 +242,26 @@ export async function runCommand(
         // Ignore close errors
       }
     }
+  }
+}
+
+/**
+ * Posts the (already redacted) report as a PR comment. Never changes the exit code and never
+ * writes to stdout — a machine-readable report on stdout must stay parseable.
+ */
+async function publishPrComment(report: CheckReport): Promise<void> {
+  const ctx = detectPrContext();
+  if ('reason' in ctx) {
+    console.error(pc.dim(`PR comment skipped: ${ctx.reason}`));
+    return;
+  }
+  try {
+    const outcome = await upsertPrComment(ctx, renderMarkdownReport(report));
+    console.error(pc.dim(`PR comment ${outcome} on ${ctx.repo}#${ctx.prNumber}`));
+  } catch (err) {
+    console.error(
+      pc.yellow('Warning: could not post PR comment:'),
+      err instanceof Error ? err.message : String(err)
+    );
   }
 }
