@@ -379,16 +379,8 @@ function diffSchemaNode(
   const subject = path === '' ? '' : `property "${path}" `;
 
   // --- description (parameter-level rug-pull vector) ---
-  // Absent counts as empty: ADDING a description to a parameter that had none is the easiest
-  // rug-pull of all. Compared canonically, like tool descriptions, so formatting-only edits
-  // (CRLF, whitespace, NFC/NFD) are not drift; zero-width characters still are.
   if (path !== '') {
-    const before = typeof base.description === 'string' ? base.description : '';
-    const after = typeof curr.description === 'string' ? curr.description : '';
-    if (canonicalizeDescription(before) !== canonicalizeDescription(after)) {
-      const what = before === '' ? 'description added' : after === '' ? 'description removed' : 'description changed';
-      emit('description_changed', `${subject}${what} (possible rug-pull)`, base.description, curr.description);
-    }
+    diffDescription(base.description, curr.description, subject, emit);
   }
 
   // --- type ---
@@ -567,30 +559,16 @@ function diffSchemaNode(
   const baseItems = base.items;
   const currItems = curr.items;
   if (Array.isArray(baseItems) && Array.isArray(currItems)) {
-    // Tuple form: compare position by position. Whether a dropped/added position narrows or
-    // widens depends on additionalItems: positions beyond the tuple are free unless it is false.
+    // Tuple form: compare position by position. A position beyond the tuple is governed by
+    // `additionalItems` (absent = accept anything), so a dropped position is compared with the
+    // NEW additionalItems and an added position with the OLD one — that covers false, true and
+    // schema-valued additionalItems with the same subschema rules.
     const n = Math.max(baseItems.length, currItems.length);
     for (let i = 0; i < n; i++) {
       const p = `${path}[${i}]`;
-      if (i < baseItems.length && i < currItems.length) {
-        diffSubschema(baseItems[i], currItems[i], p, depth, emit);
-      } else if (i >= currItems.length) {
-        const closed = curr.additionalItems === false;
-        emit(
-          closed ? 'breaking_schema_change' : 'nonbreaking_schema_change',
-          `property "${p}" tuple position removed (${closed ? 'now forbidden by additionalItems: false' : 'now unconstrained'})`,
-          baseItems[i],
-          undefined
-        );
-      } else {
-        const wasClosed = base.additionalItems === false;
-        emit(
-          wasClosed ? 'nonbreaking_schema_change' : 'breaking_schema_change',
-          `property "${p}" tuple position added (${wasClosed ? 'previously forbidden' : 'previously unconstrained'})`,
-          undefined,
-          currItems[i]
-        );
-      }
+      const before = i < baseItems.length ? baseItems[i] : (base.additionalItems ?? true);
+      const after = i < currItems.length ? currItems[i] : (curr.additionalItems ?? true);
+      diffSubschema(before, after, p, depth, emit);
     }
   } else if (baseItems !== undefined && currItems !== undefined && !Array.isArray(baseItems) && !Array.isArray(currItems)) {
     diffSubschema(baseItems, currItems, itemsPath, depth, emit);
@@ -616,14 +594,53 @@ function diffSubschema(base: unknown, curr: unknown, path: string, depth: number
     return;
   }
   if (same(base, curr)) return;
-  const rank = (v: unknown) => (v === false ? 0 : v === true || v === undefined ? 2 : 1);
-  const label = (v: unknown) => (v === false ? 'false (rejects everything)' : v === true ? 'true (accepts anything)' : 'a schema');
+
+  // A description can arrive with the switch from `true` to an object schema — it is read by
+  // the model all the same, so it must not hide behind a schema-change finding.
+  diffDescription(b?.description, c?.description, `property "${path}" `, emit);
+
+  const rank = (v: unknown) => (v === false ? 0 : acceptsAnything(v) ? 2 : 1);
+  if (rank(base) === rank(curr)) return; // e.g. `true` ↔ `{}`: same accepted values
+  const label = (v: unknown) =>
+    v === false ? 'false (rejects everything)' : acceptsAnything(v) ? 'accept-anything' : 'a schema';
   emit(
     rank(curr) < rank(base) ? 'breaking_schema_change' : 'nonbreaking_schema_change',
     `property "${path}" changed from ${label(base)} to ${label(curr)}`,
     base,
     curr
   );
+}
+
+/** Keywords that annotate a schema without constraining which values it accepts. */
+const ANNOTATION_KEYWORDS = new Set([
+  'title',
+  'description',
+  'default',
+  'examples',
+  '$comment',
+  'deprecated',
+  'readOnly',
+  'writeOnly',
+]);
+
+/** `true`, an absent schema, and `{}` (or annotations only) all accept every value. */
+function acceptsAnything(v: unknown): boolean {
+  if (v === true || v === undefined) return true;
+  const s = asSchema(v);
+  return s !== null && Object.keys(s).every((k) => ANNOTATION_KEYWORDS.has(k));
+}
+
+/**
+ * Parameter descriptions are a rug-pull vector like tool descriptions. Absent counts as empty —
+ * ADDING a description to a parameter that had none is the easiest rug-pull of all. Compared
+ * canonically, so formatting-only edits are not drift; invisible characters still are.
+ */
+function diffDescription(before: unknown, after: unknown, subject: string, emit: Emit): void {
+  const b = typeof before === 'string' ? before : '';
+  const a = typeof after === 'string' ? after : '';
+  if (canonicalizeDescription(b) === canonicalizeDescription(a)) return;
+  const what = b === '' ? 'description added' : a === '' ? 'description removed' : 'description changed';
+  emit('description_changed', `${subject}${what} (possible rug-pull)`, before, after);
 }
 
 /**
