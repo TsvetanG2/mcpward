@@ -18,6 +18,7 @@ import {
   publishPrComment,
   withRunDeadline,
   RunDeadlineError,
+  closeOnce,
 } from './output.js';
 
 export interface RunOptions {
@@ -115,17 +116,8 @@ export async function runCommand(config: Config, options: RunOptions): Promise<n
     return 2;
   }
 
-  // Setup signal handlers for cleanup
-  let closed = false;
-  const close = async () => {
-    if (closed) return;
-    closed = true;
-    try {
-      await connection.close();
-    } catch {
-      // Ignore close errors
-    }
-  };
+  // One shared close: the deadline, signal handlers and cleanup all await the same shutdown
+  const close = closeOnce(connection);
   const onSignal = async () => {
     if (verbose) {
       console.log(pc.dim('\nInterrupted, cleaning up...'));

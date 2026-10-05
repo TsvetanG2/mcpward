@@ -93,6 +93,22 @@ export async function publishPrComment(report: CheckReport, ctx: PrContextResult
   }
 }
 
+/**
+ * Returns a close function that always hands back the SAME promise.
+ *
+ * The run deadline closes the connection without awaiting it; command cleanup closes it again.
+ * A second SDK close returns immediately, so without memoization cleanup would not wait for
+ * the first one — and the CLI's process.exit would run before the SDK finishes terminating the
+ * server (SIGTERM, then SIGKILL), leaving a timed-out server process alive.
+ */
+export function closeOnce(connection: McpConnection): () => Promise<void> {
+  let closing: Promise<void> | undefined;
+  return () => {
+    closing ??= connection.close().catch(() => undefined);
+    return closing;
+  };
+}
+
 /** Thrown when the whole run exceeds `timeouts.run_ms`. */
 export class RunDeadlineError extends Error {
   constructor(readonly ms: number) {
