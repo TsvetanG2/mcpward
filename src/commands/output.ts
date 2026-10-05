@@ -10,6 +10,7 @@ import {
   type CheckResult,
   type CheckReport,
   summarizeResults,
+  REPORT_SCHEMA_VERSION,
 } from '../report/model.js';
 import { renderConsoleReport } from '../report/console.js';
 import { renderJsonReport } from '../report/json.js';
@@ -32,6 +33,7 @@ export type PrContextResult = ReturnType<typeof detectPrContext>;
 /** Builds the report model from results. */
 export function buildReport(connection: McpConnection, results: CheckResult[]): CheckReport {
   return {
+    schemaVersion: REPORT_SCHEMA_VERSION,
     version: MCPWARD_VERSION,
     timestamp: new Date().toISOString(),
     server: {

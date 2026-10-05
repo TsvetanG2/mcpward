@@ -87,6 +87,7 @@ Total: 7 checks
 
 exports[`Golden Snapshot Tests > JSON Reporter > matches snapshot 1`] = `
 "{
+  "schemaVersion": 1,
   "version": "0.1.0",
   "timestamp": "2024-01-15T10:30:00.000Z",
   "server": {

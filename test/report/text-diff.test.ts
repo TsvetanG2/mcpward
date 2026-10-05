@@ -70,6 +70,7 @@ describe('console description_changed rendering', () => {
       ...result,
     };
     const report: CheckReport = {
+      schemaVersion: 1,
       version: '0.0.0',
       timestamp: 't',
       server: { name: 's', version: '1', protocolVersion: 'p' },

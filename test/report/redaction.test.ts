@@ -126,6 +126,7 @@ server:
 
       // Create a mock report with the secret in various places
       const report: CheckReport = {
+        schemaVersion: 1,
         version: '0.1.0',
         timestamp: new Date().toISOString(),
         server: {
@@ -234,6 +235,7 @@ server:
           ];
 
           const report: CheckReport = {
+            schemaVersion: 1,
             version: '0.1.0',
             timestamp: new Date().toISOString(),
             server: {

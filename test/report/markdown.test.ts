@@ -17,6 +17,7 @@ import type { CheckReport, CheckResult } from '../../src/report/model.js';
 
 function report(results: CheckResult[]): CheckReport {
   return {
+    schemaVersion: 1,
     version: '0.0.0',
     timestamp: 't',
     server: { name: 'srv', version: '1.0.0', protocolVersion: '2025-11-25' },

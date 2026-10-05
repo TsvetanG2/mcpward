@@ -60,7 +60,17 @@ export interface CheckSummary {
   skipped: number;
 }
 
+/**
+ * Version of the report FORMAT (not of mcpward). Part of the public contract: bump it only for a
+ * breaking change to the report shape, and update `schemas/report.v<N>.schema.json` with it.
+ * Additive changes (a new optional field, a new rule id or family) do not bump it.
+ */
+export const REPORT_SCHEMA_VERSION = 1;
+
 export interface CheckReport {
+  /** Report format version — see REPORT_SCHEMA_VERSION. */
+  schemaVersion: typeof REPORT_SCHEMA_VERSION;
+
   /** mcpward version */
   version: string;
 
