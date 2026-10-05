@@ -73,7 +73,8 @@ jobs:
           set -euo pipefail
           test "$GOOD_EXIT" = "0" || { echo "::error::expected exit-code 0, got '$GOOD_EXIT'"; exit 1; }
           test "$GOOD_REPORT" = "e2e-good.sarif" || { echo "::error::report-path was '$GOOD_REPORT'"; exit 1; }
-          node -e "const s=require('./e2e-good.sarif'); if (s.version !== '2.1.0') process.exit(1)"
+          # .sarif is JSON, but require() only parses files named *.json
+          node -e "const s = JSON.parse(require('fs').readFileSync('e2e-good.sarif', 'utf-8')); if (s.version !== '2.1.0') process.exit(1)"
           test "$POISONED_EXIT" = "1" || { echo "::error::expected exit-code 1, got '$POISONED_EXIT'"; exit 1; }
           test "$POISONED_OUTCOME" = "failure" || { echo "::error::the step must fail on findings"; exit 1; }
           node -e "
