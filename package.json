@@ -1,6 +1,6 @@
 {
   "name": "mcpward",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Black-box security & contract testing for MCP servers — rug-pull, tool-poisoning, schema-drift & protocol checks for CI (JUnit + SARIF).",
   "type": "module",
   "main": "./dist/index.js",
@@ -18,7 +18,8 @@
   },
   "files": [
     "dist",
-    "schemas"
+    "schemas",
+    "NOTICE"
   ],
   "publishConfig": {
     "access": "public"
@@ -58,7 +59,7 @@
     "devtools"
   ],
   "author": "TsvetanG2",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/TsvetanG2/mcpward.git"
