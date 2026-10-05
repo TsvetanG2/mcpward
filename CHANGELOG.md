@@ -8,6 +8,18 @@ Until `1.0.0`, minor versions may contain breaking changes to the config format.
 
 ## [Unreleased]
 
+## [0.7.2] — 2026-10-05
+
+Fixes from review of 0.7.1.
+
+### Fixed
+
+- **Security (drift):** description canonicalization used `String#trim()`, which also strips U+FEFF (a zero-width character) and Unicode spaces such as U+00A0. A zero-width character added at the start or end of a tool or parameter description was therefore invisible to drift — and `mcpward diff` does not run the separate raw security scan. Trimming is now ASCII-only. **Canonicalization version is now 2**: `diff` against an older baseline prints a warning; re-run `mcpward baseline` once. Only descriptions that begin or end with such characters hash differently.
+- **Security (drift):** a parameter switching from `true` to an object schema that carries a description reported only a medium schema change, so instructions injected that way passed `fail_on: high`. The description is now reported as `description_changed`.
+- **Schema drift:** a dropped tuple position is compared against the new `additionalItems` and an added one against the old `additionalItems` — including schema-valued `additionalItems`, which was misclassified as non-breaking.
+- **False positive:** `true` and `{}` (or an annotation-only schema) accept the same values and are no longer reported as a breaking change.
+- `mcpward baseline` again exits 2 when closing the server connection fails (0.7.1 swallowed the error).
+
 ## [0.7.1] — 2026-10-05
 
 Fixes from review of 0.7.0.
