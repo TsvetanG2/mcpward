@@ -15,6 +15,7 @@ interface GlobalOptions {
   out?: string;
   json?: boolean;
   verbose?: boolean;
+  prComment?: boolean;
 }
 
 const program = new Command();
@@ -31,12 +32,16 @@ program
   .option('-c, --config <path>', 'Path to config file', 'mcpward.yaml')
   .option(
     '-r, --reporter <type>',
-    'Reporter type: console, json, junit, sarif',
+    'Reporter type: console, json, junit, sarif, markdown',
     'console'
   )
   .option('-o, --out <path>', 'Output file path for reporters')
   .option('--json', 'Shorthand for --reporter json')
-  .option('-v, --verbose', 'Verbose output');
+  .option('-v, --verbose', 'Verbose output')
+  .option(
+    '--pr-comment',
+    'Post/update the report as a GitHub PR comment (needs GITHUB_TOKEN with pull-requests: write)'
+  );
 
 // init command
 program

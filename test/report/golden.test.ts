@@ -13,6 +13,7 @@ import { renderJsonReport } from '../../src/report/json.js';
 import { renderJunitReport } from '../../src/report/junit.js';
 import { renderSarifReport, toHelpAnchor } from '../../src/report/sarif.js';
 import { renderConsoleReport } from '../../src/report/console.js';
+import { renderMarkdownReport } from '../../src/report/markdown.js';
 import type { CheckReport } from '../../src/report/model.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -263,6 +264,16 @@ describe('Golden Snapshot Tests', () => {
       expect(toHelpAnchor('security/injection-pattern')).toBe('securityinjection-pattern');
       expect(toHelpAnchor('schema/tool-name')).toBe('schematool-name');
       expect(toHelpAnchor('drift/description-changed')).toBe('driftdescription-changed');
+    });
+  });
+
+  describe('Markdown Reporter (PR comment)', () => {
+    it('matches snapshot', () => {
+      expect(renderMarkdownReport(FIXED_REPORT)).toMatchSnapshot();
+    });
+
+    it('starts with the hidden upsert marker', () => {
+      expect(renderMarkdownReport(FIXED_REPORT).startsWith('<!-- mcpward-report -->\n')).toBe(true);
     });
   });
 
