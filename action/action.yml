@@ -109,4 +109,9 @@ runs:
         elif [ "$EXIT_CODE" -eq 2 ]; then
           echo "::error::mcpward configuration or connection error"
           exit 2
+        elif [ "$EXIT_CODE" -ne 0 ]; then
+          # Anything else (130 interrupted, 137 killed, 127 npx missing, ...) means the scan did
+          # not complete — never let that pass as a green step
+          echo "::error::mcpward did not complete (exit code $EXIT_CODE)"
+          exit "$EXIT_CODE"
         fi

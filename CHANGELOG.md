@@ -19,6 +19,10 @@ This release implements **M8 — distribution**, the last milestone before 1.0.0
 - The Action runs `npx --yes mcpward@<version>`, so installing the package never waits on an interactive prompt.
 - The Action uses `actions/setup-node@v7`; v4 ran on the deprecated Node 20 Actions runtime and printed a deprecation warning in every consumer's workflow.
 
+### Fixed
+
+- **The Action reported success for an incomplete scan.** Only exit codes 1 and 2 failed the step; any other non-zero status (130 interrupted, 137 killed, 127 `npx` missing) left the step green. Every non-zero exit now fails it. A test runs the action's own shell script against a fake CLI for each exit code.
+
 ### Added
 
 - **Action end-to-end workflow**: the Action is exercised as a user would run it — against fixture servers with a local build (outputs, exit codes 0/1, SARIF and JSON reports), and from a clean directory containing only `mcpward.yaml`, running the published package against a version-pinned real MCP server.
