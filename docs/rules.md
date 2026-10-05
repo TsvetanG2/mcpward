@@ -235,10 +235,10 @@ Remove or rephrase tool descriptions that contain instruction-like language. Too
 Detects hidden unicode characters that could conceal malicious content from a human reviewer while the model still reads it.
 
 **What it checks:**
-- Tool names, descriptions, and **parameter descriptions**
+- Tool names, descriptions, and **parameter descriptions at any nesting level** (nested objects, array items, `anyOf`/`oneOf`/`allOf`)
 - Zero-width characters (e.g. U+200B, U+200D, U+FEFF)
 - Bidirectional overrides and isolates (U+202A–U+202E, U+2066–U+2069)
-- **Unicode Tag characters** (U+E0000–U+E007F, "ASCII smuggling"): invisible characters that map 1:1 onto ASCII. The finding decodes the hidden text so you can read it. Well-formed emoji tag sequences (subdivision flags such as the Scotland flag) are not flagged.
+- **Unicode Tag characters** (U+E0000–U+E007F, "ASCII smuggling"): invisible characters that map 1:1 onto ASCII. The finding decodes the hidden text so you can read it. Valid subdivision flags (U+1F3F4 + an ISO 3166-2 code such as `gbsct` + U+E007F, e.g. the Scotland flag) are not flagged; anything else wrapped between U+1F3F4 and U+E007F is.
 - Confusable spaces (non-breaking and typographic spaces)
 
 **How to fix:**
