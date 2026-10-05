@@ -8,6 +8,16 @@ Until `1.0.0`, minor versions may contain breaking changes to the config format.
 
 ## [Unreleased]
 
+## [0.8.1] — 2026-10-05
+
+Fixes from review of 0.8.0.
+
+### Fixed
+
+- **SARIF location relative to the wrong directory.** 0.8.0 made `artifactLocation.uri` relative to the current directory, but code scanning resolves it against the repository root — with the action's `working-directory` (or a run from a subfolder) alerts pointed outside the checkout. It is now relative to the repository root: `GITHUB_WORKSPACE` in Actions, else the nearest `.git` ancestor.
+- **SARIF URI encoding.** Each path segment is percent-encoded, so a config named `checks#prod.yaml` is not read as a URI fragment and paths with spaces are valid URI references.
+- **Config schema `server.url`.** The published schema used `format: "uri"`, which accepted `file:` and `ftp:` URLs the parser rejects, and rejected `${ENV_VAR}` placeholders the parser expands before validating (so editors flagged a valid config). It now accepts exactly http(s) URLs or a value containing a placeholder.
+
 ## [0.8.0] — 2026-10-05
 
 This release implements **M7 — freeze the contract**. Everything a pipeline depends on is now written down, versioned, and validated against real output. See [`docs/stability.md`](docs/stability.md).
@@ -29,8 +39,7 @@ This release implements **M7 — freeze the contract**. Everything a pipeline de
 
 ### Fixed
 
-- **SARIF alerts pointed at `mcpward.yaml` regardless of `--config`.** `artifactLocation.uri` is now the path of the config file actually used, relative to the repository root (`GITHUB_WORKSPACE` in Actions, else the nearest `.git` ancestor) — so it is also correct with the action's `working-directory` — and percent-encoded per segment (a file named `checks#prod.yaml` is not read as a URI fragment).
-- The published config schema restricts `server.url` exactly like the parser: `http(s)` URLs, or a value with a `${ENV_VAR}` placeholder (expanded before validation, so editors no longer flag it).
+- **SARIF alerts pointed at `mcpward.yaml` regardless of `--config`.** `artifactLocation.uri` is now the repo-relative path of the config file actually used, so code-scanning alerts open the right file.
 
 ### Removed
 

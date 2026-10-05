@@ -32,7 +32,7 @@ function createSurface(tools: Record<string, ToolSurface>): ServerSurface {
     tools,
     meta: {
       schemaVersion: 2,
-      mcpwardVersion: '0.8.0',
+      mcpwardVersion: '0.8.1',
       canonicalVersion: 1,
       capturedAt: '2025-07-17T00:00:00.000Z',
       serverName: 'test-server',
