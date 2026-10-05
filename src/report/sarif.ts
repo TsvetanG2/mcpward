@@ -150,11 +150,6 @@ function getFullDescription(ruleId: string): string {
       'The tool has readOnlyHint=true but its name or description implies destructive/mutating behavior.',
     'drift/description_changed':
       'The tool description has silently changed between versions. This could indicate a rug-pull attack where the tool behavior changes after trust is established.',
-    'drift/tool-added':
-      'A new tool has been added since the baseline was captured. Review the new tool carefully for unexpected functionality.',
-    'drift/tool-removed':
-      'A tool that existed in the baseline is no longer present. This is a breaking change for clients relying on this tool.',
-    // Real drift ids use underscores; the hyphenated keys above are kept for report stability.
     'drift/tool_added':
       'A new tool has been added since the baseline was captured. Review the new tool carefully for unexpected functionality.',
     'drift/tool_removed':
@@ -308,7 +303,7 @@ function getDefaultLevel(family: string): 'error' | 'warning' | 'note' {
 /**
  * Creates SARIF results from check results.
  */
-function createResults(results: CheckResult[]): SarifResult[] {
+function createResults(results: CheckResult[], artifactUri: string): SarifResult[] {
   return results
     .filter((r) => r.status === 'fail' || r.status === 'warn')
     .map((result) => ({
@@ -322,7 +317,7 @@ function createResults(results: CheckResult[]): SarifResult[] {
             {
               physicalLocation: {
                 artifactLocation: {
-                  uri: 'mcpward.yaml',
+                  uri: artifactUri,
                   uriBaseId: '%SRCROOT%',
                 },
               },
@@ -404,7 +399,15 @@ interface SarifReport {
 /**
  * Renders a SARIF report from check results.
  */
-export function renderSarifReport(report: CheckReport): string {
+export interface SarifOptions {
+  /**
+   * Repo-relative path of the config file that alerts are anchored to (posix separators).
+   * Defaults to `mcpward.yaml`.
+   */
+  artifactUri?: string;
+}
+
+export function renderSarifReport(report: CheckReport, options: SarifOptions = {}): string {
   const sarif: SarifReport = {
     $schema: SARIF_SCHEMA,
     version: SARIF_VERSION,
@@ -418,7 +421,7 @@ export function renderSarifReport(report: CheckReport): string {
             rules: createRules(report.results),
           },
         },
-        results: createResults(report.results),
+        results: createResults(report.results, options.artifactUri ?? 'mcpward.yaml'),
         invocations: [
           {
             executionSuccessful: report.summary.failed === 0,

@@ -4,6 +4,7 @@
  */
 
 import { writeFile } from 'node:fs/promises';
+import { relative, resolve, sep } from 'node:path';
 import pc from 'picocolors';
 import type { McpConnection } from '../client/connect.js';
 import {
@@ -26,9 +27,20 @@ export interface OutputOptions {
   reporter: string;
   out?: string;
   verbose?: boolean;
+  /** Config file path, used to anchor SARIF alerts to the right file. */
+  configPath?: string;
 }
 
 export type PrContextResult = ReturnType<typeof detectPrContext>;
+
+/**
+ * Repo-relative, posix-style path of the config file for SARIF `artifactLocation.uri`, so
+ * code-scanning alerts point at the file that was actually used (not always mcpward.yaml).
+ */
+export function sarifArtifactUri(configPath: string | undefined): string {
+  if (!configPath) return 'mcpward.yaml';
+  return relative(process.cwd(), resolve(configPath)).split(sep).join('/');
+}
 
 /** Builds the report model from results. */
 export function buildReport(connection: McpConnection, results: CheckResult[]): CheckReport {
@@ -46,9 +58,15 @@ export function buildReport(connection: McpConnection, results: CheckResult[]): 
   };
 }
 
-const RENDERERS: Record<string, { render: (r: CheckReport) => string; label: string }> = {
-  json: { render: renderJsonReport, label: 'Report' },
-  sarif: { render: renderSarifReport, label: 'SARIF report' },
+const RENDERERS: Record<
+  string,
+  { render: (r: CheckReport, o: OutputOptions) => string; label: string }
+> = {
+  json: { render: (r) => renderJsonReport(r), label: 'Report' },
+  sarif: {
+    render: (r, o) => renderSarifReport(r, { artifactUri: sarifArtifactUri(o.configPath) }),
+    label: 'SARIF report',
+  },
   junit: { render: renderJunitReport, label: 'JUnit report' },
   markdown: { render: renderMarkdownReport, label: 'Markdown report' },
 };
@@ -66,7 +84,7 @@ export async function emitReport(report: CheckReport, options: OutputOptions): P
     return;
   }
 
-  const text = renderer.render(report);
+  const text = renderer.render(report, options);
   if (options.out) {
     await writeFile(options.out, text, 'utf-8');
     console.log(pc.dim(`${renderer.label} written to ${options.out}`));

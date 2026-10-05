@@ -139,7 +139,7 @@ export async function runCommand(config: Config, options: RunOptions): Promise<n
     );
 
     const report = buildReport(connection, results);
-    await emitReport(report, { reporter, out: options.out, verbose });
+    await emitReport(report, { reporter, out: options.out, verbose, configPath: options.config });
 
     if (prContext) {
       await publishPrComment(report, prContext);
