@@ -140,6 +140,13 @@ describe('runLatencyChecks never calls tools the policy refuses', () => {
     expect(getExitCode(results)).toBe(0); // visible, but not a failure
   });
 
+  it('a server with no tools: the unevaluated budget is a visible warning', async () => {
+    const { connection } = recordingConnection([]);
+    const results = await runLatencyChecks({ connection, config: latencyConfig() });
+    expect(results.find((r) => r.id === 'latency/summary')?.status).toBe('warn');
+    expect(getExitCode(results)).toBe(0);
+  });
+
   it('a server with no tools still warns about allowlisted tools', async () => {
     const { connection } = recordingConnection([]);
     const results = await runLatencyChecks({
@@ -223,6 +230,18 @@ describe('only completed calls are latency samples', () => {
     const connection = connectionThat(async () => ({ isError: true, content: [] }));
     const results = await runLatencyChecks({ connection, config: latencyConfig() });
     expect(results.find((r) => r.id === 'latency/summary')?.status).toBe('warn');
+  });
+
+  it('timeouts fail the budget even when call_ms is below it', async () => {
+    // call_ms (30ms) < budget (1000ms): p95 alone would pass, but no call ever completed
+    const connection = connectionThat(async () => {
+      await new Promise((r) => setTimeout(r, 30));
+      throw new Error('Timeout: tool call "get_status" (30ms)');
+    });
+    const results = await runLatencyChecks({ connection, config: latencyConfig() });
+    const summary = results.find((r) => r.id === 'latency/summary');
+    expect(summary?.status).toBe('fail');
+    expect(summary?.message).toContain('timed out');
   });
 
   it('timeouts ARE counted — a call that runs out of time is slow, not invalid', async () => {

@@ -135,11 +135,20 @@ export async function runLatencyChecks(ctx: LatencyCheckContext): Promise<CheckR
         actual: { refused: [], unknownAllowlisted },
       });
     }
+    results.unshift({
+      id: 'latency/summary',
+      family: 'latency',
+      status: 'warn',
+      severity: 'warning',
+      message: 'Latency not measured: the server exposes no tools; the budget was not evaluated',
+      expected: `p95 <= ${p95Budget}ms`,
+    });
     return results;
   }
 
   // Measure latency for each tool the policy allows
   const allLatencies: number[] = [];
+  let timeouts = 0;
   const refused: { tool: string; reason: string }[] = [];
 
   for (const tool of tools) {
@@ -151,6 +160,7 @@ export async function runLatencyChecks(ctx: LatencyCheckContext): Promise<CheckR
     const toolResult = await measureToolLatency(ctx.connection, tool, decision.args, samples);
     results.push(toolResult.result);
     allLatencies.push(...toolResult.latencies);
+    timeouts += toolResult.timeouts;
   }
 
   const known = new Set(tools.map((t) => t.name));
@@ -196,16 +206,19 @@ export async function runLatencyChecks(ctx: LatencyCheckContext): Promise<CheckR
   const p50 = percentile(sorted, 50);
   const p95 = percentile(sorted, 95);
 
-  const status = p95 <= p95Budget ? 'pass' : 'fail';
+  // A call that never completed has no latency to compare — only a lower bound (call_ms),
+  // which may itself be under the budget. Timeouts therefore fail the check on their own.
+  const status = p95 <= p95Budget && timeouts === 0 ? 'pass' : 'fail';
+  const timedOut = timeouts > 0 ? `; ${timeouts} call(s) timed out (timeouts.call_ms)` : '';
 
   results.unshift({
     id: 'latency/summary',
     family: 'latency',
     status,
     severity: status === 'pass' ? 'info' : 'error',
-    message: `Latency p50=${p50.toFixed(0)}ms p95=${p95.toFixed(0)}ms (budget: ${p95Budget}ms)`,
-    expected: `p95 <= ${p95Budget}ms`,
-    actual: `p95 = ${p95.toFixed(0)}ms`,
+    message: `Latency p50=${p50.toFixed(0)}ms p95=${p95.toFixed(0)}ms (budget: ${p95Budget}ms)${timedOut}`,
+    expected: `p95 <= ${p95Budget}ms and no timed-out calls`,
+    actual: `p95 = ${p95.toFixed(0)}ms, ${timeouts} timed out`,
   });
 
   return results;
@@ -219,9 +232,10 @@ async function measureToolLatency(
   tool: Tool,
   args: Record<string, unknown>,
   samples: number
-): Promise<{ result: CheckResult; latencies: number[] }> {
+): Promise<{ result: CheckResult; latencies: number[]; timeouts: number }> {
   const latencies: number[] = [];
   const failures: string[] = [];
+  let timeouts = 0;
 
   for (let i = 0; i < samples; i++) {
     const start = performance.now();
@@ -241,6 +255,7 @@ async function measureToolLatency(
         failures.push(err instanceof Error ? err.message : String(err));
         continue;
       }
+      timeouts++;
     }
     latencies.push(performance.now() - start);
   }
@@ -257,6 +272,7 @@ async function measureToolLatency(
         actual: { failed: failures.length, firstError: failures[0] },
       },
       latencies,
+      timeouts,
     };
   }
 
@@ -266,17 +282,22 @@ async function measureToolLatency(
   const min = sorted[0] ?? 0;
   const max = sorted[sorted.length - 1] ?? 0;
 
+  const notes =
+    (timeouts > 0 ? ` (${timeouts} timed out)` : '') +
+    (failures.length > 0 ? ` (${failures.length} failed call(s) excluded)` : '');
+
   return {
     result: {
       id: 'latency/tool',
       family: 'latency',
       status: 'pass', // Individual tool latencies are informational
       severity: 'info',
-      message: `Tool "${tool.name}" latency: min=${min.toFixed(0)}ms p50=${p50.toFixed(0)}ms p95=${p95.toFixed(0)}ms max=${max.toFixed(0)}ms${failures.length > 0 ? ` (${failures.length} failed call(s) excluded)` : ''}`,
+      message: `Tool "${tool.name}" latency: min=${min.toFixed(0)}ms p50=${p50.toFixed(0)}ms p95=${p95.toFixed(0)}ms max=${max.toFixed(0)}ms${notes}`,
       location: tool.name,
-      actual: { min, p50, p95, max, samples: latencies, failed: failures.length },
+      actual: { min, p50, p95, max, samples: latencies, failed: failures.length, timeouts },
     },
     latencies,
+    timeouts,
   };
 }
 

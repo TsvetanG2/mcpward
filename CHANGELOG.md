@@ -25,7 +25,7 @@ Since `1.0.0`, the public contract described in [`docs/stability.md`](docs/stabi
 
 ### Fixed
 
-- Latency counts only completed calls. A rejected call (for example generated arguments failing validation) or an `isError: true` result was recorded as a sample, so a server that rejected every call quickly "passed" the budget. Failed calls are now excluded and reported; timeouts still count as slow. Only mcpward's own `call_ms` timeout counts as one — a server returning error code `-32001` cannot pass off a rejection as a slow call.
+- Latency counts only completed calls. A rejected call (for example generated arguments failing validation) or an `isError: true` result was recorded as a sample, so a server that rejected every call quickly "passed" the budget. Failed calls are now excluded and reported, and a call that times out fails the latency check — even when `call_ms` is below the budget. Only mcpward's own `call_ms` timeout counts as one — a server returning error code `-32001` cannot pass off a rejection as a slow call.
 - `timeouts.call_ms` above 60 seconds is honored: the SDK's own 60-second request timeout no longer ends tool calls first.
 - `examples/ci.yml` no longer refreshes the baseline on every push to `main` — that would accept a rug-pull as the new contract. Examples pin `mcpward@1`, and `examples/mcpward.yaml` expects the protocol version the SDK negotiates today.
 - `docs/rules.md`: severities of the error-contract and latency rules match what mcpward emits (`errors/invalid-params` is a warning; `latency/summary`, not `latency/tool`, enforces the budget).

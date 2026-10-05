@@ -639,9 +639,9 @@ To measure a tool that is not annotated read-only, add it to `checks.latency.too
 
 ### latency/summary
 
-**Severity:** error when p95 exceeds the budget; warning when no tool could be measured (the budget was not evaluated; the run does not fail)
+**Severity:** error when p95 exceeds the budget or any call timed out; warning when no tool could be measured (the budget was not evaluated; the run does not fail)
 
-Overall p50 and p95 across all measured calls, compared with `p95_budget_ms`. This is the result that fails the run.
+Overall p50 and p95 across all measured calls, compared with `p95_budget_ms`. This is the result that fails the run. A call that times out (`timeouts.call_ms`) fails it on its own: it never completed, so its real latency is unknown and could exceed any budget.
 
 **How to fix:**
 Optimize the slow tools, or raise `p95_budget_ms` if the threshold is too strict.
