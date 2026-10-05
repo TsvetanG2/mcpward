@@ -8,6 +8,28 @@ Since `1.0.0`, the public contract described in [`docs/stability.md`](docs/stabi
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-10-05
+
+**Safer tool calls.** Checks that call tools now follow one documented policy, and you can see and control exactly what they call.
+
+### Changed
+
+- **Latency measures only read-only tools by default.** Measuring latency calls each tool `samples` times; before 1.1.0 it called *every* tool with generated arguments, destructive ones included. It now follows the same policy as output drift: tools annotated `readOnlyHint: true` (and not `destructiveHint: true`) are measured, plus the tools you list in `checks.latency.tools` with arguments. Tools that are not measured are listed in the new `latency/sampling` result with the reason, and when nothing can be measured `latency/summary` is skipped instead of passing. This changes which tools are measured — a safety fix, so it ships in a minor version; `checks.latency.call_all: true` restores the previous behavior for test instances.
+
+### Added
+
+- `checks.latency.tools` (allowlist with arguments), `checks.latency.call_readonly` and `checks.latency.call_all`.
+- `checks.errors: false` turns off the error-contract checks, which call an unknown tool and every tool that has required parameters with empty arguments. On by default, as before.
+- Rule `latency/sampling`.
+- README: which checks call tools, the error-contract checks, every Action input and output, and a warning against re-baselining automatically in CI.
+
+### Fixed
+
+- `examples/ci.yml` no longer refreshes the baseline on every push to `main` — that would accept a rug-pull as the new contract. Examples pin `mcpward@1`, and `examples/mcpward.yaml` expects the protocol version the SDK negotiates today.
+- `docs/rules.md`: severities of the error-contract and latency rules match what mcpward emits (`errors/invalid-params` is a warning; `latency/summary`, not `latency/tool`, enforces the budget).
+- README comparison tables re-checked against each project's current documentation (mcp-scan is now Snyk Agent Scan).
+- `SECURITY.md`: current dependency footprint; the dependency lockfile is free of known advisories.
+
 ## [1.0.0] — 2026-10-05
 
 **mcpward 1.0.0.** No functional changes from 0.9.0 — this release makes a promise: the public contract in [`docs/stability.md`](docs/stability.md) (exit codes, CLI, config, JSON report, lockfile, rule ids, drift classes, SARIF/JUnit structure, GitHub Action inputs and outputs) now changes incompatibly only in a major version.
