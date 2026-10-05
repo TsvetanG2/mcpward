@@ -39,6 +39,8 @@ function toCategory(family: string): string {
       return 'correctness';
     case 'drift':
       return 'maintainability';
+    case 'collision':
+      return 'correctness';
     default:
       return 'general';
   }
@@ -127,6 +129,8 @@ function getShortDescription(ruleId: string): string {
     'drift/nonbreaking_output_shape_change': 'Non-breaking output shape change (inferred)',
     'drift/output-sampling': 'Output sampling notice',
     'drift/auth-context-mismatch': 'Baseline captured under a different auth context',
+    'collision/description-collision': 'Description collision (tool selection hazard)',
+    'collision/summary': 'Description collision lint summary',
   };
   return descriptions[ruleId] ?? ruleId;
 }
@@ -161,6 +165,8 @@ function getFullDescription(ruleId: string): string {
       'The structure of a tool\'s output, inferred from real calls, changed in a way that breaks consumers: a field disappeared or became optional, a new type appeared, or the output format changed.',
     'drift/nonbreaking_output_shape_change':
       'The structure of a tool\'s output, inferred from real calls, changed compatibly: a field was added or a field stopped producing one of its types.',
+    'collision/description-collision':
+      'Two tools have near-identical descriptions but accept materially different input payloads. An agent that selects tools by description can call the wrong tool with the wrong payload, and no success/error check will notice.',
     'compliance/handshake':
       'Verifies that the MCP server completes the protocol handshake successfully, returning valid server info and capabilities.',
     'schema/tool-name':
@@ -291,6 +297,8 @@ function getDefaultLevel(family: string): 'error' | 'warning' | 'note' {
     case 'behavioral':
       return 'error';
     case 'latency':
+      return 'warning';
+    case 'collision':
       return 'warning';
     default:
       return 'note';

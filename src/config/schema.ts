@@ -127,6 +127,19 @@ const LatencyConfigSchema = z
   })
   .optional();
 
+// Description collision lint (M4). Runs on a single surface; no baseline needed.
+const CollisionConfigSchema = z
+  .object({
+    enabled: z.boolean().optional().default(true),
+    /** Description similarity at or above which a pair is a candidate (0–1). */
+    threshold: z.number().min(0).max(1).optional().default(0.8),
+    /** Pairwise comparison is O(n²); above this many tools the lint is skipped with a warning. */
+    max_tools: z.number().int().positive().optional().default(500),
+    /** Findings warn by default; set true to fail the run on any collision. */
+    fail: z.boolean().optional().default(false),
+  })
+  .optional();
+
 // Timeout configuration (inner object with required fields after defaults)
 const TimeoutConfigInnerSchema = z.object({
   connect_ms: z.number().int().positive().default(10000),
@@ -145,6 +158,7 @@ const ChecksSchema = z
     security: z.boolean().optional().default(true),
     drift: DriftConfigSchema,
     latency: LatencyConfigSchema,
+    collision: CollisionConfigSchema,
   })
   .optional();
 
@@ -186,6 +200,7 @@ export type HttpTransport = z.infer<typeof HttpTransportSchema>;
 export type DriftConfig = z.infer<typeof DriftConfigSchema>;
 export type OutputDriftConfig = z.infer<typeof OutputDriftConfigSchema>;
 export type LatencyConfig = z.infer<typeof LatencyConfigSchema>;
+export type CollisionConfig = z.infer<typeof CollisionConfigSchema>;
 export type TimeoutConfig = z.infer<typeof TimeoutConfigSchema>;
 export type ResolvedTimeoutConfig = z.infer<typeof TimeoutConfigInnerSchema>;
 export type TestSuite = z.infer<typeof TestSuiteSchema>;

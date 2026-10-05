@@ -8,6 +8,7 @@ import { runSecurityChecks } from '../checks/security.js';
 import { runBehavioralChecks } from '../checks/behavioral.js';
 import { runErrorContractChecks } from '../checks/errors.js';
 import { runLatencyChecks } from '../checks/latency.js';
+import { runCollisionChecks } from '../checks/collision.js';
 import {
   type CheckResult,
   type CheckReport,
@@ -119,6 +120,18 @@ export async function runCommand(
         connection,
       });
       results.push(...securityResults);
+    }
+
+    // Run description collision lint (M4) — on by default, needs no baseline
+    if (config.checks?.collision?.enabled !== false) {
+      if (verbose) {
+        console.log(pc.dim('Running collision lint...'));
+      }
+      const collisionResults = await runCollisionChecks({
+        connection,
+        config: config.checks?.collision,
+      });
+      results.push(...collisionResults);
     }
 
     // Run behavioral test suites if defined

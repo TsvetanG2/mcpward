@@ -320,3 +320,18 @@ describe('shipped configs stay valid', () => {
     expect(config.checks?.drift?.output?.enabled).toBe(true);
   });
 });
+
+describe('loadConfig — collision lint (M4)', () => {
+  it('applies collision defaults', async () => {
+    const dir = join(tmpdir(), `mcpward-col-${Date.now()}`);
+    await mkdir(dir, { recursive: true });
+    try {
+      const p = join(dir, 'mcpward.yaml');
+      await writeFile(p, 'server:\n  transport: stdio\n  command: node\nchecks:\n  collision: {}\n');
+      const config = await loadConfig(p);
+      expect(config.checks?.collision).toEqual({ enabled: true, threshold: 0.8, max_tools: 500, fail: false });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});

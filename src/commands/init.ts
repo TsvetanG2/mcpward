@@ -36,6 +36,10 @@ checks:
     #   tools:
     #     - name: read_file
     #       args: { path: "/tmp/sandbox/hello.txt" }
+  # Description collision lint: near-identical descriptions over divergent schemas
+  collision:
+    enabled: true
+    threshold: 0.8
   latency:
     samples: 5
     p95_budget_ms: 1000

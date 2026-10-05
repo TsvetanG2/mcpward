@@ -2,3 +2,4 @@ export { runComplianceChecks, type ComplianceCheckContext } from './compliance.j
 export { runSchemaChecks, type SchemaCheckContext } from './schema.js';
 export { runDriftChecks, type DriftCheckContext } from './drift.js';
 export { runSecurityChecks, type SecurityCheckContext } from './security.js';
+export { runCollisionChecks, findCollisions, type CollisionCheckContext } from './collision.js';

@@ -44,6 +44,7 @@ describe('docs/rules.md coverage', () => {
 
   it('harvests a plausible number of ids (guards the harvester itself)', () => {
     expect(emitted.size).toBeGreaterThan(40);
+    expect(emitted.has('collision/description-collision')).toBe(true);
     expect(emitted.has('drift/breaking_output_shape_change')).toBe(true);
     expect(emitted.has('security/hidden-unicode')).toBe(true);
   });

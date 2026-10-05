@@ -171,3 +171,58 @@ export function canonicalJson(value: unknown): string {
 
   return JSON.stringify(canonicalize(value));
 }
+
+/**
+ * Maximum object-nesting depth of a JSON Schema (M4 collision lint).
+ *
+ * Flat scalars → 1; `{filter: {status}}` → 2. Arrays add no level of their own (a list of
+ * strings is still flat) but an array of objects contributes its items' depth. Combinators
+ * (anyOf/oneOf/allOf) take the deepest branch.
+ *
+ * Walks untrusted input: depth-limited and cycle-safe like canonicalizeSchema.
+ */
+export function schemaNestingDepth(schema: unknown): number {
+  const seen = new WeakSet<object>();
+
+  function walk(node: unknown, level: number): number {
+    if (level > MAX_SCHEMA_DEPTH) {
+      throw new Error(
+        `Schema exceeds maximum depth of ${MAX_SCHEMA_DEPTH} (untrusted input protection)`
+      );
+    }
+    if (node === null || typeof node !== 'object' || Array.isArray(node)) return 0;
+    if (seen.has(node)) {
+      throw new Error('Schema contains cycles (untrusted input protection)');
+    }
+    seen.add(node);
+
+    const s = node as Record<string, unknown>;
+    let depth = 0;
+
+    const props = s.properties;
+    if (props && typeof props === 'object' && !Array.isArray(props)) {
+      let child = 0;
+      for (const value of Object.values(props as Record<string, unknown>)) {
+        child = Math.max(child, walk(value, level + 1));
+      }
+      depth = 1 + child;
+    }
+
+    if (s.items !== undefined) {
+      const items = Array.isArray(s.items) ? s.items : [s.items];
+      for (const item of items) depth = Math.max(depth, walk(item, level + 1));
+    }
+
+    for (const key of ['anyOf', 'oneOf', 'allOf'] as const) {
+      const branches = s[key];
+      if (Array.isArray(branches)) {
+        for (const branch of branches) depth = Math.max(depth, walk(branch, level + 1));
+      }
+    }
+
+    seen.delete(node);
+    return depth;
+  }
+
+  return walk(schema, 0);
+}
