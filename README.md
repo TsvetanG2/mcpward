@@ -390,14 +390,16 @@ See [How changes are classified](#how-changes-are-classified) for the full class
 Findings appear in the repository's **Security → Code scanning** tab, with rule descriptions and remediation guidance from [`docs/rules.md`](docs/rules.md).
 
 ```yaml
-# Using the mcpward action
+# Using the mcpward action — pin a release tag
 - name: Run mcpward
-  uses: TsvetanG2/mcpward/action@main
+  uses: TsvetanG2/mcpward@v0.9.0
   with:
     config: mcpward.yaml
     reporter: junit
     output: results.xml
 ```
+
+Pin the action to a release tag. From 1.0.0 a moving major tag (`@v1`) tracks the latest compatible release. The action's `version` input defaults to the release it belongs to, so the action and the CLI it runs always match. The older path `TsvetanG2/mcpward/action@…` keeps working.
 
 ### PR comment
 
@@ -413,7 +415,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: TsvetanG2/mcpward/action@main
+      - uses: TsvetanG2/mcpward@v0.9.0
         with:
           config: mcpward.yaml
           pr-comment: true
