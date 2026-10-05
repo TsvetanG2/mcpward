@@ -9,7 +9,6 @@
  * token is registered as a secret so it can never appear in any output.
  */
 
-import { readFileSync } from 'node:fs';
 import { MARKDOWN_REPORT_MARKER } from './markdown.js';
 import { registerSecret } from './redact.js';
 
@@ -31,13 +30,12 @@ export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
  * Detects the PR to comment on from the GitHub Actions environment.
  * Returns `{ reason }` when not in a usable PR context.
  *
- * Token: MCPWARD_GITHUB_TOKEN, else GITHUB_TOKEN. PR number: MCPWARD_PR_NUMBER, else the
- * `pull_request` (or `pull_request_target`) event payload at GITHUB_EVENT_PATH.
+ * Token: MCPWARD_GITHUB_TOKEN, else GITHUB_TOKEN. PR number: MCPWARD_PR_NUMBER (the action
+ * passes `github.event.pull_request.number`, which also covers pull_request_target), else
+ * GITHUB_REF of a `pull_request` run (`refs/pull/<n>/merge`). Only environment variables are
+ * read — nothing from disk flows into the request URL.
  */
-export function detectPrContext(
-  env: NodeJS.ProcessEnv = process.env,
-  readFile: (path: string) => string = (p) => readFileSync(p, 'utf-8')
-): PrContext | { reason: string } {
+export function detectPrContext(env: NodeJS.ProcessEnv = process.env): PrContext | { reason: string } {
   const token = env.MCPWARD_GITHUB_TOKEN || env.GITHUB_TOKEN;
   if (!token) {
     return {
@@ -51,20 +49,8 @@ export function detectPrContext(
     return { reason: 'GITHUB_REPOSITORY is not set — not running in GitHub Actions' };
   }
 
-  let prNumber = Number(env.MCPWARD_PR_NUMBER);
-  if (!env.MCPWARD_PR_NUMBER) {
-    if (!env.GITHUB_EVENT_PATH) {
-      return { reason: 'GITHUB_EVENT_PATH is not set — not running in GitHub Actions' };
-    }
-    try {
-      const event = JSON.parse(readFile(env.GITHUB_EVENT_PATH)) as {
-        pull_request?: { number?: unknown };
-      };
-      prNumber = Number(event.pull_request?.number);
-    } catch {
-      return { reason: 'could not read the GitHub event payload' };
-    }
-  }
+  const fromRef = /^refs\/pull\/(\d+)\//.exec(env.GITHUB_REF ?? '')?.[1];
+  const prNumber = Number(env.MCPWARD_PR_NUMBER || fromRef);
   if (!Number.isInteger(prNumber) || prNumber <= 0) {
     return { reason: 'this run is not for a pull request' };
   }
