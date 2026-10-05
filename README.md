@@ -4,7 +4,7 @@
 [![npm version](https://img.shields.io/npm/v/mcpward)](https://www.npmjs.com/package/mcpward)
 [![npm downloads](https://img.shields.io/npm/dm/mcpward)](https://www.npmjs.com/package/mcpward)
 [![node version](https://img.shields.io/node/v/mcpward)](https://www.npmjs.com/package/mcpward)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Featured on VibeLeaderboard](https://img.shields.io/endpoint?url=https%3A%2F%2Fwww.vibeleaderboard.ai%2Fapi%2Fv1%2Fapps%2F5af89df6-6c01-4715-a462-67ef41513c5a%2Fbadge)](https://www.vibeleaderboard.ai/app/5af89df6-6c01-4715-a462-67ef41513c5a)
 
 Treat an MCP server like any other external dependency: snapshot its contract, then fail the build when it changes underneath you. Black-box, so it works against servers you didn't write. **Runs entirely on your machine — no account, no API calls, no telemetry.**
@@ -535,4 +535,10 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the testing rules (every check need
 
 ## License
 
-MIT
+[Apache License 2.0](LICENSE) — Copyright 2025-2026 Tsvetan Gerginov.
+
+You may use, modify and redistribute mcpward, commercially too. Redistributions and derivative works must keep the [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE) files, and modified files must say that they were changed.
+
+The name **mcpward** is not licensed (Apache-2.0, section 6): a fork or derivative product must not present itself as mcpward or as endorsed by its author.
+
+Versions up to and including 1.1.0 were released under the MIT License.
