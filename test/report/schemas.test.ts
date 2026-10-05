@@ -70,6 +70,9 @@ describe('config schema', () => {
     // rejected by the parser — must be rejected by the published schema too
     expect(validate(http('file:///etc/passwd'))).toBe(false);
     expect(validate(http('ftp://example.com/mcp'))).toBe(false);
+    // a fixed unsupported scheme can never become valid, placeholder or not
+    expect(validate(http('ftp://${MCP_HOST}/mcp'))).toBe(false);
+    expect(validate(http('file://${MCP_PATH}'))).toBe(false);
   });
 
   it.each([
@@ -84,6 +87,8 @@ describe('config schema', () => {
     'https://example.com:99999/mcp', // port out of range
     'https://example.com?mode=ci',
     'https://example.com',
+    'https://bücher.example/mcp', // internationalized hostname
+    'https://example.com:00080/mcp', // leading zeros in the port
     'file:///etc/passwd',
     'ftp://example.com/mcp',
     'mcp.example.com/mcp',
