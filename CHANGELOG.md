@@ -23,6 +23,21 @@ This release implements **M5 (PR comment)** and completes the roadmap.
 - **Report contract:** new reporter output format (Markdown), locked by a golden snapshot. Existing JSON/JUnit/SARIF shapes are unchanged.
 - The GitHub Action's default `version` is now `0.6.0`.
 
+### Fixed
+
+Found in review of 0.4.0–0.5.0; these ship in 0.6.0.
+
+- **Security:** a fake "flag" — U+1F3F4, an arbitrary smuggled sentence in Tag characters, U+E007F — was exempted as an emoji sequence. Only a valid ISO 3166-2 subdivision tag spec (e.g. `gbsct`) is exempt now.
+- **Security:** hidden unicode and injection phrasing in **nested** parameter descriptions (nested objects, array `items`, `additionalProperties`, `anyOf`/`oneOf`/`allOf`) were not scanned.
+- **Security:** a `nextCursor` of `""` ended pagination; only an absent cursor does now, so a server cannot hide later pages behind an empty cursor.
+- **Output drift:** text → image content produced identical shapes; content block kinds are now tracked as fields. Output keys such as `constructor` or `__proto__` broke sampling; they are ordinary fields now.
+- **PR comment:** the GitHub token was registered for redaction only after reports were rendered; it is registered before connecting.
+- **PR comment:** bare URLs, `www.` hosts, e-mail addresses and @-mentions from the server could still be autolinked by GitHub; they are rendered as inline code.
+- **PR comment:** a maintainer's token could overwrite a human comment that started with or quoted the marker; only a comment authored by the token's own identity is updated.
+- **PR comment:** drift changes that do not fail the run (e.g. a breaking schema change under `fail_on: high`) were omitted from the comment; every contract change is listed.
+- **PR comment:** the PR number is read from `MCPWARD_PR_NUMBER` (set by the action) or `GITHUB_REF`, never from the event file.
+- Tests: the stdio/HTTP parity suite no longer needs `execa` (whose v10 requires Node 22) and runs on Node 20.
+
 ## [0.5.0] — 2026-10-05
 
 This release implements **M4 (description collision lint)** — the check no other contract-diff tool performs.
