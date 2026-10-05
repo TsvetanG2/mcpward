@@ -35,7 +35,9 @@ export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
  * GITHUB_REF of a `pull_request` run (`refs/pull/<n>/merge`). Only environment variables are
  * read — nothing from disk flows into the request URL.
  */
-export function detectPrContext(env: NodeJS.ProcessEnv = process.env): PrContext | { reason: string } {
+export function detectPrContext(
+  env: NodeJS.ProcessEnv = process.env
+): PrContext | { reason: string } {
   const token = env.MCPWARD_GITHUB_TOKEN || env.GITHUB_TOKEN;
   if (!token) {
     return {
@@ -108,7 +110,11 @@ export async function upsertPrComment(
       }
     );
     if (!res.ok) throw new Error(`listing PR comments failed: HTTP ${res.status}`);
-    const comments = (await res.json()) as { id: number; body?: string; user?: { login?: string } }[];
+    const comments = (await res.json()) as {
+      id: number;
+      body?: string;
+      user?: { login?: string };
+    }[];
     for (const c of comments) {
       const ours =
         typeof c.body === 'string' &&

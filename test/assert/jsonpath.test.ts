@@ -45,9 +45,7 @@ describe('evaluateJsonPath', () => {
 
   it('evaluates array index with property', () => {
     expect(evaluateJsonPath('$.items[0].type', testData)).toBe('text');
-    expect(evaluateJsonPath('$.items[1].url', testData)).toBe(
-      'https://example.com/img.png'
-    );
+    expect(evaluateJsonPath('$.items[1].url', testData)).toBe('https://example.com/img.png');
   });
 
   it('evaluates nested array index', () => {

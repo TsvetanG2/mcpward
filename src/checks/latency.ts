@@ -24,9 +24,7 @@ const DEFAULT_P95_BUDGET_MS = 1000;
 /**
  * Runs latency checks against all tools.
  */
-export async function runLatencyChecks(
-  ctx: LatencyCheckContext
-): Promise<CheckResult[]> {
+export async function runLatencyChecks(ctx: LatencyCheckContext): Promise<CheckResult[]> {
   const results: CheckResult[] = [];
   const samples = ctx.config?.samples ?? DEFAULT_SAMPLES;
   const p95Budget = ctx.config?.p95_budget_ms ?? DEFAULT_P95_BUDGET_MS;

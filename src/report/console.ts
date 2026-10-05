@@ -40,11 +40,7 @@ export function renderConsoleReport(
   console.log(pc.dim('─'.repeat(50)));
 
   // Server info
-  console.log(
-    pc.bold('Server:'),
-    report.server.name,
-    pc.dim(`v${report.server.version}`)
-  );
+  console.log(pc.bold('Server:'), report.server.name, pc.dim(`v${report.server.version}`));
   console.log(pc.bold('Protocol:'), report.server.protocolVersion);
   console.log('');
 
@@ -70,9 +66,7 @@ export function renderConsoleReport(
   }
 }
 
-function groupByFamily(
-  results: CheckResult[]
-): Record<string, CheckResult[]> {
+function groupByFamily(results: CheckResult[]): Record<string, CheckResult[]> {
   const groups: Record<string, CheckResult[]> = {};
 
   for (const result of results) {
@@ -88,11 +82,7 @@ function groupByFamily(
   return groups;
 }
 
-function renderFamily(
-  family: string,
-  results: CheckResult[],
-  verbose: boolean
-): void {
+function renderFamily(family: string, results: CheckResult[], verbose: boolean): void {
   const failed = results.filter((r) => r.status === 'fail').length;
   const warned = results.filter((r) => r.status === 'warn').length;
   const passed = results.filter((r) => r.status === 'pass').length;
@@ -111,10 +101,7 @@ function renderFamily(
 
   // Show results
   for (const result of results) {
-    const shouldShow =
-      verbose ||
-      result.status === 'fail' ||
-      result.status === 'warn';
+    const shouldShow = verbose || result.status === 'fail' || result.status === 'warn';
 
     if (shouldShow) {
       renderResult(result, verbose);
@@ -154,7 +141,9 @@ function renderResult(result: CheckResult, verbose: boolean): void {
   if (isDescriptionChanged && !hasDescriptionText) {
     // Lockfile has no text for one side (full_text: false, or a v1 baseline)
     console.log(
-      pc.dim('    full text unavailable (full_text disabled or v1 baseline) — re-run "mcpward baseline" to enable a diff')
+      pc.dim(
+        '    full text unavailable (full_text disabled or v1 baseline) — re-run "mcpward baseline" to enable a diff'
+      )
     );
   }
 
@@ -226,9 +215,13 @@ function renderDescriptionDiff(previous: string, current: string): void {
   }
 
   console.log(pc.dim('    previous description:'));
-  console.log(pc.red(`      ${markInvisibleCharacters(truncateText(previous, MAX_DESCRIPTION_CHARS))}`));
+  console.log(
+    pc.red(`      ${markInvisibleCharacters(truncateText(previous, MAX_DESCRIPTION_CHARS))}`)
+  );
   console.log(pc.dim('    current description:'));
-  console.log(pc.green(`      ${markInvisibleCharacters(truncateText(current, MAX_DESCRIPTION_CHARS))}`));
+  console.log(
+    pc.green(`      ${markInvisibleCharacters(truncateText(current, MAX_DESCRIPTION_CHARS))}`)
+  );
 }
 
 /**

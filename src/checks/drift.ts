@@ -54,16 +54,13 @@ function mapDriftSeverityToCheckSeverity(driftSeverity: DriftSeverity): Severity
 /**
  * Converts a drift change to a CheckResult.
  */
-function changeToResult(
-  change: DriftChange,
-  shouldFail: boolean
-): CheckResult {
+function changeToResult(change: DriftChange, shouldFail: boolean): CheckResult {
   const baseSeverity = mapDriftSeverityToCheckSeverity(change.severity);
 
   return {
     id: `drift/${change.class}`,
     family: 'drift',
-    status: shouldFail ? 'fail' : (baseSeverity === 'error' ? 'warn' : 'pass'),
+    status: shouldFail ? 'fail' : baseSeverity === 'error' ? 'warn' : 'pass',
     severity: shouldFail ? 'error' : baseSeverity,
     message: change.message,
     expected: change.previous,
@@ -91,9 +88,7 @@ export function noteToResult(note: SamplingNote): CheckResult {
 /**
  * Runs drift checks against the baseline lockfile.
  */
-export async function runDriftChecks(
-  ctx: DriftCheckContext
-): Promise<CheckResult[]> {
+export async function runDriftChecks(ctx: DriftCheckContext): Promise<CheckResult[]> {
   const results: CheckResult[] = [];
   const baselinePath = ctx.config?.baseline ?? './mcpward.lock.json';
   const failOn = ctx.config?.fail_on ?? [
@@ -156,11 +151,7 @@ export async function runDriftChecks(
   const baselineFingerprint = baseline.meta.authContext?.fingerprint;
   const currentFingerprint = current.meta.authContext?.fingerprint;
 
-  if (
-    baselineFingerprint &&
-    currentFingerprint &&
-    baselineFingerprint !== currentFingerprint
-  ) {
+  if (baselineFingerprint && currentFingerprint && baselineFingerprint !== currentFingerprint) {
     // Different auth contexts - warn that drift may be noise
     const baselineLabel = baseline.meta.authContext?.label || 'unlabeled';
     const currentLabel = current.meta.authContext?.label || 'unlabeled';

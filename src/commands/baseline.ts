@@ -15,14 +15,15 @@ export interface BaselineOptions {
  * Captures the current server surface to a lockfile (baseline).
  * Returns exit code: 0 = success, 2 = error
  */
-export async function baselineCommand(
-  config: Config,
-  _options: BaselineOptions
-): Promise<number> {
+export async function baselineCommand(config: Config, _options: BaselineOptions): Promise<number> {
   const baselinePath = config.checks?.drift?.baseline ?? './mcpward.lock.json';
 
   console.log(pc.bold('Capturing baseline...'));
-  console.log(pc.dim(`Server: ${redactString(config.server.transport === 'stdio' ? config.server.command : config.server.url)}`));
+  console.log(
+    pc.dim(
+      `Server: ${redactString(config.server.transport === 'stdio' ? config.server.command : config.server.url)}`
+    )
+  );
   console.log(pc.dim(`Output: ${baselinePath}`));
   console.log();
 
@@ -32,7 +33,10 @@ export async function baselineCommand(
     // Connect to server
     const connection = await connect(config);
     close = closeOnce(connection);
-    console.log(pc.green('✓') + ` Connected to ${connection.serverInfo.name} v${connection.serverInfo.version}`);
+    console.log(
+      pc.green('✓') +
+        ` Connected to ${connection.serverInfo.name} v${connection.serverInfo.version}`
+    );
 
     // Capture surface
     // Output sampling calls tools, so the whole-run deadline applies here too
@@ -48,8 +52,11 @@ export async function baselineCommand(
       const sampled = Object.values(surface.tools).filter((t) => t.outputShape).length;
       console.log(pc.green('✓') + ` Inferred output shape for ${sampled} tool(s)`);
       for (const note of notes) {
-        const icon = note.status === 'failed' || note.status === 'partial' ? pc.yellow('⚠') : pc.dim('○');
-        console.log(`  ${icon} ${pc.dim(`${note.tool}: ${note.status} — ${redactString(note.reason)}`)}`);
+        const icon =
+          note.status === 'failed' || note.status === 'partial' ? pc.yellow('⚠') : pc.dim('○');
+        console.log(
+          `  ${icon} ${pc.dim(`${note.tool}: ${note.status} — ${redactString(note.reason)}`)}`
+        );
       }
     }
 

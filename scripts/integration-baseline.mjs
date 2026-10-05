@@ -23,15 +23,11 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 
 // Read package.json version
-const packageJson = JSON.parse(
-  readFileSync(join(ROOT, 'package.json'), 'utf-8')
-);
+const packageJson = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf-8'));
 const MCPWARD_VERSION = packageJson.version;
 
 // Single source of truth: read server matrix from JSON
-const servers = JSON.parse(
-  readFileSync(join(ROOT, 'test/integration/servers.json'), 'utf-8')
-);
+const servers = JSON.parse(readFileSync(join(ROOT, 'test/integration/servers.json'), 'utf-8'));
 
 console.log('Integration Baseline Capture');
 console.log('============================\n');
@@ -41,9 +37,10 @@ console.log(`mcpward version: ${MCPWARD_VERSION}\n`);
 mkdirSync(join(ROOT, 'test/integration/baselines'), { recursive: true });
 
 // Prepare sandbox for filesystem server (Windows + Linux compatible)
-const sandboxDir = process.platform === 'win32'
-  ? join(ROOT, 'test', '.integration-sandbox')
-  : mkdtempSync(join(tmpdir(), 'mcpward-sandbox-'));
+const sandboxDir =
+  process.platform === 'win32'
+    ? join(ROOT, 'test', '.integration-sandbox')
+    : mkdtempSync(join(tmpdir(), 'mcpward-sandbox-'));
 mkdirSync(sandboxDir, { recursive: true });
 // Overwrite, not 'wx': the Windows sandbox path is stable, so reruns must not crash
 writeFileSync(join(sandboxDir, 'hello.txt'), 'hello\n');
@@ -109,11 +106,7 @@ checks:
   };
 
   // Write baseline
-  const baselinePath = join(
-    ROOT,
-    'test/integration/baselines',
-    `${server.name}.json`
-  );
+  const baselinePath = join(ROOT, 'test/integration/baselines', `${server.name}.json`);
   writeFileSync(baselinePath, JSON.stringify(baseline, null, 2) + '\n');
 
   console.log(`  ✓ Captured ${findings.length} non-pass findings`);

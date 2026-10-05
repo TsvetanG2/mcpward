@@ -13,10 +13,7 @@ export interface JsonReporterOptions {
 /**
  * Renders a check report as JSON string.
  */
-export function renderJsonReport(
-  report: CheckReport,
-  options: JsonReporterOptions = {}
-): string {
+export function renderJsonReport(report: CheckReport, options: JsonReporterOptions = {}): string {
   const { pretty = true } = options;
 
   if (pretty) {

@@ -20,7 +20,11 @@ describe('schema drift fixtures (schema-v1 → schema-v2)', () => {
 
   const config = (v: 'v1' | 'v2') =>
     testConfig({
-      server: { transport: 'stdio', command: 'npx', args: ['tsx', join(FIXTURES, `schema-${v}`, 'index.ts')] },
+      server: {
+        transport: 'stdio',
+        command: 'npx',
+        args: ['tsx', join(FIXTURES, `schema-${v}`, 'index.ts')],
+      },
       checks: { drift: { baseline, fail_on: 'medium' } },
     });
 
@@ -71,7 +75,10 @@ describe('schema drift fixtures (schema-v1 → schema-v2)', () => {
 
   it('fails the run on the breaking ones under fail_on: medium', async () => {
     const results = await drift('v2');
-    const failing = results.filter((r) => r.status === 'fail' && r.location).map((r) => r.location).sort();
+    const failing = results
+      .filter((r) => r.status === 'fail' && r.location)
+      .map((r) => r.location)
+      .sort();
     expect(failing).toEqual([
       'closed_object',
       'enum_removed',

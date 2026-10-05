@@ -80,7 +80,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'may_fail',
-        description: 'A tool that may return a tool-level error (isError: true). Pass fail=true to trigger.',
+        description:
+          'A tool that may return a tool-level error (isError: true). Pass fail=true to trigger.',
         inputSchema: {
           type: 'object' as const,
           properties: {

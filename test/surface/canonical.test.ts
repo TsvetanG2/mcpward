@@ -256,13 +256,7 @@ describe('canonicalizeSchema', () => {
     const result = canonicalizeSchema(schema) as JsonSchema;
 
     // Keys sorted
-    expect(Object.keys(result)).toEqual([
-      'nullable',
-      'properties',
-      'required',
-      'title',
-      'type',
-    ]);
+    expect(Object.keys(result)).toEqual(['nullable', 'properties', 'required', 'title', 'type']);
 
     // Properties sorted
     expect(Object.keys(result.properties ?? {})).toEqual(['a', 'z']);
@@ -339,7 +333,9 @@ describe('edge trimming is ASCII-only (canonicalization v2)', () => {
     ['trailing U+2028', 'Read a file\u2028'],
     ['FEFF at the edge of an inner line', 'Read a file\n\uFEFFthen stop'],
   ])('%s is preserved, so it shows up as drift', (_label, text) => {
-    expect(canonicalizeDescription(text)).not.toBe(canonicalizeDescription(text.replace(/[\uFEFF\u00A0\u2028]/g, '')));
+    expect(canonicalizeDescription(text)).not.toBe(
+      canonicalizeDescription(text.replace(/[\uFEFF\u00A0\u2028]/g, ''))
+    );
   });
 
   test('ASCII spaces, tabs and newlines at the edges are still trimmed', () => {

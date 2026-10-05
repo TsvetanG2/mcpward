@@ -134,7 +134,12 @@ export function observe(node: ShapeNode, value: unknown, depth = 0): void {
       let prop = ownProperty(props, key);
       if (!prop) {
         prop = { seen: 0, shape: emptyShape() };
-        Object.defineProperty(props, key, { value: prop, enumerable: true, writable: true, configurable: true });
+        Object.defineProperty(props, key, {
+          value: prop,
+          enumerable: true,
+          writable: true,
+          configurable: true,
+        });
       }
       prop.seen += 1;
       observe(prop.shape, obj[key], depth + 1);
@@ -470,7 +475,13 @@ export function diffOutputShapes(
       }
       for (const key of Object.keys(curr.properties)) {
         if (!ownProperty(base.properties, key)) {
-          push(false, `${path}.${key}`, 'was added', undefined, ownProperty(curr.properties, key)?.shape.types);
+          push(
+            false,
+            `${path}.${key}`,
+            'was added',
+            undefined,
+            ownProperty(curr.properties, key)?.shape.types
+          );
         }
       }
     }

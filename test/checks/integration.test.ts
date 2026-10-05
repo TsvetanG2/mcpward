@@ -20,10 +20,7 @@ async function createTestConnection(serverPath: string) {
     args: ['tsx', serverPath],
   });
 
-  const client = new Client(
-    { name: 'mcpward-test', version: '0.1.0' },
-    { capabilities: {} }
-  );
+  const client = new Client({ name: 'mcpward-test', version: '0.1.0' }, { capabilities: {} });
 
   await client.connect(transport);
 
@@ -145,9 +142,7 @@ describe('Schema Checks', () => {
 
         const invalidNameFailure = results.find(
           (r) =>
-            r.status === 'fail' &&
-            r.id === 'schema/tool-name' &&
-            r.location === 'invalid@name!'
+            r.status === 'fail' && r.id === 'schema/tool-name' && r.location === 'invalid@name!'
         );
 
         expect(invalidNameFailure).toBeDefined();
@@ -204,9 +199,7 @@ describe('Schema Checks', () => {
         const results = await runSchemaChecks({ connection });
 
         const duplicateFailure = results.find(
-          (r) =>
-            r.status === 'fail' &&
-            r.id === 'schema/unique-names'
+          (r) => r.status === 'fail' && r.id === 'schema/unique-names'
         );
 
         expect(duplicateFailure).toBeDefined();

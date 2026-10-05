@@ -22,16 +22,17 @@ import type { Config } from '../../src/config/schema.js';
 import { testConfig } from '../helpers/config.js';
 
 const FIXTURES = join(process.cwd(), 'fixtures');
-const serverConfig = (name: string): Config => testConfig({
-  server: {
-    transport: 'stdio',
-    command: 'npx',
-    args: ['tsx', join(FIXTURES, name, 'index.ts')],
-    env: {},
-  },
-  checks: {},
-  suites: [],
-});
+const serverConfig = (name: string): Config =>
+  testConfig({
+    server: {
+      transport: 'stdio',
+      command: 'npx',
+      args: ['tsx', join(FIXTURES, name, 'index.ts')],
+      env: {},
+    },
+    checks: {},
+    suites: [],
+  });
 
 const tool = (name: string, description: string, inputSchema: Tool['inputSchema']): Tool => ({
   name,

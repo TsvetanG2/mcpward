@@ -14,10 +14,7 @@ const HttpTransportSchema = z.object({
   headers: z.record(z.string(), z.string()).optional().default({}),
 });
 
-const ServerSchema = z.discriminatedUnion('transport', [
-  StdioTransportSchema,
-  HttpTransportSchema,
-]);
+const ServerSchema = z.discriminatedUnion('transport', [StdioTransportSchema, HttpTransportSchema]);
 
 // Expectations
 const ExpectSchema = z

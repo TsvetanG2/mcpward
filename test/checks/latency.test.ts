@@ -117,7 +117,10 @@ describe('Latency Checks', () => {
       try {
         const results = await runLatencyChecks({
           connection,
-          config: slowServerConfigTightBudget.checks?.latency ?? { samples: 5, p95_budget_ms: 1000 },
+          config: slowServerConfigTightBudget.checks?.latency ?? {
+            samples: 5,
+            p95_budget_ms: 1000,
+          },
         });
 
         const summary = results.find((r) => r.id === 'latency/summary');
@@ -134,7 +137,10 @@ describe('Latency Checks', () => {
       try {
         const results = await runLatencyChecks({
           connection,
-          config: slowServerConfigLooseBudget.checks?.latency ?? { samples: 5, p95_budget_ms: 1000 },
+          config: slowServerConfigLooseBudget.checks?.latency ?? {
+            samples: 5,
+            p95_budget_ms: 1000,
+          },
         });
 
         const summary = results.find((r) => r.id === 'latency/summary');
@@ -150,16 +156,17 @@ describe('Latency Checks', () => {
       try {
         const results = await runLatencyChecks({
           connection,
-          config: slowServerConfigTightBudget.checks?.latency ?? { samples: 5, p95_budget_ms: 1000 },
+          config: slowServerConfigTightBudget.checks?.latency ?? {
+            samples: 5,
+            p95_budget_ms: 1000,
+          },
         });
 
         const toolResults = results.filter((r) => r.id === 'latency/tool');
         expect(toolResults.length).toBeGreaterThan(0);
 
         // At least one tool should have high latency (always_slow is 2000ms)
-        const slowToolResult = toolResults.find(
-          (r) => r.location === 'always_slow'
-        );
+        const slowToolResult = toolResults.find((r) => r.location === 'always_slow');
         if (slowToolResult) {
           // The actual latencies should be high
           const actual = slowToolResult.actual as {

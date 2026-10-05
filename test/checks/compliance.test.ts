@@ -70,9 +70,7 @@ describe('Compliance Checks', () => {
 
       const results = await runComplianceChecks({ connection, config });
 
-      const serverInfoResult = results.find(
-        (r) => r.id === 'compliance/server-info'
-      );
+      const serverInfoResult = results.find((r) => r.id === 'compliance/server-info');
       expect(serverInfoResult).toBeDefined();
       expect(serverInfoResult?.status).toBe('fail');
       expect(serverInfoResult?.message).toContain('did not provide a name');
@@ -86,9 +84,7 @@ describe('Compliance Checks', () => {
 
       const results = await runComplianceChecks({ connection, config });
 
-      const serverInfoResult = results.find(
-        (r) => r.id === 'compliance/server-info'
-      );
+      const serverInfoResult = results.find((r) => r.id === 'compliance/server-info');
       expect(serverInfoResult).toBeDefined();
       expect(serverInfoResult?.status).toBe('warn');
       expect(serverInfoResult?.message).toContain('did not provide a version');
@@ -102,14 +98,10 @@ describe('Compliance Checks', () => {
 
       const results = await runComplianceChecks({ connection, config });
 
-      const versionResult = results.find(
-        (r) => r.id === 'compliance/protocol-version'
-      );
+      const versionResult = results.find((r) => r.id === 'compliance/protocol-version');
       expect(versionResult).toBeDefined();
       expect(versionResult?.status).toBe('fail');
-      expect(versionResult?.message).toContain(
-        'did not negotiate a protocol version'
-      );
+      expect(versionResult?.message).toContain('did not negotiate a protocol version');
     });
 
     it('fails when protocol version is "unknown"', async () => {
@@ -120,9 +112,7 @@ describe('Compliance Checks', () => {
 
       const results = await runComplianceChecks({ connection, config });
 
-      const versionResult = results.find(
-        (r) => r.id === 'compliance/protocol-version'
-      );
+      const versionResult = results.find((r) => r.id === 'compliance/protocol-version');
       expect(versionResult).toBeDefined();
       expect(versionResult?.status).toBe('fail');
     });
@@ -135,9 +125,7 @@ describe('Compliance Checks', () => {
 
       const results = await runComplianceChecks({ connection, config });
 
-      const versionResult = results.find(
-        (r) => r.id === 'compliance/protocol-version'
-      );
+      const versionResult = results.find((r) => r.id === 'compliance/protocol-version');
       expect(versionResult).toBeDefined();
       expect(versionResult?.status).toBe('warn');
       expect(versionResult?.message).toContain('unusual format');
@@ -237,7 +225,11 @@ describe('Compliance Checks', () => {
       // Connect to good-server through the real client path
       connection = await connect(
         testConfig({
-          server: { transport: 'stdio', command: 'npx', args: ['tsx', './fixtures/good-server/index.ts'] },
+          server: {
+            transport: 'stdio',
+            command: 'npx',
+            args: ['tsx', './fixtures/good-server/index.ts'],
+          },
         })
       );
     }, 30000);

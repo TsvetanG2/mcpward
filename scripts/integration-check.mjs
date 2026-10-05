@@ -35,11 +35,7 @@ if (!serverName || !reportPath) {
 }
 
 // Load baseline
-const baselinePath = join(
-  ROOT,
-  'test/integration/baselines',
-  `${serverName}.json`
-);
+const baselinePath = join(ROOT, 'test/integration/baselines', `${serverName}.json`);
 
 let baseline;
 try {
@@ -66,10 +62,7 @@ try {
 const actualFindings = normalizeReport(report);
 
 // Compare
-const { added, missing, match } = compareFindings(
-  actualFindings,
-  baseline.findings
-);
+const { added, missing, match } = compareFindings(actualFindings, baseline.findings);
 
 // Exit 0 if match (silent on green)
 if (match) {
@@ -112,6 +105,8 @@ if (missing.length > 0) {
 
 console.log('IMPORTANT: Review the delta carefully before updating the baseline.');
 console.log('           A missing finding can mean mcpward stopped catching something.');
-console.log(`           If this delta is expected, regenerate with: pnpm run integration:baseline\n`);
+console.log(
+  `           If this delta is expected, regenerate with: pnpm run integration:baseline\n`
+);
 
 process.exit(1);

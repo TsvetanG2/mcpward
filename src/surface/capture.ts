@@ -12,11 +12,7 @@ import { listAllTools } from '../client/tools.js';
 import type { Tool, JsonSchema } from '../checks/schema.js';
 import type { ServerSurface, ToolSurface } from './types.js';
 import type { Config } from '../config/schema.js';
-import {
-  canonicalizeDescription,
-  canonicalizeSchema,
-  CANONICAL_VERSION,
-} from './canonical.js';
+import { canonicalizeDescription, canonicalizeSchema, CANONICAL_VERSION } from './canonical.js';
 import { MCPWARD_VERSION } from '../version.js';
 import { sampleOutputShapes, type SamplingNote } from './output-shape.js';
 
@@ -78,17 +74,12 @@ function fingerprintCredential(
  * @param tool - The tool to capture
  * @param fullText - Whether to store full description text (from config)
  */
-export function captureToolSurface(
-  tool: Tool,
-  fullText = true
-): ToolSurface {
+export function captureToolSurface(tool: Tool, fullText = true): ToolSurface {
   const inputSchema = (tool.inputSchema as JsonSchema) ?? null;
   const outputSchema = (tool.outputSchema as JsonSchema) ?? null;
 
   // Canonical description for storage (if full_text enabled)
-  const description = fullText
-    ? canonicalizeDescription(tool.description)
-    : null;
+  const description = fullText ? canonicalizeDescription(tool.description) : null;
 
   return {
     descriptionHash: hashDescription(tool.description),
@@ -197,9 +188,7 @@ export async function captureSurface(
  * stdio: command + args (NO env values)
  * http: origin + path (NO query string, NO headers)
  */
-function buildTargetIdentity(
-  server: Config['server']
-): ServerSurface['meta']['target'] {
+function buildTargetIdentity(server: Config['server']): ServerSurface['meta']['target'] {
   if (server.transport === 'stdio') {
     // stdio: command + args, NO env values
     const identity = [server.command, ...server.args].join(' ');
@@ -292,10 +281,7 @@ function buildEnvironment(): ServerSurface['meta']['environment'] {
 /**
  * Saves a server surface to a lockfile.
  */
-export async function saveLockfile(
-  surface: ServerSurface,
-  path: string
-): Promise<void> {
+export async function saveLockfile(surface: ServerSurface, path: string): Promise<void> {
   const json = JSON.stringify(surface, null, 2);
   await writeFile(path, json, 'utf-8');
 }
@@ -368,8 +354,7 @@ export async function loadLockfile(path: string): Promise<ServerSurface> {
         tool.outputSchema = canonicalizeSchema(tool.outputSchema);
         // V1 had no description storage
         if (!('description' in tool)) {
-          (tool as ToolSurface & { description?: string | null }).description =
-            null;
+          (tool as ToolSurface & { description?: string | null }).description = null;
         }
       }
     }

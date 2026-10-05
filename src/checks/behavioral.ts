@@ -33,9 +33,7 @@ export interface GoldenOptions {
 /**
  * Runs all behavioral test suites.
  */
-export async function runBehavioralChecks(
-  ctx: BehavioralCheckContext
-): Promise<CheckResult[]> {
+export async function runBehavioralChecks(ctx: BehavioralCheckContext): Promise<CheckResult[]> {
   const results: CheckResult[] = [];
 
   if (ctx.suites.length === 0) {
@@ -346,7 +344,12 @@ async function checkGolden(
   }
 
   if (canonicalJson(expected) === canonicalJson(actual)) {
-    return { ...base, status: 'pass', severity: 'info', message: `Case "${caseName}" matches golden snapshot` };
+    return {
+      ...base,
+      status: 'pass',
+      severity: 'info',
+      message: `Case "${caseName}" matches golden snapshot`,
+    };
   }
   return {
     ...base,

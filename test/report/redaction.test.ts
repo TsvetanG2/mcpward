@@ -14,10 +14,7 @@ import { connect } from '../../src/client/connect.js';
 import { runComplianceChecks } from '../../src/checks/compliance.js';
 import { runSchemaChecks } from '../../src/checks/schema.js';
 import { runSecurityChecks } from '../../src/checks/security.js';
-import {
-  type CheckReport,
-  summarizeResults,
-} from '../../src/report/model.js';
+import { type CheckReport, summarizeResults } from '../../src/report/model.js';
 import { renderJsonReport } from '../../src/report/json.js';
 import { renderJunitReport } from '../../src/report/junit.js';
 import { renderSarifReport } from '../../src/report/sarif.js';

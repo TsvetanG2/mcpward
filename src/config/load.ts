@@ -58,9 +58,7 @@ function formatZodError(error: ZodError): string {
  */
 export async function loadConfig(configPath: string): Promise<Config> {
   if (!existsSync(configPath)) {
-    throw new Error(
-      `Config file not found: ${configPath}\nRun "mcpward init" to create one.`
-    );
+    throw new Error(`Config file not found: ${configPath}\nRun "mcpward init" to create one.`);
   }
 
   const content = await readFile(configPath, 'utf-8');

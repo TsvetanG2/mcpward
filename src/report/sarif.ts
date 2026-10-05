@@ -10,7 +10,8 @@
 import type { CheckResult, CheckReport } from './model.js';
 
 const SARIF_VERSION = '2.1.0';
-const SARIF_SCHEMA = 'https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json';
+const SARIF_SCHEMA =
+  'https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json';
 
 /**
  * SARIF Result Level mapping from our severity.
@@ -157,9 +158,9 @@ function getFullDescription(ruleId: string): string {
     'drift/annotation_changed':
       'A tool annotation changed in a way that widens its authority (readOnlyHint true→false or destructiveHint false→true). Clients may now auto-approve a tool that mutates state.',
     'drift/breaking_output_shape_change':
-      'The structure of a tool\'s output, inferred from real calls, changed in a way that breaks consumers: a field disappeared or became optional, a new type appeared, or the output format changed.',
+      "The structure of a tool's output, inferred from real calls, changed in a way that breaks consumers: a field disappeared or became optional, a new type appeared, or the output format changed.",
     'drift/nonbreaking_output_shape_change':
-      'The structure of a tool\'s output, inferred from real calls, changed compatibly: a field was added or a field stopped producing one of its types.',
+      "The structure of a tool's output, inferred from real calls, changed compatibly: a field was added or a field stopped producing one of its types.",
     'collision/description-collision':
       'Two tools have near-identical descriptions but accept materially different input payloads. An agent that selects tools by description can call the wrong tool with the wrong payload, and no success/error check will notice.',
     'compliance/handshake':
@@ -183,15 +184,13 @@ function getFullDescription(ruleId: string): string {
 /**
  * Gets help documentation for a rule in both plain text and markdown formats.
  */
-function getHelp(
-  ruleId: string
-): { text: string; markdown: string } | undefined {
+function getHelp(ruleId: string): { text: string; markdown: string } | undefined {
   const helpDocs: Record<string, { text: string; markdown: string }> = {
     'security/injection-pattern': {
       text:
         'This tool description contains language that could manipulate LLM behavior. ' +
         'Common injection patterns include "ignore previous instructions", "you must always", or "before doing anything else". ' +
-        'These patterns can be used to override safety guidelines or hijack the LLM\'s behavior. ' +
+        "These patterns can be used to override safety guidelines or hijack the LLM's behavior. " +
         'Fix: Rewrite the tool description to focus on what the tool does, not instructions for how the LLM should behave.',
       markdown:
         '## Prompt Injection Pattern Detected\n\n' +

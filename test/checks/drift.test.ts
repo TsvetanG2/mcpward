@@ -11,11 +11,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { join } from 'path';
 import { rm, mkdir } from 'fs/promises';
 import { connect } from '../../src/client/connect.js';
-import {
-  captureServerSurface,
-  saveLockfile,
-  diffSurfaces,
-} from '../../src/surface/index.js';
+import { captureServerSurface, saveLockfile, diffSurfaces } from '../../src/surface/index.js';
 import { runDriftChecks } from '../../src/checks/drift.js';
 import { testConfig } from '../helpers/config.js';
 
@@ -167,24 +163,16 @@ describe('Drift Detection Integration', () => {
       expect(classes).toContain('annotation_changed'); // read_data readOnlyHint flipped
 
       // Verify specific tools
-      const toolRemoved = diff.changes.find(
-        (c) => c.class === 'tool_removed'
-      );
+      const toolRemoved = diff.changes.find((c) => c.class === 'tool_removed');
       expect(toolRemoved?.tool).toBe('removed_tool');
 
-      const toolAdded = diff.changes.find(
-        (c) => c.class === 'tool_added'
-      );
+      const toolAdded = diff.changes.find((c) => c.class === 'tool_added');
       expect(toolAdded?.tool).toBe('added_tool');
 
-      const descChanged = diff.changes.find(
-        (c) => c.class === 'description_changed'
-      );
+      const descChanged = diff.changes.find((c) => c.class === 'description_changed');
       expect(descChanged?.tool).toBe('echo');
 
-      const annotChanged = diff.changes.find(
-        (c) => c.class === 'annotation_changed'
-      );
+      const annotChanged = diff.changes.find((c) => c.class === 'annotation_changed');
       expect(annotChanged?.tool).toBe('read_data');
     }, 60000);
   });
@@ -263,9 +251,7 @@ describe('Drift Detection Integration', () => {
         expect(failures).toHaveLength(0);
 
         // Should have a pass result indicating no drift
-        const passResult = results.find(
-          (r) => r.id === 'drift/no-changes' && r.status === 'pass'
-        );
+        const passResult = results.find((r) => r.id === 'drift/no-changes' && r.status === 'pass');
         expect(passResult).toBeDefined();
       } finally {
         await v1Connection2.close();
@@ -325,9 +311,7 @@ describe('Drift Detection Integration', () => {
       const diff = diffSurfaces(v1Surface, v2Surface);
 
       // stable_tool should NOT appear in any changes
-      const stableToolChanges = diff.changes.filter(
-        (c) => c.tool === 'stable_tool'
-      );
+      const stableToolChanges = diff.changes.filter((c) => c.tool === 'stable_tool');
       expect(stableToolChanges).toHaveLength(0);
     }, 60000);
   });

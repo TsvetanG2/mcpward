@@ -74,7 +74,10 @@ export function redactString(value: string): string {
   result = result.replace(/Bearer\s+[A-Za-z0-9_\-./+=]+/gi, 'Bearer [REDACTED]');
 
   // API keys in query strings (common patterns)
-  result = result.replace(/([?&])(api[-_]?key|token|key|secret|password)=([^&\s]+)/gi, '$1$2=[REDACTED]');
+  result = result.replace(
+    /([?&])(api[-_]?key|token|key|secret|password)=([^&\s]+)/gi,
+    '$1$2=[REDACTED]'
+  );
 
   // Basic auth in URLs (user:pass@host)
   result = result.replace(/:\/\/([^:]+):([^@]+)@/g, '://[REDACTED]:[REDACTED]@');

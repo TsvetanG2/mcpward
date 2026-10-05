@@ -58,9 +58,7 @@ export interface Tool {
 /**
  * Runs all schema checks.
  */
-export async function runSchemaChecks(
-  ctx: SchemaCheckContext
-): Promise<CheckResult[]> {
+export async function runSchemaChecks(ctx: SchemaCheckContext): Promise<CheckResult[]> {
   // Load ajv dynamically (CJS module)
   await loadAjv();
 
@@ -306,7 +304,8 @@ function checkToolInputSchema(tool: Tool): CheckResult {
           status: 'fail',
           severity: 'error',
           message: `Tool "${name}" property "${propName}" has invalid type: "${prop.type}"`,
-          expected: 'Valid JSON Schema type (string, number, integer, boolean, array, object, null)',
+          expected:
+            'Valid JSON Schema type (string, number, integer, boolean, array, object, null)',
           actual: prop.type,
           location: `${name}.${propName}`,
         };

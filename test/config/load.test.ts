@@ -146,9 +146,7 @@ server:
   });
 
   it('throws on missing config file', async () => {
-    await expect(loadConfig('/nonexistent/mcpward.yaml')).rejects.toThrow(
-      'Config file not found'
-    );
+    await expect(loadConfig('/nonexistent/mcpward.yaml')).rejects.toThrow('Config file not found');
   });
 
   it('throws on invalid transport', async () => {
@@ -262,7 +260,9 @@ describe('loadConfig — drift severity overrides', () => {
   };
 
   it('accepts a PARTIAL per-class severity map', async () => {
-    const config = await load(`${SERVER}checks:\n  drift:\n    fail_on: high\n    severity:\n      tool_removed: high\n`);
+    const config = await load(
+      `${SERVER}checks:\n  drift:\n    fail_on: high\n    severity:\n      tool_removed: high\n`
+    );
     expect(config.checks?.drift?.fail_on).toBe('high');
     expect(config.checks?.drift?.severity).toEqual({ tool_removed: 'high' });
   });
@@ -323,9 +323,17 @@ describe('loadConfig — collision lint (M4)', () => {
     const dir = await mkdtemp(join(tmpdir(), 'mcpward-col-'));
     try {
       const p = join(dir, 'mcpward.yaml');
-      await writeFile(p, 'server:\n  transport: stdio\n  command: node\nchecks:\n  collision: {}\n');
+      await writeFile(
+        p,
+        'server:\n  transport: stdio\n  command: node\nchecks:\n  collision: {}\n'
+      );
       const config = await loadConfig(p);
-      expect(config.checks?.collision).toEqual({ enabled: true, threshold: 0.8, max_tools: 500, fail: false });
+      expect(config.checks?.collision).toEqual({
+        enabled: true,
+        threshold: 0.8,
+        max_tools: 500,
+        fail: false,
+      });
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

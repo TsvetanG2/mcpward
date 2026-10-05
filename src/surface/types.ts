@@ -26,7 +26,10 @@ export interface ToolSurface {
   outputSchema: JsonSchema | null;
 
   /** Tool annotations */
-  annotations: Pick<ToolAnnotations, 'readOnlyHint' | 'destructiveHint' | 'idempotentHint' | 'openWorldHint'> | null;
+  annotations: Pick<
+    ToolAnnotations,
+    'readOnlyHint' | 'destructiveHint' | 'idempotentHint' | 'openWorldHint'
+  > | null;
 
   /**
    * Output shape inferred from real tool calls (M3).
