@@ -12,7 +12,21 @@ export const CONFIG_SCHEMA_VERSION = 1;
  */
 const RAW_SERVER_URL = {
   type: 'string',
-  pattern: '^(https?://\\S+|.*\\$\\{[^}]+\\}.*)$',
+  anyOf: [
+    // A literal URL: http(s) scheme (case-insensitive — the parser accepts `HTTPS://`), then an
+    // explicit authority check: optional userinfo, host or [IPv6], NUMERIC port. `format: uri`
+    // alone is not enough — ajv-formats accepts `https://host:abc/`, which URL() rejects.
+    {
+      format: 'uri',
+      pattern:
+        '^[hH][tT][tT][pP][sS]?://([^/?#\\s@]+@)?(\\[[0-9A-Fa-f:.]+\\]|[^/?#\\s:@\\[\\]]+)' +
+        // port 0–65535
+        '(:(6553[0-5]|655[0-2][0-9]|65[0-4][0-9]{2}|6[0-4][0-9]{3}|[1-5][0-9]{4}|[0-9]{1,4}))?' +
+        '([/?#]\\S*)?$',
+    },
+    // A placeholder expanded at load time; the expanded value is validated by the parser.
+    { pattern: '\\$\\{[^}]+\\}' },
+  ],
   description:
     'Streamable HTTP endpoint (http or https), or a value containing a ${ENV_VAR} placeholder resolved at load time.',
 };
