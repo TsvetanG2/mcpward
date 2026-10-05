@@ -208,6 +208,14 @@ describe('only completed calls are latency samples', () => {
     expect(results.find((r) => r.id === 'latency/summary')?.status).toBe('warn');
   });
 
+  it('a server returning -32001 instantly is a rejection, not a timeout', async () => {
+    const connection = connectionThat(async () => {
+      throw Object.assign(new Error('MCP error -32001: Request timed out'), { code: -32001 });
+    });
+    const results = await runLatencyChecks({ connection, config: latencyConfig() });
+    expect(results.find((r) => r.id === 'latency/summary')?.status).toBe('warn');
+  });
+
   it('isError results are not counted', async () => {
     const connection = connectionThat(async () => ({ isError: true, content: [] }));
     const results = await runLatencyChecks({ connection, config: latencyConfig() });

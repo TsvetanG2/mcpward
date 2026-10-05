@@ -280,10 +280,13 @@ async function measureToolLatency(
   };
 }
 
-/** A call that ran out of time: mcpward's call_ms timeout, or the SDK's request timeout. */
+/**
+ * A call that ran out of mcpward's call_ms. Only our own timeout counts: error code -32001
+ * is also a code any server may return, so trusting it would let a server turn instant
+ * rejections into "samples". Server errors reach us as "MCP error <code>: …", never "Timeout:".
+ */
 function isTimeout(err: unknown): boolean {
-  if (err instanceof Error && err.message.startsWith('Timeout:')) return true;
-  return (err as { code?: unknown } | null)?.code === -32001;
+  return err instanceof Error && err.message.startsWith('Timeout:');
 }
 
 /**
