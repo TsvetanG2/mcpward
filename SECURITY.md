@@ -61,6 +61,10 @@ We will credit reporters in the advisory and `CHANGELOG.md` unless you prefer to
 
 Anything that breaks the second assumption is a valid vulnerability report.
 
+### Tool calls
+
+Most checks only read `tools/list`. The error-contract checks, latency measurement, behavioral suites and output drift **call tools** on the server under test. Since 1.1.0, latency and output drift call only tools annotated `readOnlyHint: true` (and not `destructiveHint: true`) unless you allowlist others; the error-contract checks call tools with empty arguments, which a server that validates input rejects, and can be turned off with `checks.errors: false`. The README section [*Which checks call tools*](README.md#which-checks-call-tools) lists exactly what each check calls. A check that calls a tool the documented policy forbids is a valid vulnerability report.
+
 ### Environment of a stdio server
 
 A stdio server is a subprocess, and it **inherits mcpward's environment** — except mcpward's own credentials (`MCPWARD_GITHUB_TOKEN`, `GITHUB_TOKEN`), which are always withheld. Values in the config's `server.env` are passed explicitly. This keeps servers that read their settings from the environment working without extra configuration.
@@ -69,13 +73,11 @@ The consequence: any secret in the environment where mcpward runs is visible to 
 
 ## Supply chain
 
-### Known advisories
+### Advisories in dependencies
 
-**GHSA-frvp-7c67-39w9** — `@hono/node-server` < 2.0.5 is affected by a path traversal in `serve-static` on Windows via an encoded backslash (`%5C`), CVSS 5.9 moderate. It reaches us transitively through `@modelcontextprotocol/sdk`, which is at its latest version (1.29.0).
+mcpward pins no transitive dependency: `npm install` / `npx` resolve the newest versions its ranges allow, so a patched release of a transitive dependency reaches users without a new mcpward release. Our own lockfile is kept free of known advisories (`pnpm audit --prod`), and Dependabot opens updates weekly.
 
-**This vulnerability is not reachable from mcpward:** mcpward is an MCP *client* and never runs an HTTP server or serves static files, so the vulnerable code path is never executed. It will clear when the SDK bumps to `@hono/node-server` ≥ 2.0.5 (current release: 2.0.11); we do not vendor or patch upstream dependencies.
-
-**GHSA-v2hh-gcrm-f6hx** — `fast-uri` 3.0.0–3.1.3 is vulnerable to host confusion via a literal backslash authority delimiter, CVSS high. It reaches us transitively through `ajv`. This is also not reachable from mcpward's use case: we validate JSON Schemas against tool definitions, not user-supplied URLs with potential backslash injection.
+Most advisories reported against the installed tree concern the HTTP *server* stack that `@modelcontextprotocol/sdk` ships (`hono`, `express`, `qs`). mcpward is an MCP *client*: it never starts an HTTP server, so those code paths are not executed.
 
 ### Why supply-chain scanners flag this package
 
@@ -83,10 +85,10 @@ The consequence: any secret in the environment where mcpward runs is visible to 
 |---|---|---|
 | Obfuscated code | `qs/dist/qs.js` — a minified UMD browser bundle of a ubiquitous query-string library, pulled in via `express` | Minified, not obfuscated. Not our code and not executed by the CLI. |
 | Uses eval | `ajv` compiles JSON Schemas into validator functions at runtime | This is how ajv works by design. We use it for schema validation. |
-| Shell access | `execa` / `cross-spawn` | Required: the stdio transport spawns MCP servers as subprocesses. This is the tool's core function. |
+| Shell access | `cross-spawn` (via `@modelcontextprotocol/sdk`) | Required: the stdio transport spawns MCP servers as subprocesses. This is the tool's core function. |
 | Network access | HTTP transport and the eventsource stack | Required for testing servers over Streamable HTTP. |
 | Environment variable access | `${ENV}` interpolation in config | Intentional, and interpolated secrets are redacted from all reports — see `src/report/redact.ts`. |
 
 ### Dependency posture
 
-mcpward declares **8 direct runtime dependencies**, but the installed tree is ~111 packages because `@modelcontextprotocol/sdk` bundles its server-side HTTP stack (`express`, `hono`, `cors`) even for client-only use. Reducing this footprint is tracked as a future improvement. We do not add runtime dependencies casually.
+mcpward declares **7 direct runtime dependencies**, but the installed tree is ~95 packages because `@modelcontextprotocol/sdk` bundles its server-side HTTP stack (`express`, `hono`, `cors`) even for client-only use. Reducing this footprint is tracked as a future improvement. We do not add runtime dependencies casually.

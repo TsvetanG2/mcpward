@@ -90,6 +90,7 @@ Human-readable output — console, Markdown and the PR comment — is golden-sna
 - Keep all protocol assumptions inside `src/client/`.
 - Every check emits the same normalized result object (`{id, family, status, severity, message, expected, actual, location}`). Reporters only read that model — never special-case a check inside a reporter.
 - Treat all server output as hostile input. Never `eval`, never interpolate a server-supplied string into a shell command or a file path.
+- A check that **calls tools** decides what to call in a pure policy function (`decideSampling`, `decideLatencyCall`) with a truth-table test, calls only tools annotated `readOnlyHint: true` unless the user allowlists them, reports every tool it did not call with the reason, and is listed in the README under *Which checks call tools*.
 - Ask before adding a runtime dependency. Low dependency count is a feature for a security tool.
 
 ## Adding a security heuristic
