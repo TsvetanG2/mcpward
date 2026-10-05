@@ -138,6 +138,7 @@ describe('closeOnce', () => {
 describe('checks.errors (1.1.0)', () => {
   afterEach(() => vi.restoreAllMocks());
 
+  /** Runs mcpward against error-contract-server and returns the errors/* rule ids reported. */
   async function errorIds(checks: Record<string, unknown>): Promise<string[]> {
     silenceConsole();
     const dir = await mkdtemp(join(tmpdir(), 'mcpward-run-'));

@@ -23,6 +23,7 @@ const OUTPUT_V1 = join(process.cwd(), 'fixtures', 'drift', 'output-v1', 'index.t
 
 const DEFAULT_POLICY: LatencyCallPolicy = { call_readonly: true, tools: [], call_all: false };
 
+/** A tool named "t" with the given annotations and required string parameters. */
 function tool(annotations: Tool['annotations'], required: string[] = []): Tool {
   return {
     name: 't',
@@ -99,6 +100,7 @@ function recordingConnection(tools: Tool[]): { connection: McpConnection; called
   return { connection, called };
 }
 
+/** A resolved latency config: default policy, 2 samples, 1s budget, plus overrides. */
 const latencyConfig = (extra: Partial<LatencyCallPolicy> = {}) => ({
   samples: 2,
   p95_budget_ms: 1000,
@@ -191,6 +193,7 @@ describe('against an annotated fixture server', () => {
 describe('only completed calls are latency samples', () => {
   const readOnly: Tool[] = [{ ...tool({ readOnlyHint: true }), name: 'get_status' }];
 
+  /** A connection listing one read-only tool, whose calls all behave like `callTool`. */
   function connectionThat(callTool: () => Promise<unknown>): McpConnection {
     const client = { listTools: async () => ({ tools: readOnly }) } as unknown as Client;
     return { client, callTool } as unknown as McpConnection;
