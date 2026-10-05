@@ -429,9 +429,21 @@ The same Markdown works as a job summary: `npx mcpward run --reporter markdown -
 |------|---------|
 | `0` | All checks passed |
 | `1` | One or more checks failed |
-| `2` | Configuration or connection error — nothing was tested |
+| `2` | Configuration or connection error, or `timeouts.run_ms` exceeded — nothing (or not everything) was tested |
 
-The distinction between `1` and `2` matters: `2` means the run never happened, which should be treated differently from a genuine failure.
+The distinction between `1` and `2` matters: `2` means the run never completed, which should be treated differently from a genuine failure.
+
+## Machine-readable formats
+
+The JSON report, the config file and the baseline lockfile each have a published JSON Schema, shipped in the npm package under `schemas/`:
+
+| File | Schema | Version field |
+|---|---|---|
+| JSON report (`--reporter json`) | [`schemas/report.v1.schema.json`](schemas/report.v1.schema.json) | `schemaVersion` |
+| `mcpward.yaml` | [`schemas/config.v1.schema.json`](schemas/config.v1.schema.json) | — |
+| Baseline lockfile | [`schemas/lockfile.v2.schema.json`](schemas/lockfile.v2.schema.json) | `meta.schemaVersion` |
+
+`mcpward init` adds a `yaml-language-server` comment so editors validate and autocomplete `mcpward.yaml`. What is (and is not) covered by compatibility guarantees is described in [`docs/stability.md`](docs/stability.md).
 
 ## Roadmap
 
