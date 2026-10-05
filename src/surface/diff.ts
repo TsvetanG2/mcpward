@@ -504,6 +504,21 @@ function diffAnnotations(
 }
 
 /**
+ * Applies user per-class severity overrides (`checks.drift.severity`) to changes.
+ * Pure: returns new change objects, never mutates the input.
+ */
+export function applySeverityOverrides(
+  changes: DriftChange[],
+  overrides: Partial<Record<DriftClass, DriftSeverity>> | undefined
+): DriftChange[] {
+  if (!overrides || Object.keys(overrides).length === 0) return changes;
+  return changes.map((change) => {
+    const override = overrides[change.class];
+    return override ? { ...change, severity: override } : change;
+  });
+}
+
+/**
  * Filters changes to only those that should cause a failure
  * based on the fail_on configuration (M2).
  *

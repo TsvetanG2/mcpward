@@ -66,7 +66,7 @@ const FIXED_REPORT: CheckReport = {
     },
     // Drift - warn
     {
-      id: 'drift/tool-added',
+      id: 'drift/tool_added',
       family: 'drift',
       status: 'warn',
       severity: 'warning',
@@ -232,10 +232,10 @@ describe('Golden Snapshot Tests', () => {
       const validAnchors = new Set<string>();
       let match;
       while ((match = headingRegex.exec(rulesContent)) !== null) {
-        // Convert heading to anchor: lowercase, remove non-alphanumeric except hyphens
+        // GitHub slug (github-slugger): lowercase, drop punctuation except - and _
         const anchor = match[1]
           .toLowerCase()
-          .replace(/[^a-z0-9-]/g, '');
+          .replace(/[^a-z0-9_-]/g, '');
         validAnchors.add(anchor);
       }
 

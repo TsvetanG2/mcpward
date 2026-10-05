@@ -9,6 +9,7 @@
 
 import type { CheckResult } from '../report/model.js';
 import type { McpConnection } from '../client/connect.js';
+import { listAllTools } from '../client/tools.js';
 import type { LatencyConfig } from '../config/schema.js';
 import type { Tool } from './schema.js';
 
@@ -33,7 +34,7 @@ export async function runLatencyChecks(
   // Get tools list
   let tools: Tool[];
   try {
-    const toolsResult = await ctx.connection.client.listTools();
+    const toolsResult = { tools: await listAllTools(ctx.connection.client) };
     if (!toolsResult.tools || !Array.isArray(toolsResult.tools)) {
       results.push({
         id: 'latency/list-tools',

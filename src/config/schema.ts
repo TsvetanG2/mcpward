@@ -26,6 +26,18 @@ const ExpectSchema = z
   })
   .optional();
 
+// Drift classes — keep in sync with DriftClass in src/surface/types.ts
+export const DRIFT_CLASSES = [
+  'tool_removed',
+  'tool_added',
+  'description_changed',
+  'breaking_schema_change',
+  'nonbreaking_schema_change',
+  'annotation_changed',
+] as const;
+
+const DriftSeveritySchema = z.enum(['high', 'medium', 'low']);
+
 // Drift check configuration
 const DriftConfigSchema = z
   .object({
@@ -49,18 +61,9 @@ const DriftConfigSchema = z
     fail_on: z
       .union([
         // Legacy: array of drift classes
-        z.array(
-          z.enum([
-            'tool_removed',
-            'tool_added',
-            'description_changed',
-            'breaking_schema_change',
-            'nonbreaking_schema_change',
-            'annotation_changed',
-          ])
-        ),
+        z.array(z.enum(DRIFT_CLASSES)),
         // M2: severity threshold
-        z.enum(['high', 'medium', 'low']),
+        DriftSeveritySchema,
       ])
       .optional()
       .default([
@@ -69,6 +72,12 @@ const DriftConfigSchema = z
         'breaking_schema_change',
         'annotation_changed',
       ]),
+    /**
+     * Per-class severity overrides (M2). For users who disagree with the default
+     * blast-radius mapping, e.g. `severity: { tool_removed: high }`.
+     * Only affects severity-threshold `fail_on` and reporting level.
+     */
+    severity: z.partialRecord(z.enum(DRIFT_CLASSES), DriftSeveritySchema).optional().default({}),
     /**
      * Store full description text in lockfile for before/after diffs.
      * Default true - size cost is small, diff quality gain is significant.

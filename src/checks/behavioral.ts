@@ -9,6 +9,7 @@
 
 import type { CheckResult } from '../report/model.js';
 import type { McpConnection } from '../client/connect.js';
+import { listAllTools } from '../client/tools.js';
 import type { TestSuite, TestCase } from '../config/schema.js';
 import { assertJsonPaths } from '../assert/jsonpath.js';
 import { validateAgainstOutputSchema, type JsonSchema } from '../assert/jsonschema.js';
@@ -33,7 +34,7 @@ export async function runBehavioralChecks(
   // Get tools list for schema validation
   let toolsMap: Map<string, { inputSchema?: JsonSchema; outputSchema?: JsonSchema }>;
   try {
-    const toolsResult = await ctx.connection.client.listTools();
+    const toolsResult = { tools: await listAllTools(ctx.connection.client) };
     toolsMap = new Map(
       toolsResult.tools.map((t) => [
         t.name,

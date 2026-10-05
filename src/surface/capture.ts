@@ -8,6 +8,7 @@
 import { createHash } from 'crypto';
 import { readFile, writeFile } from 'fs/promises';
 import type { McpConnection } from '../client/connect.js';
+import { listAllTools } from '../client/tools.js';
 import type { Tool, JsonSchema } from '../checks/schema.js';
 import type { ServerSurface, ToolSurface } from './types.js';
 import type { Config } from '../config/schema.js';
@@ -115,7 +116,7 @@ export async function captureServerSurface(
   config?: Config
 ): Promise<ServerSurface> {
   // Get tools list
-  const toolsResult = await connection.client.listTools();
+  const toolsResult = { tools: await listAllTools(connection.client) };
   const tools = toolsResult.tools as Tool[];
 
   // Get full_text config option (default true)

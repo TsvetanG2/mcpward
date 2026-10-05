@@ -232,12 +232,14 @@ Remove or rephrase tool descriptions that contain instruction-like language. Too
 
 **Severity:** error
 
-Detects hidden unicode characters that could conceal malicious content. Zero-width characters, bidirectional overrides, and other invisible characters can hide text from human review.
+Detects hidden unicode characters that could conceal malicious content from a human reviewer while the model still reads it.
 
 **What it checks:**
-- Tool names for zero-width characters
-- Descriptions for bidirectional override characters
-- Any text for non-printable unicode
+- Tool names, descriptions, and **parameter descriptions**
+- Zero-width characters (e.g. U+200B, U+200D, U+FEFF)
+- Bidirectional overrides and isolates (U+202A–U+202E, U+2066–U+2069)
+- **Unicode Tag characters** (U+E0000–U+E007F, "ASCII smuggling"): invisible characters that map 1:1 onto ASCII. The finding decodes the hidden text so you can read it. Well-formed emoji tag sequences (subdivision flags such as the Scotland flag) are not flagged.
+- Confusable spaces (non-breaking and typographic spaces)
 
 **How to fix:**
 Remove all hidden unicode characters from tool names and descriptions. Use a unicode-aware text editor to identify and remove them.
@@ -274,9 +276,26 @@ Ensure annotation hints accurately reflect tool behavior. If a tool can modify d
 
 Drift rules detect changes between the current server state and a previously captured baseline. These help catch rug-pull attacks and breaking changes.
 
+### How drift findings are classified
+
+Every change gets a **drift class** (what changed) and a **severity** (blast radius). They are separate axes: a removed tool is *breaking* but *low* severity, because it fails loudly and gets fixed in minutes; a `readOnlyHint` flip is *high* severity, because it silently changes what clients auto-approve.
+
+| Class | Default severity | In default `fail_on` |
+|---|---|---|
+| `description_changed` | high | yes |
+| `annotation_changed` | high | yes |
+| `breaking_schema_change` | medium | yes |
+| `tool_removed` | low | yes |
+| `tool_added` | low | no |
+| `nonbreaking_schema_change` | low | no |
+
+`checks.drift.fail_on` takes either a list of classes (above) or a severity threshold (`high` / `medium` / `low`). `checks.drift.severity` overrides the default severity per class, e.g. `severity: { tool_removed: high }`.
+
+Reporting level follows severity: high → error, medium → warning, low → info. A change that matches `fail_on` is always reported as a failure.
+
 ### drift/baseline-missing
 
-**Severity:** error
+**Severity:** warning (skipped)
 
 No baseline file found to compare against.
 
@@ -309,63 +328,73 @@ No differences detected between current state and baseline.
 
 ### drift/summary
 
-**Severity:** info
+**Severity:** info / error
 
-Summary of all drift checks performed.
+Summary of all drift checks performed. Fails when at least one change matches `fail_on`.
 
-### drift/tool-removed
+### drift/auth-context-mismatch
 
-**Severity:** error
+**Severity:** warning
 
-A tool that existed in the baseline is no longer present. This is a breaking change.
+The baseline was captured with different credentials than the current run (credential fingerprints differ). Tools visible to one role may be hidden from another, so the drift below this warning may be an artifact of comparing mismatched surfaces rather than a real change.
+
+**How to fix:**
+Capture the baseline and run the comparison with the same credentials, or keep one baseline per auth role.
+
+### drift/tool_removed
+
+**Severity:** low (info) — fails under the default `fail_on`
+
+A tool that existed in the baseline is no longer present. Clients calling it will break loudly at the call site.
 
 **How to fix:**
 If intentional, update the baseline with `mcpward baseline`. If not, restore the missing tool.
 
-### drift/tool-added
+### drift/tool_added
 
-**Severity:** warning
+**Severity:** low (info)
 
-A new tool has been added since the baseline. This may indicate new functionality or a rug-pull attempt.
+A new tool has been added since the baseline. Review it before your agents start using it — a new tool is new authority.
 
 **How to fix:**
 Review the new tool carefully. If legitimate, update the baseline.
 
-### drift/description-changed
+### drift/description_changed
 
-**Severity:** error
+**Severity:** high (error)
 
-A tool's description has changed since the baseline. This could indicate a rug-pull attack where tool behavior is silently modified after trust is established.
+A tool's description has changed since the baseline. The model reads descriptions to decide what to call and how, so a silent description change is the classic **rug-pull** vector: behavior is steered after trust is established.
 
 **What it checks:**
-- Description text hash comparison
+- SHA-256 of the canonicalized description (formatting-only changes such as line endings, NFC/NFD, or whitespace do not count; injected zero-width or bidi characters do)
+- Console, Markdown and JSON reports show a word-level before/after diff with invisible characters marked as `<U+XXXX>`
 
 **How to fix:**
 Review the description change carefully. If the change is legitimate, update the baseline. Investigate unexpected changes.
 
-### drift/breaking-schema-change
+### drift/breaking_schema_change
 
-**Severity:** error
+**Severity:** medium (warning)
 
-A tool's input schema has changed in a breaking way (added required fields, removed fields, narrowed types).
+A tool's input or output schema changed in a breaking way: added required field, removed field, narrowed or unrelated type change, or a declared `outputSchema` removed.
 
 **How to fix:**
-Breaking schema changes require client updates. Review carefully and update baseline if intentional.
+Breaking schema changes require client updates. Review carefully and update the baseline if intentional.
 
-### drift/nonbreaking-schema-change
+### drift/nonbreaking_schema_change
 
-**Severity:** warning
+**Severity:** low (info)
 
-A tool's input schema has changed in a non-breaking way (added optional fields, widened types).
+A tool's schema changed compatibly: added optional field, widened type, required→optional, or a declared schema added.
 
 **How to fix:**
 Review the change and update the baseline if appropriate.
 
-### drift/annotation-changed
+### drift/annotation_changed
 
-**Severity:** error
+**Severity:** high (error)
 
-Tool annotations have changed in a concerning way (e.g., `readOnlyHint` changed from true to false).
+A tool's annotations widened its authority: `readOnlyHint` true → false, or `destructiveHint` false → true. Clients use these hints to decide what to auto-approve.
 
 **How to fix:**
 Review the annotation change. If a tool is now destructive, clients may need to update their handling.

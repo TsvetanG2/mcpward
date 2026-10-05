@@ -14,6 +14,7 @@ import {
   loadLockfile,
   diffSurfaces,
   filterFailingChanges,
+  applySeverityOverrides,
   type DriftChange,
   type DriftSeverity,
 } from '../surface/index.js';
@@ -158,8 +159,9 @@ export async function runDriftChecks(
     });
   }
 
-  // Diff surfaces
+  // Diff surfaces, then apply user severity overrides
   const diff = diffSurfaces(baseline, current);
+  diff.changes = applySeverityOverrides(diff.changes, ctx.config?.severity);
 
   // If no changes, report success
   if (diff.unchanged) {

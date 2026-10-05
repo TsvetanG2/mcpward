@@ -123,6 +123,7 @@ function getShortDescription(ruleId: string): string {
     'drift/breaking_schema_change': 'Breaking schema change',
     'drift/nonbreaking_schema_change': 'Non-breaking schema change',
     'drift/annotation_changed': 'Annotation changed',
+    'drift/auth-context-mismatch': 'Baseline captured under a different auth context',
   };
   return descriptions[ruleId] ?? ruleId;
 }
@@ -135,7 +136,7 @@ function getFullDescription(ruleId: string): string {
     'security/injection-pattern':
       'The tool description contains patterns commonly used in prompt injection attacks, such as "ignore previous instructions" or "before doing anything else".',
     'security/hidden-unicode':
-      'The tool name or description contains zero-width or bidirectional override characters that can hide malicious content.',
+      'The tool name, description, or a parameter description contains zero-width, bidirectional override, or Unicode Tag characters (ASCII smuggling) that can hide instructions from a human reviewer while the model still reads them.',
     'security/secret-in-schema':
       'The tool input schema contains field names that suggest it is soliciting secrets such as api_key, password, or token.',
     'security/annotation-mismatch':
@@ -146,6 +147,13 @@ function getFullDescription(ruleId: string): string {
       'A new tool has been added since the baseline was captured. Review the new tool carefully for unexpected functionality.',
     'drift/tool-removed':
       'A tool that existed in the baseline is no longer present. This is a breaking change for clients relying on this tool.',
+    // Real drift ids use underscores; the hyphenated keys above are kept for report stability.
+    'drift/tool_added':
+      'A new tool has been added since the baseline was captured. Review the new tool carefully for unexpected functionality.',
+    'drift/tool_removed':
+      'A tool that existed in the baseline is no longer present. This is a breaking change for clients relying on this tool.',
+    'drift/annotation_changed':
+      'A tool annotation changed in a way that widens its authority (readOnlyHint true→false or destructiveHint false→true). Clients may now auto-approve a tool that mutates state.',
     'compliance/handshake':
       'Verifies that the MCP server completes the protocol handshake successfully, returning valid server info and capabilities.',
     'schema/tool-name':

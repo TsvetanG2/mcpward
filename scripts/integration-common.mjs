@@ -9,21 +9,13 @@
  * @returns {object} Normalized finding with stable identity
  */
 export function normalizeFinding(finding) {
-  // Normalize location: replace synthetic unknown-tool names with constant token
-  let normalizedLocation = finding.location;
-  if (typeof normalizedLocation === 'string') {
-    // Pattern: __mcpward_unknown_tool_1785885329111 → __mcpward_unknown_tool_*
-    normalizedLocation = normalizedLocation.replace(
-      /__mcpward_unknown_tool_\d+/g,
-      '__mcpward_unknown_tool_*'
-    );
-  }
-
+  // Locations are deterministic (the unknown-tool probe uses a fixed name since v0.4.0),
+  // so no normalization is needed beyond picking the stable fields.
   return {
     family: finding.family,
     id: finding.id,
     status: finding.status,
-    location: normalizedLocation,
+    location: finding.location,
   };
 }
 
@@ -32,7 +24,7 @@ export function normalizeFinding(finding) {
  *
  * - Drops all pass results (only fail/warn/skip matter for baseline)
  * - Strips timestamp, expected, actual (run-specific noise)
- * - Normalizes location (synthetic tool names)
+ * - Keeps only stable identity fields (family, id, status, location)
  * - Sorts findings deterministically
  *
  * @param {object} report - Full CheckReport from mcpward

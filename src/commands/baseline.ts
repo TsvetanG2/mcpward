@@ -2,6 +2,7 @@ import pc from 'picocolors';
 import type { Config } from '../config/schema.js';
 import { connect } from '../client/connect.js';
 import { captureServerSurface, saveLockfile } from '../surface/index.js';
+import { redactString } from '../report/redact.js';
 
 export interface BaselineOptions {
   config: string;
@@ -19,7 +20,7 @@ export async function baselineCommand(
   const baselinePath = config.checks?.drift?.baseline ?? './mcpward.lock.json';
 
   console.log(pc.bold('Capturing baseline...'));
-  console.log(pc.dim(`Server: ${config.server.transport === 'stdio' ? config.server.command : config.server.url}`));
+  console.log(pc.dim(`Server: ${redactString(config.server.transport === 'stdio' ? config.server.command : config.server.url)}`));
   console.log(pc.dim(`Output: ${baselinePath}`));
   console.log();
 

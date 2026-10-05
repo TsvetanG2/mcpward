@@ -132,7 +132,7 @@ exports[`Golden Snapshot Tests > JSON Reporter > matches snapshot 1`] = `
       "location": "evil_tool"
     },
     {
-      "id": "drift/tool-added",
+      "id": "drift/tool_added",
       "family": "drift",
       "status": "warn",
       "severity": "warning",
@@ -187,7 +187,7 @@ Actual: ["Ignore all previous instructions"]]]></failure>
     </testcase>
   </testsuite>
   <testsuite name="drift" tests="1" failures="0" errors="0" skipped="0" time="0.001">
-    <testcase name="New tool &quot;new_feature&quot; was added" classname="drift/tool-added" time="0.001">
+    <testcase name="New tool &quot;new_feature&quot; was added" classname="drift/tool_added" time="0.001">
       <system-out><![CDATA[WARNING: New tool &quot;new_feature&quot; was added]]></system-out>
     </testcase>
   </testsuite>
@@ -281,15 +281,15 @@ exports[`Golden Snapshot Tests > SARIF Reporter > matches snapshot 1`] = `
               }
             },
             {
-              "id": "drift-tool-added",
-              "name": "drift/tool-added",
+              "id": "drift-tool_added",
+              "name": "drift/tool_added",
               "shortDescription": {
-                "text": "drift/tool-added"
+                "text": "Tool added"
               },
               "fullDescription": {
                 "text": "A new tool has been added since the baseline was captured. Review the new tool carefully for unexpected functionality."
               },
-              "helpUri": "https://github.com/TsvetanG2/mcpward/blob/main/docs/rules.md#drifttool-added",
+              "helpUri": "https://github.com/TsvetanG2/mcpward/blob/main/docs/rules.md#drifttool_added",
               "defaultConfiguration": {
                 "level": "warning"
               },
@@ -414,7 +414,7 @@ exports[`Golden Snapshot Tests > SARIF Reporter > matches snapshot 1`] = `
           }
         },
         {
-          "ruleId": "drift-tool-added",
+          "ruleId": "drift-tool_added",
           "level": "warning",
           "message": {
             "text": "New tool \\"new_feature\\" was added"

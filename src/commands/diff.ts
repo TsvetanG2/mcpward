@@ -4,6 +4,7 @@ import { connect } from '../client/connect.js';
 import { runDriftChecks } from '../checks/drift.js';
 import { renderConsoleReport } from '../report/console.js';
 import { summarizeResults, getExitCode, type CheckReport } from '../report/model.js';
+import { redactReport, redactString } from '../report/redact.js';
 import { MCPWARD_VERSION } from '../version.js';
 
 export interface DiffOptions {
@@ -24,7 +25,7 @@ export async function diffCommand(
 
   if (!options.json) {
     console.log(pc.bold('Checking for drift...'));
-    console.log(pc.dim(`Server: ${config.server.transport === 'stdio' ? config.server.command : config.server.url}`));
+    console.log(pc.dim(`Server: ${redactString(config.server.transport === 'stdio' ? config.server.command : config.server.url)}`));
     console.log(pc.dim(`Baseline: ${baselinePath}`));
     console.log();
   }
@@ -42,22 +43,24 @@ export async function diffCommand(
       config: driftConfig,
     });
 
-    // Report results
+    const report: CheckReport = {
+      version: MCPWARD_VERSION,
+      timestamp: new Date().toISOString(),
+      server: {
+        name: connection.serverInfo.name,
+        version: connection.serverInfo.version,
+        protocolVersion: connection.protocolVersion,
+      },
+      summary: summarizeResults(results),
+      results,
+    };
+
+    // Redact before ANY output — the --json path must not bypass it
+    redactReport(report);
+
     if (options.json) {
-      console.log(JSON.stringify(results, null, 2));
+      console.log(JSON.stringify(report.results, null, 2));
     } else {
-      // Build report for console output
-      const report: CheckReport = {
-        version: MCPWARD_VERSION,
-        timestamp: new Date().toISOString(),
-        server: {
-          name: connection.serverInfo.name,
-          version: connection.serverInfo.version,
-          protocolVersion: connection.protocolVersion,
-        },
-        summary: summarizeResults(results),
-        results,
-      };
       renderConsoleReport(report, { verbose: options.verbose ?? false });
     }
 

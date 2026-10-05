@@ -18,6 +18,7 @@ import { describe, it, expect } from 'vitest';
 import {
   diffSurfaces,
   filterFailingChanges,
+  applySeverityOverrides,
   type ServerSurface,
   type ToolSurface,
 } from '../../src/surface/index.js';
@@ -858,5 +859,34 @@ describe('hashDescription', () => {
   it('handles empty description', () => {
     const hash = hashDescription('');
     expect(hash).toMatch(/^sha256:[a-f0-9]{64}$/);
+  });
+});
+
+describe('M2: per-class severity overrides', () => {
+  const removed = (): ServerSurface['tools'] => ({ gone: createTool() });
+
+  it('tool_removed is low by default and passes fail_on: high', () => {
+    const { changes } = diffSurfaces(createSurface(removed()), createSurface({}));
+    expect(changes.map((c) => c.severity)).toEqual(['low']);
+    expect(filterFailingChanges(changes, 'high')).toHaveLength(0);
+  });
+
+  it('override raises tool_removed to high so fail_on: high fails it', () => {
+    const { changes } = diffSurfaces(createSurface(removed()), createSurface({}));
+    const overridden = applySeverityOverrides(changes, { tool_removed: 'high' });
+    expect(overridden.map((c) => c.severity)).toEqual(['high']);
+    expect(filterFailingChanges(overridden, 'high')).toHaveLength(1);
+  });
+
+  it('does not mutate the input changes', () => {
+    const { changes } = diffSurfaces(createSurface(removed()), createSurface({}));
+    applySeverityOverrides(changes, { tool_removed: 'high' });
+    expect(changes[0]?.severity).toBe('low');
+  });
+
+  it('empty or missing overrides are a no-op', () => {
+    const { changes } = diffSurfaces(createSurface(removed()), createSurface({}));
+    expect(applySeverityOverrides(changes, {})).toBe(changes);
+    expect(applySeverityOverrides(changes, undefined)).toBe(changes);
   });
 });
