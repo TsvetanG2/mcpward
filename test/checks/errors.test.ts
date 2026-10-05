@@ -10,7 +10,7 @@ import { describe, it, expect } from 'vitest';
 import { join } from 'path';
 import { connect } from '../../src/client/connect.js';
 import { runErrorContractChecks } from '../../src/checks/errors.js';
-import type { Config } from '../../src/config/schema.js';
+import { testConfig } from '../helpers/config.js';
 
 // Fixture paths
 const FIXTURES_DIR = join(process.cwd(), 'fixtures');
@@ -18,7 +18,7 @@ const GOOD_SERVER = join(FIXTURES_DIR, 'good-server', 'index.ts');
 const ERROR_CONTRACT_SERVER = join(FIXTURES_DIR, 'error-contract-server', 'index.ts');
 
 // Config for good server
-const goodServerConfig: Config = {
+const goodServerConfig = testConfig({
   server: {
     transport: 'stdio',
     command: 'npx',
@@ -27,10 +27,10 @@ const goodServerConfig: Config = {
   },
   checks: {},
   suites: [],
-};
+});
 
 // Config for error-contract-server
-const errorContractServerConfig: Config = {
+const errorContractServerConfig = testConfig({
   server: {
     transport: 'stdio',
     command: 'npx',
@@ -39,7 +39,7 @@ const errorContractServerConfig: Config = {
   },
   checks: {},
   suites: [],
-};
+});
 
 describe('Error Contract Checks', () => {
   describe('against good-server', () => {

@@ -234,7 +234,7 @@ describe('Golden Snapshot Tests', () => {
       let match;
       while ((match = headingRegex.exec(rulesContent)) !== null) {
         // GitHub slug (github-slugger): lowercase, drop punctuation except - and _
-        const anchor = match[1]
+        const anchor = (match[1] ?? '')
           .toLowerCase()
           .replace(/[^a-z0-9_-]/g, '');
         validAnchors.add(anchor);

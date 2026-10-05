@@ -18,7 +18,8 @@ import { runErrorContractChecks } from '../../src/checks/errors.js';
 import { runDriftChecks } from '../../src/checks/drift.js';
 import { captureServerSurface, saveLockfile } from '../../src/surface/index.js';
 import type { CheckResult } from '../../src/report/model.js';
-import type { Config } from '../../src/config/schema.js';
+import type { Config, ConfigInput } from '../../src/config/schema.js';
+import { testConfig } from '../helpers/config.js';
 
 const FIXTURES = join(process.cwd(), 'fixtures');
 const HTTP_HOST = join(FIXTURES, 'http-host.ts');
@@ -70,7 +71,7 @@ async function startHttp(fixture: string, env: Record<string, string> = {}): Pro
   };
 }
 
-const stdioConfig = (fixture: string, checks: Config['checks'] = {}): Config => ({
+const stdioConfig = (fixture: string, checks: ConfigInput['checks'] = {}): Config => testConfig({
   server: { transport: 'stdio', command: 'npx', args: ['tsx', fixture], env: {} },
   checks,
   suites: [],
@@ -78,9 +79,9 @@ const stdioConfig = (fixture: string, checks: Config['checks'] = {}): Config => 
 
 const httpConfig = (
   url: string,
-  checks: Config['checks'] = {},
+  checks: ConfigInput['checks'] = {},
   headers: Record<string, string> = {}
-): Config => ({
+): Config => testConfig({
   server: { transport: 'http', url, headers },
   checks,
   suites: [],

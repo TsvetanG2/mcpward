@@ -6,9 +6,9 @@
 
 import { describe, it, expect } from 'vitest';
 import { connect } from '../../src/client/connect.js';
-import type { Config } from '../../src/config/schema.js';
+import { testConfig } from '../helpers/config.js';
 
-const HANGING_SERVER_CONFIG: Config = {
+const HANGING_SERVER_CONFIG = testConfig({
   server: {
     transport: 'stdio',
     command: 'npx',
@@ -22,7 +22,7 @@ const HANGING_SERVER_CONFIG: Config = {
   },
   checks: {},
   suites: [],
-};
+});
 
 describe('Timeout Handling', () => {
   it('connects successfully to hanging-server', async () => {

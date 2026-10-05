@@ -140,7 +140,7 @@ describe('diffSurfaces classifier', () => {
         tool: 'echo',
         class: 'description_changed',
       });
-      expect(result.changes[0].message).toContain('rug-pull');
+      expect(result.changes[0]?.message).toContain('rug-pull');
     });
 
     it('does not flag unchanged descriptions', () => {
@@ -552,11 +552,11 @@ describe('diffSurfaces classifier', () => {
 describe('filterFailingChanges', () => {
   it('filters changes based on fail_on config', () => {
     const changes = [
-      { tool: 'a', class: 'tool_removed' as const, message: 'removed' },
-      { tool: 'b', class: 'tool_added' as const, message: 'added' },
-      { tool: 'c', class: 'description_changed' as const, message: 'desc' },
-      { tool: 'd', class: 'breaking_schema_change' as const, message: 'break' },
-      { tool: 'e', class: 'nonbreaking_schema_change' as const, message: 'non' },
+      { tool: 'a', class: 'tool_removed' as const, severity: 'low' as const, message: 'removed' },
+      { tool: 'b', class: 'tool_added' as const, severity: 'low' as const, message: 'added' },
+      { tool: 'c', class: 'description_changed' as const, severity: 'high' as const, message: 'desc' },
+      { tool: 'd', class: 'breaking_schema_change' as const, severity: 'medium' as const, message: 'break' },
+      { tool: 'e', class: 'nonbreaking_schema_change' as const, severity: 'low' as const, message: 'non' },
     ];
 
     const failOn = ['tool_removed', 'description_changed', 'breaking_schema_change'];
@@ -572,8 +572,8 @@ describe('filterFailingChanges', () => {
 
   it('returns empty array when no changes match fail_on', () => {
     const changes = [
-      { tool: 'a', class: 'tool_added' as const, message: 'added' },
-      { tool: 'b', class: 'nonbreaking_schema_change' as const, message: 'non' },
+      { tool: 'a', class: 'tool_added' as const, severity: 'low' as const, message: 'added' },
+      { tool: 'b', class: 'nonbreaking_schema_change' as const, severity: 'low' as const, message: 'non' },
     ];
 
     const failOn = ['tool_removed', 'description_changed'];
@@ -722,7 +722,7 @@ describe('M2: filterFailingChanges with severity threshold', () => {
   it('severity threshold "high" fails only high severity changes', () => {
     const failing = filterFailingChanges(changes, 'high');
     expect(failing).toHaveLength(1);
-    expect(failing[0].severity).toBe('high');
+    expect(failing[0]?.severity).toBe('high');
   });
 
   it('severity threshold "medium" fails high and medium severity changes', () => {
@@ -739,7 +739,7 @@ describe('M2: filterFailingChanges with severity threshold', () => {
   it('legacy array mode still works', () => {
     const failing = filterFailingChanges(changes, ['description_changed']);
     expect(failing).toHaveLength(1);
-    expect(failing[0].class).toBe('description_changed');
+    expect(failing[0]?.class).toBe('description_changed');
   });
 });
 
@@ -772,7 +772,7 @@ describe('M2.2: Type change classification', () => {
       class: 'nonbreaking_schema_change',
       severity: 'low',
     });
-    expect(result.changes[0].message).toContain('widened');
+    expect(result.changes[0]?.message).toContain('widened');
   });
 
   it('classifies type narrowing as breaking with medium severity', () => {
@@ -803,7 +803,7 @@ describe('M2.2: Type change classification', () => {
       class: 'breaking_schema_change',
       severity: 'medium',
     });
-    expect(result.changes[0].message).toContain('narrowed');
+    expect(result.changes[0]?.message).toContain('narrowed');
   });
 
   it('classifies unrelated type change as breaking with medium severity', () => {
@@ -834,7 +834,7 @@ describe('M2.2: Type change classification', () => {
       class: 'breaking_schema_change',
       severity: 'medium',
     });
-    expect(result.changes[0].message).toContain('changed');
+    expect(result.changes[0]?.message).toContain('changed');
   });
 });
 

@@ -7,22 +7,25 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { runComplianceChecks } from '../../src/checks/compliance.js';
-import type { McpConnection } from '../../src/client/connect.js';
-import type { Config } from '../../src/config/schema.js';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { connect, type McpConnection } from '../../src/client/connect.js';
+import type { Config, ConfigInput } from '../../src/config/schema.js';
+import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { testConfig } from '../helpers/config.js';
 
 /**
  * Creates a mock connection for testing compliance checks.
+ *
+ * Deliberately allows INVALID server data (e.g. serverInfo without a version, null
+ * capabilities) — that is what these negative tests feed the checks — so the result is
+ * cast rather than type-checked against McpConnection.
  */
 function createMockConnection(overrides: {
+  client?: Client;
   serverInfo?: { name: string; version?: string };
   protocolVersion?: string;
   capabilities?: Record<string, unknown> | null;
 }): McpConnection {
-  const mockClient = {
-    ping: async () => ({}),
-  } as unknown as Client;
+  const mockClient = overrides.client ?? ({ ping: async () => ({}) } as unknown as Client);
 
   // Use 'capabilities' in overrides to check if it was explicitly set
   const hasCapabilitiesOverride = 'capabilities' in overrides;
@@ -31,19 +34,20 @@ function createMockConnection(overrides: {
     client: mockClient,
     serverInfo: overrides.serverInfo ?? { name: 'test-server', version: '1.0.0' },
     protocolVersion: overrides.protocolVersion ?? '2025-11-25',
-    capabilities: hasCapabilitiesOverride
-      ? (overrides.capabilities as Record<string, unknown>)
-      : { tools: {} },
-    close: async () => { /* no-op for mock */ },
-    transport: {} as StdioClientTransport,
-  };
+    capabilities: hasCapabilitiesOverride ? overrides.capabilities : { tools: {} },
+    timeouts: { connect_ms: 10000, call_ms: 30000, run_ms: 300000 },
+    close: async () => {
+      /* no-op for mock */
+    },
+    callTool: async () => ({ content: [] }),
+  } as unknown as McpConnection;
 }
 
-function createConfig(overrides: Partial<Config> = {}): Config {
-  return {
+function createConfig(overrides: Partial<ConfigInput> = {}): Config {
+  return testConfig({
     server: { transport: 'stdio', command: 'echo' },
     ...overrides,
-  } as Config;
+  });
 }
 
 describe('Compliance Checks', () => {
@@ -160,14 +164,7 @@ describe('Compliance Checks', () => {
         },
       } as unknown as Client;
 
-      const connection: McpConnection = {
-        client: mockClient,
-        serverInfo: { name: 'test-server', version: '1.0.0' },
-        protocolVersion: '2025-11-25',
-        capabilities: { tools: {} },
-        close: async () => { /* no-op for mock */ },
-        transport: {} as StdioClientTransport,
-      };
+      const connection = createMockConnection({ client: mockClient });
       const config = createConfig();
 
       const results = await runComplianceChecks({ connection, config });
@@ -237,29 +234,12 @@ describe('Compliance Checks', () => {
     let connection: McpConnection | null = null;
 
     beforeAll(async () => {
-      // Connect to good-server
-      const transport = new StdioClientTransport({
-        command: 'npx',
-        args: ['tsx', './fixtures/good-server/index.ts'],
-      });
-      const client = new Client({ name: 'test-client', version: '1.0.0' }, {});
-      await client.connect(transport);
-
-      // Get server info from the initialize response
-      const serverInfo = { name: 'good-server', version: '1.0.0' };
-      const protocolVersion = '2024-11-05';
-      const capabilities = { tools: {} };
-
-      connection = {
-        client,
-        serverInfo,
-        protocolVersion,
-        capabilities,
-        close: async () => {
-          await transport.close();
-        },
-        transport,
-      };
+      // Connect to good-server through the real client path
+      connection = await connect(
+        testConfig({
+          server: { transport: 'stdio', command: 'npx', args: ['tsx', './fixtures/good-server/index.ts'] },
+        })
+      );
     }, 30000);
 
     afterAll(async () => {
