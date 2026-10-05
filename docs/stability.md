@@ -20,7 +20,7 @@ incompatible changes may happen in minor versions, and every one is called out i
 | Baseline lockfile | Shape of the file written by `baseline`, versioned by `meta.schemaVersion` | [`schemas/lockfile.v2.schema.json`](../schemas/lockfile.v2.schema.json) |
 | Rule ids | Every id in [`docs/rules.md`](rules.md) (e.g. `drift/description_changed`) keeps its meaning; an id is never reused for something else | — |
 | Drift classes and severities | The class names and their default severity (blast radius) | [`docs/rules.md`](rules.md#drift-rules) |
-| SARIF | Valid SARIF 2.1.0; `ruleId` is the rule id with `/` replaced by `-`; `helpUri` points into `docs/rules.md` | — |
+| SARIF | Valid SARIF 2.1.0; `ruleId` is the rule id with `/` replaced by `-`; `helpUri` points into `docs/rules.md`; alerts are anchored to the config file used (`artifactLocation.uri`, repo-relative) | — |
 | JUnit | One `<testsuite>` per check family, one `<testcase>` per result with `classname` = rule id | — |
 | GitHub Action | Inputs and outputs (`exit-code`, `report-path`) of `action/action.yml` | — |
 

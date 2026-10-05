@@ -62,6 +62,19 @@ describe('mcpward diff', () => {
     expect(sarif.runs[0]?.results.map((r) => r.ruleId)).toContain('drift-description_changed');
   }, 30000);
 
+  it('anchors SARIF alerts to the config file actually used, not always mcpward.yaml', async () => {
+    captureStdout();
+    const out = join(dir, 'anchored.sarif');
+    await diffCommand(config('v2'), { config: join('ci', 'mcp-checks.yaml'), reporter: 'sarif', out });
+    const sarif = JSON.parse(await readFile(out, 'utf-8')) as {
+      runs: { results: { locations: { physicalLocation?: { artifactLocation: { uri: string } } }[] }[] }[];
+    };
+    const uris = new Set(
+      sarif.runs[0]?.results.flatMap((r) => r.locations.map((l) => l.physicalLocation?.artifactLocation.uri))
+    );
+    expect([...uris]).toEqual(['ci/mcp-checks.yaml']);
+  }, 30000);
+
   it('--json prints the full report and nothing else on stdout', async () => {
     const lines = captureStdout();
     await diffCommand(config('v2'), { config: 'x', json: true });

@@ -59,7 +59,12 @@ export async function diffCommand(config: Config, options: DiffOptions): Promise
     );
 
     const report = buildReport(conn, results);
-    await emitReport(report, { reporter, out: options.out, verbose: options.verbose });
+    await emitReport(report, {
+      reporter,
+      out: options.out,
+      verbose: options.verbose,
+      configPath: options.config,
+    });
     if (prContext) {
       await publishPrComment(report, prContext);
     }
