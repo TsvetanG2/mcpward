@@ -367,6 +367,8 @@ Review the new tool carefully. If legitimate, update the baseline.
 
 A tool's description has changed since the baseline. The model reads descriptions to decide what to call and how, so a silent description change is the classic **rug-pull** vector: behavior is steered after trust is established.
 
+This also fires for a changed **parameter** description anywhere in the input schema — the model reads those too.
+
 **What it checks:**
 - SHA-256 of the canonicalized description (formatting-only changes such as line endings, NFC/NFD, or whitespace do not count; injected zero-width or bidi characters do)
 - Console, Markdown and JSON reports show a word-level before/after diff with invisible characters marked as `<U+XXXX>`
@@ -378,7 +380,16 @@ Review the description change carefully. If the change is legitimate, update the
 
 **Severity:** medium (warning)
 
-A tool's input or output schema changed in a breaking way: added required field, removed field, narrowed or unrelated type change, or a declared `outputSchema` removed.
+A tool's input or output schema changed in a way that can reject previously valid calls, at any nesting depth (paths like `filter.status`, `rows[].id`):
+
+- required property added, property removed, optional → required
+- type narrowed or changed to an unrelated type
+- `enum` value removed, or an `enum` added where there was none
+- `minimum`/`minLength`/`minItems`/`minProperties` raised or added; `maximum`/`maxLength`/`maxItems`/`maxProperties` lowered or added
+- `pattern`, `format`, `const` or `multipleOf` added or changed (a changed pattern cannot be proven compatible, so it is classified as breaking and the message says so)
+- `uniqueItems` turned on, `additionalProperties` closed, an `items` constraint added
+- `anyOf`/`oneOf`/`allOf` changed (cannot be classified structurally — conservative)
+- a declared schema removed
 
 **How to fix:**
 Breaking schema changes require client updates. Review carefully and update the baseline if intentional.
@@ -387,7 +398,7 @@ Breaking schema changes require client updates. Review carefully and update the 
 
 **Severity:** low (info)
 
-A tool's schema changed compatibly: added optional field, widened type, required→optional, or a declared schema added.
+A tool's schema changed compatibly, at any nesting depth: optional property added, type widened, required → optional, `enum` value added or `enum` removed, bounds relaxed or removed, `pattern`/`format`/`const`/`multipleOf` removed, `uniqueItems` turned off, `additionalProperties` opened, `items` constraint removed, or a declared schema added.
 
 **How to fix:**
 Review the change and update the baseline if appropriate.

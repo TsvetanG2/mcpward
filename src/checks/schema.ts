@@ -33,7 +33,7 @@ export interface SchemaCheckContext {
 }
 
 export interface JsonSchema {
-  type?: string;
+  type?: string | string[];
   properties?: Record<string, unknown>;
   required?: string[];
   [key: string]: unknown;

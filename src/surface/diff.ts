@@ -24,7 +24,7 @@ import type {
   DriftSeverity,
   JsonSchema,
 } from './types.js';
-import { canonicalizeSchema } from './canonical.js';
+import { canonicalizeSchema, canonicalJson } from './canonical.js';
 import { diffOutputShapes } from './output-shape.js';
 
 /**
@@ -276,23 +276,24 @@ function diffTool(
 }
 
 /**
- * Compares two JSON schemas and classifies the change as breaking or non-breaking.
+ * Compares two JSON schemas and classifies every change as breaking or non-breaking (M6.3).
  *
- * Canonicalizes defensively before comparison - a lockfile written by an older
- * mcpward version may not be in canonical form.
+ * Walks the schema recursively — nested `properties`, array `items`, `additionalProperties` —
+ * and reports paths like `filter.status` or `rows[].id`. Canonicalizes defensively first: a
+ * lockfile written by an older mcpward may not be canonical.
  *
- * Breaking changes:
- * - Added required field (clients won't provide it)
- * - Removed field (clients may rely on it)
- * - Narrowed type (e.g., string → enum subset)
- * - Tightened constraints
- * - Schema removed entirely
+ * Classification per node (the drift truth table):
+ * - breaking: property removed; required property added; optional → required; type narrowed or
+ *   changed; enum value removed or enum added; min-bound raised/added; max-bound lowered/added;
+ *   pattern/format/const/multipleOf added or changed; uniqueItems turned on;
+ *   additionalProperties closed; items constraint added; schema removed
+ * - non-breaking: optional property added; required → optional; type widened; enum value added
+ *   or enum removed; bounds relaxed or removed; pattern/format/const/multipleOf removed;
+ *   uniqueItems turned off; additionalProperties opened; items constraint removed; schema added
+ * - a parameter's `description` changing is `description_changed` (the model reads it too)
  *
- * Non-breaking changes:
- * - Added optional field
- * - Widened type
- * - Loosened constraints
- * - Schema added (was null)
+ * Where compatibility cannot be proven (a changed `pattern`, a changed anyOf/oneOf/allOf), the
+ * change is classified as breaking and the message says so. No false precision.
  */
 function diffSchema(
   toolName: string,
@@ -306,166 +307,274 @@ function diffSchema(
   const baselineCanonical = canonicalizeSchema(baseline);
   const currentCanonical = canonicalizeSchema(current);
 
-  // Schema was added (null → something): non-breaking
-  if (baselineCanonical === null && currentCanonical !== null) {
-    const driftClass: DriftClass = 'nonbreaking_schema_change';
+  const emit = (driftClass: DriftClass, message: string, previous: unknown, curr: unknown) => {
     changes.push({
       tool: toolName,
       class: driftClass,
       severity: getDefaultSeverity(driftClass),
-      message: `Tool "${toolName}" ${schemaType} was added`,
-      previous: null,
-      current: currentCanonical,
+      message: `Tool "${toolName}" ${schemaType} ${message}`,
+      previous,
+      current: curr,
     });
+  };
+
+  // Schema was added (null → something): non-breaking
+  if (baselineCanonical === null && currentCanonical !== null) {
+    emit('nonbreaking_schema_change', 'was added', null, currentCanonical);
     return changes;
   }
 
   // Schema was removed (something → null): breaking
   if (baselineCanonical !== null && currentCanonical === null) {
-    const driftClass: DriftClass = 'breaking_schema_change';
-    changes.push({
-      tool: toolName,
-      class: driftClass,
-      severity: getDefaultSeverity(driftClass),
-      message: `Tool "${toolName}" ${schemaType} was removed`,
-      previous: baselineCanonical,
-      current: null,
-    });
+    emit('breaking_schema_change', 'was removed', baselineCanonical, null);
     return changes;
   }
 
-  // Both null: no change
-  if (baselineCanonical === null && currentCanonical === null) {
+  if (baselineCanonical === null || currentCanonical === null) {
     return changes;
   }
 
-  // At this point both baseline and current are non-null
-  const baselineSchema = baselineCanonical as JsonSchema;
-  const currentSchema = currentCanonical as JsonSchema;
-
-  // Both present: compare properties
-  const baselineProps = baselineSchema.properties ?? {};
-  const currentProps = currentSchema.properties ?? {};
-  const baselineRequired = new Set(baselineSchema.required ?? []);
-  const currentRequired = new Set(currentSchema.required ?? []);
-
-  const allProps = new Set([
-    ...Object.keys(baselineProps),
-    ...Object.keys(currentProps),
-  ]);
-
-  for (const propName of allProps) {
-    const wasPresent = propName in baselineProps;
-    const isPresent = propName in currentProps;
-    const wasRequired = baselineRequired.has(propName);
-    const isRequired = currentRequired.has(propName);
-
-    // Property removed: breaking
-    if (wasPresent && !isPresent) {
-      const driftClass: DriftClass = 'breaking_schema_change';
-      changes.push({
-        tool: toolName,
-        class: driftClass,
-        severity: getDefaultSeverity(driftClass),
-        message: `Tool "${toolName}" ${schemaType} property "${propName}" was removed`,
-        previous: baselineProps[propName],
-        current: undefined,
-      });
-      continue;
-    }
-
-    // Property added
-    if (!wasPresent && isPresent) {
-      if (isRequired) {
-        // New required field: breaking (clients won't provide it)
-        const driftClass: DriftClass = 'breaking_schema_change';
-        changes.push({
-          tool: toolName,
-          class: driftClass,
-          severity: getDefaultSeverity(driftClass),
-          message: `Tool "${toolName}" ${schemaType} added required property "${propName}"`,
-          previous: undefined,
-          current: currentProps[propName],
-        });
-      } else {
-        // New optional field: non-breaking
-        const driftClass: DriftClass = 'nonbreaking_schema_change';
-        changes.push({
-          tool: toolName,
-          class: driftClass,
-          severity: getDefaultSeverity(driftClass),
-          message: `Tool "${toolName}" ${schemaType} added optional property "${propName}"`,
-          previous: undefined,
-          current: currentProps[propName],
-        });
-      }
-      continue;
-    }
-
-    // Property exists in both: check required status change
-    if (wasPresent && isPresent) {
-      if (!wasRequired && isRequired) {
-        // Optional → required: breaking
-        const driftClass: DriftClass = 'breaking_schema_change';
-        changes.push({
-          tool: toolName,
-          class: driftClass,
-          severity: getDefaultSeverity(driftClass),
-          message: `Tool "${toolName}" ${schemaType} property "${propName}" became required`,
-          previous: { required: false },
-          current: { required: true },
-        });
-      } else if (wasRequired && !isRequired) {
-        // Required → optional: non-breaking
-        const driftClass: DriftClass = 'nonbreaking_schema_change';
-        changes.push({
-          tool: toolName,
-          class: driftClass,
-          severity: getDefaultSeverity(driftClass),
-          message: `Tool "${toolName}" ${schemaType} property "${propName}" became optional`,
-          previous: { required: true },
-          current: { required: false },
-        });
-      }
-
-      // Check type changes (M2.2 - distinguish widening/narrowing/unrelated)
-      const baselineProp = baselineProps[propName] as { type?: string | string[] };
-      const currentProp = currentProps[propName] as { type?: string | string[] };
-      const baselineType = baselineProp?.type;
-      const currentType = currentProp?.type;
-
-      if (JSON.stringify(baselineType) !== JSON.stringify(currentType)) {
-        const changeKind = classifyTypeChange(baselineType, currentType);
-
-        if (changeKind === 'widening') {
-          // Type became more permissive (string → string|number): non-breaking, low
-          const driftClass: DriftClass = 'nonbreaking_schema_change';
-          changes.push({
-            tool: toolName,
-            class: driftClass,
-            severity: getDefaultSeverity(driftClass),
-            message: `Tool "${toolName}" ${schemaType} property "${propName}" type widened from ${JSON.stringify(baselineType)} to ${JSON.stringify(currentType)}`,
-            previous: baselineType,
-            current: currentType,
-          });
-        } else {
-          // Narrowing or unrelated: breaking, medium
-          const driftClass: DriftClass = 'breaking_schema_change';
-          const verb = changeKind === 'narrowing' ? 'narrowed' : 'changed';
-          changes.push({
-            tool: toolName,
-            class: driftClass,
-            severity: getDefaultSeverity(driftClass),
-            message: `Tool "${toolName}" ${schemaType} property "${propName}" type ${verb} from ${JSON.stringify(baselineType)} to ${JSON.stringify(currentType)}`,
-            previous: baselineType,
-            current: currentType,
-          });
-        }
-      }
-    }
-  }
-
+  diffSchemaNode(baselineCanonical, currentCanonical, '', 0, emit);
   return changes;
+}
+
+type Emit = (driftClass: DriftClass, message: string, previous: unknown, current: unknown) => void;
+
+/** Nesting limit for the recursive walk (canonicalizeSchema already bounds input depth). */
+const MAX_DIFF_DEPTH = 64;
+
+const MIN_BOUNDS = ['minimum', 'exclusiveMinimum', 'minLength', 'minItems', 'minProperties'] as const;
+const MAX_BOUNDS = ['maximum', 'exclusiveMaximum', 'maxLength', 'maxItems', 'maxProperties'] as const;
+/** Constraints where any addition or change narrows what is accepted, removal widens it. */
+const OPAQUE_CONSTRAINTS = ['pattern', 'format', 'const', 'multipleOf'] as const;
+const COMBINATORS = ['anyOf', 'oneOf', 'allOf'] as const;
+
+function asSchema(value: unknown): JsonSchema | null {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as JsonSchema)
+    : null;
+}
+
+const same = (a: unknown, b: unknown) => canonicalJson(a) === canonicalJson(b);
+
+/**
+ * Compares one schema node and recurses into its children. `path` is '' for the root,
+ * `a.b` for nested properties, `a[]` for array items, `a{}` for additionalProperties.
+ */
+function diffSchemaNode(
+  base: JsonSchema,
+  curr: JsonSchema,
+  path: string,
+  depth: number,
+  emit: Emit
+): void {
+  if (depth > MAX_DIFF_DEPTH) return;
+  // Subject used in messages: root-level keywords read "inputSchema enum ...",
+  // nested ones read `inputSchema property "a.b" ...` (matching the established wording).
+  const subject = path === '' ? '' : `property "${path}" `;
+
+  // --- description (parameter-level rug-pull vector) ---
+  if (path !== '' && typeof base.description === 'string' && typeof curr.description === 'string') {
+    if (base.description !== curr.description) {
+      emit(
+        'description_changed',
+        `${subject}description changed (possible rug-pull)`,
+        base.description,
+        curr.description
+      );
+    }
+  }
+
+  // --- type ---
+  const baseType = base.type as string | string[] | undefined;
+  const currType = curr.type as string | string[] | undefined;
+  if (!same(baseType, currType)) {
+    const kind = classifyTypeChange(baseType, currType);
+    if (kind === 'widening') {
+      emit(
+        'nonbreaking_schema_change',
+        `${subject}type widened from ${JSON.stringify(baseType)} to ${JSON.stringify(currType)}`,
+        baseType,
+        currType
+      );
+    } else {
+      const verb = kind === 'narrowing' ? 'narrowed' : 'changed';
+      emit(
+        'breaking_schema_change',
+        `${subject}type ${verb} from ${JSON.stringify(baseType)} to ${JSON.stringify(currType)}`,
+        baseType,
+        currType
+      );
+    }
+  }
+
+  // --- enum ---
+  const baseEnum = Array.isArray(base.enum) ? (base.enum as unknown[]) : undefined;
+  const currEnum = Array.isArray(curr.enum) ? (curr.enum as unknown[]) : undefined;
+  if (baseEnum && currEnum) {
+    const baseKeys = new Set(baseEnum.map((v) => canonicalJson(v)));
+    const currKeys = new Set(currEnum.map((v) => canonicalJson(v)));
+    const removed = baseEnum.filter((v) => !currKeys.has(canonicalJson(v)));
+    const added = currEnum.filter((v) => !baseKeys.has(canonicalJson(v)));
+    if (removed.length > 0) {
+      emit('breaking_schema_change', `${subject}enum tightened: removed ${JSON.stringify(removed)}`, baseEnum, currEnum);
+    }
+    if (added.length > 0) {
+      emit('nonbreaking_schema_change', `${subject}enum loosened: added ${JSON.stringify(added)}`, baseEnum, currEnum);
+    }
+  } else if (!baseEnum && currEnum) {
+    emit('breaking_schema_change', `${subject}enum constraint added ${JSON.stringify(currEnum)}`, undefined, currEnum);
+  } else if (baseEnum && !currEnum) {
+    emit('nonbreaking_schema_change', `${subject}enum constraint removed`, baseEnum, undefined);
+  }
+
+  // --- numeric bounds ---
+  const diffBound = (key: string, tightenWhenHigher: boolean) => {
+    const b = base[key];
+    const c = curr[key];
+    if (same(b, c)) return;
+    if (b === undefined) {
+      emit('breaking_schema_change', `${subject}${key} added (${JSON.stringify(c)})`, undefined, c);
+    } else if (c === undefined) {
+      emit('nonbreaking_schema_change', `${subject}${key} removed (was ${JSON.stringify(b)})`, b, undefined);
+    } else if (typeof b === 'number' && typeof c === 'number') {
+      const tightened = tightenWhenHigher ? c > b : c < b;
+      emit(
+        tightened ? 'breaking_schema_change' : 'nonbreaking_schema_change',
+        `${subject}${key} ${c > b ? 'raised' : 'lowered'} from ${b} to ${c}`,
+        b,
+        c
+      );
+    } else {
+      emit('breaking_schema_change', `${subject}${key} changed from ${JSON.stringify(b)} to ${JSON.stringify(c)} (compatibility cannot be determined)`, b, c);
+    }
+  };
+  for (const key of MIN_BOUNDS) diffBound(key, true);
+  for (const key of MAX_BOUNDS) diffBound(key, false);
+
+  // --- pattern / format / const / multipleOf ---
+  for (const key of OPAQUE_CONSTRAINTS) {
+    const b = base[key];
+    const c = curr[key];
+    if (same(b, c)) continue;
+    if (c === undefined) {
+      emit('nonbreaking_schema_change', `${subject}${key} removed (was ${JSON.stringify(b)})`, b, undefined);
+    } else {
+      emit(
+        'breaking_schema_change',
+        b === undefined
+          ? `${subject}${key} added (${JSON.stringify(c)})`
+          : `${subject}${key} changed from ${JSON.stringify(b)} to ${JSON.stringify(c)} (compatibility cannot be proven)`,
+        b,
+        c
+      );
+    }
+  }
+
+  // --- uniqueItems ---
+  if (base.uniqueItems !== true && curr.uniqueItems === true) {
+    emit('breaking_schema_change', `${subject}uniqueItems turned on`, base.uniqueItems, true);
+  } else if (base.uniqueItems === true && curr.uniqueItems !== true) {
+    emit('nonbreaking_schema_change', `${subject}uniqueItems turned off`, true, curr.uniqueItems);
+  }
+
+  // --- anyOf / oneOf / allOf: cannot classify structurally — conservative ---
+  for (const key of COMBINATORS) {
+    if (!same(base[key], curr[key])) {
+      emit(
+        'breaking_schema_change',
+        `${subject}${key} changed (compatibility cannot be determined; classified as breaking)`,
+        base[key],
+        curr[key]
+      );
+    }
+  }
+
+  // --- additionalProperties ---
+  const openness = (v: unknown) => (v === false ? 'closed' : asSchema(v) ? 'schema' : 'open');
+  const baseAdd = openness(base.additionalProperties);
+  const currAdd = openness(curr.additionalProperties);
+  if (baseAdd === 'schema' && currAdd === 'schema') {
+    diffSchemaNode(
+      asSchema(base.additionalProperties) as JsonSchema,
+      asSchema(curr.additionalProperties) as JsonSchema,
+      `${path}{}`,
+      depth + 1,
+      emit
+    );
+  } else if (baseAdd !== currAdd) {
+    // open ⊃ schema ⊃ closed
+    const rank = { open: 2, schema: 1, closed: 0 } as const;
+    emit(
+      rank[currAdd] < rank[baseAdd] ? 'breaking_schema_change' : 'nonbreaking_schema_change',
+      `${subject}additionalProperties ${baseAdd} → ${currAdd}`,
+      base.additionalProperties,
+      curr.additionalProperties
+    );
+  }
+
+  // --- properties ---
+  const baseProps = (asSchema(base.properties) ?? {}) as Record<string, unknown>;
+  const currProps = (asSchema(curr.properties) ?? {}) as Record<string, unknown>;
+  const baseRequired = new Set(Array.isArray(base.required) ? base.required : []);
+  const currRequired = new Set(Array.isArray(curr.required) ? curr.required : []);
+  const child = (name: string) => (path === '' ? name : `${path}.${name}`);
+
+  for (const name of new Set([...Object.keys(baseProps), ...Object.keys(currProps)])) {
+    const wasPresent = Object.hasOwn(baseProps, name);
+    const isPresent = Object.hasOwn(currProps, name);
+    const childPath = child(name);
+
+    if (wasPresent && !isPresent) {
+      emit('breaking_schema_change', `property "${childPath}" was removed`, baseProps[name], undefined);
+      continue;
+    }
+    if (!wasPresent && isPresent) {
+      if (currRequired.has(name)) {
+        emit('breaking_schema_change', `added required property "${childPath}"`, undefined, currProps[name]);
+      } else {
+        emit('nonbreaking_schema_change', `added optional property "${childPath}"`, undefined, currProps[name]);
+      }
+      continue;
+    }
+
+    if (!baseRequired.has(name) && currRequired.has(name)) {
+      emit('breaking_schema_change', `property "${childPath}" became required`, { required: false }, { required: true });
+    } else if (baseRequired.has(name) && !currRequired.has(name)) {
+      emit('nonbreaking_schema_change', `property "${childPath}" became optional`, { required: true }, { required: false });
+    }
+
+    const baseChild = asSchema(baseProps[name]);
+    const currChild = asSchema(currProps[name]);
+    if (baseChild && currChild) {
+      diffSchemaNode(baseChild, currChild, childPath, depth + 1, emit);
+    }
+  }
+
+  // --- items ---
+  const itemsPath = `${path}[]`;
+  const baseItems = base.items;
+  const currItems = curr.items;
+  if (asSchema(baseItems) && asSchema(currItems)) {
+    diffSchemaNode(baseItems as JsonSchema, currItems as JsonSchema, itemsPath, depth + 1, emit);
+  } else if (Array.isArray(baseItems) && Array.isArray(currItems)) {
+    // Tuple form: compare position by position
+    const n = Math.max(baseItems.length, currItems.length);
+    for (let i = 0; i < n; i++) {
+      const b = asSchema(baseItems[i]);
+      const c = asSchema(currItems[i]);
+      if (b && c) diffSchemaNode(b, c, `${path}[${i}]`, depth + 1, emit);
+      else if (!same(b, c)) {
+        emit('breaking_schema_change', `property "${path}[${i}]" changed (tuple position ${c ? 'added' : 'removed'})`, b, c);
+      }
+    }
+  } else if (baseItems === undefined && currItems !== undefined) {
+    emit('breaking_schema_change', `property "${itemsPath}" items constraint added`, undefined, currItems);
+  } else if (baseItems !== undefined && currItems === undefined) {
+    emit('nonbreaking_schema_change', `property "${itemsPath}" items constraint removed`, baseItems, undefined);
+  } else if (!same(baseItems, currItems)) {
+    emit('breaking_schema_change', `property "${itemsPath}" items changed (compatibility cannot be determined)`, baseItems, currItems);
+  }
 }
 
 /**
