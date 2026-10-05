@@ -16,6 +16,7 @@ interface GlobalOptions {
   json?: boolean;
   verbose?: boolean;
   prComment?: boolean;
+  updateGolden?: boolean;
 }
 
 const program = new Command();
@@ -38,6 +39,7 @@ program
   .option('-o, --out <path>', 'Output file path for reporters')
   .option('--json', 'Shorthand for --reporter json')
   .option('-v, --verbose', 'Verbose output')
+  .option('--update-golden', 'Write golden snapshot files instead of comparing against them')
   .option(
     '--pr-comment',
     'Post/update the report as a GitHub PR comment (needs GITHUB_TOKEN with pull-requests: write)'

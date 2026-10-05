@@ -7,7 +7,10 @@
  * - Optional golden snapshot comparison
  */
 
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname, resolve } from 'node:path';
 import type { CheckResult } from '../report/model.js';
+import { canonicalJson } from '../surface/canonical.js';
 import type { McpConnection } from '../client/connect.js';
 import { listAllTools } from '../client/tools.js';
 import type { TestSuite, TestCase } from '../config/schema.js';
@@ -17,6 +20,14 @@ import { validateAgainstOutputSchema, type JsonSchema } from '../assert/jsonsche
 export interface BehavioralCheckContext {
   connection: McpConnection;
   suites: TestSuite[];
+  /** Golden snapshot options (M6.2). Paths resolve relative to `baseDir` (the config's dir). */
+  golden?: GoldenOptions;
+}
+
+export interface GoldenOptions {
+  baseDir: string;
+  /** Write/overwrite golden files instead of comparing (`--update-golden`). */
+  update: boolean;
 }
 
 /**
@@ -74,7 +85,8 @@ export async function runBehavioralChecks(
         ctx.connection,
         suite.tool,
         testCase,
-        toolSchemas.outputSchema
+        toolSchemas.outputSchema,
+        ctx.golden
       );
       results.push(...caseResults);
     }
@@ -105,7 +117,8 @@ async function runTestCase(
   connection: McpConnection,
   toolName: string,
   testCase: TestCase,
-  outputSchema: JsonSchema | undefined
+  outputSchema: JsonSchema | undefined,
+  golden?: GoldenOptions
 ): Promise<CheckResult[]> {
   const results: CheckResult[] = [];
   const location = `${toolName}/${testCase.name}`;
@@ -243,11 +256,17 @@ async function runTestCase(
     }
   }
 
+  // Check golden snapshot expectation (M6.2)
+  if (expectations.golden) {
+    results.push(await checkGolden(result, expectations.golden, testCase.name, location, golden));
+  }
+
   // If no specific expectations checked, mark as pass
   if (
     expectations.tool_is_error === undefined &&
     !expectations.output_matches_schema &&
-    !expectations.jsonpath
+    !expectations.jsonpath &&
+    !expectations.golden
   ) {
     results.push({
       id: 'behavioral/case',
@@ -260,6 +279,83 @@ async function runTestCase(
   }
 
   return results;
+}
+
+/**
+ * The part of a tool result a golden snapshot pins: what the tool returned, not transport
+ * metadata. Undefined fields are omitted so "absent" and "undefined" compare equal.
+ */
+function goldenValue(result: unknown): Record<string, unknown> {
+  const r = (result ?? {}) as { content?: unknown; structuredContent?: unknown; isError?: unknown };
+  const value: Record<string, unknown> = {
+    isError: r.isError === true,
+    content: r.content ?? [],
+  };
+  if (r.structuredContent !== undefined) value.structuredContent = r.structuredContent;
+  return value;
+}
+
+/** Pretty, key-sorted JSON so golden files diff cleanly in review. */
+function formatGolden(value: unknown): string {
+  return JSON.stringify(JSON.parse(canonicalJson(value)), null, 2) + '\n';
+}
+
+/**
+ * Compares a tool result against its golden file, or writes it with `--update-golden`.
+ *
+ * A missing golden file FAILS: creating it implicitly would make a first CI run pass while
+ * testing nothing.
+ */
+async function checkGolden(
+  result: unknown,
+  goldenPath: string,
+  caseName: string,
+  location: string,
+  options: GoldenOptions | undefined
+): Promise<CheckResult> {
+  const path = resolve(options?.baseDir ?? process.cwd(), goldenPath);
+  const actual = goldenValue(result);
+  const base = { id: 'behavioral/golden', family: 'behavioral' as const, location };
+
+  if (options?.update) {
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, formatGolden(actual), 'utf-8');
+    return {
+      ...base,
+      status: 'pass',
+      severity: 'info',
+      message: `Case "${caseName}" golden snapshot written to ${goldenPath}`,
+    };
+  }
+
+  let expected: unknown;
+  try {
+    expected = JSON.parse(await readFile(path, 'utf-8'));
+  } catch (err) {
+    const missing = (err as NodeJS.ErrnoException).code === 'ENOENT';
+    return {
+      ...base,
+      status: 'fail',
+      severity: 'error',
+      message: missing
+        ? `Case "${caseName}" golden file not found: ${goldenPath} (run with --update-golden to create it)`
+        : `Case "${caseName}" golden file is not valid JSON: ${goldenPath}`,
+      expected: goldenPath,
+      actual: missing ? 'file not found' : err instanceof Error ? err.message : String(err),
+    };
+  }
+
+  if (canonicalJson(expected) === canonicalJson(actual)) {
+    return { ...base, status: 'pass', severity: 'info', message: `Case "${caseName}" matches golden snapshot` };
+  }
+  return {
+    ...base,
+    status: 'fail',
+    severity: 'error',
+    message: `Case "${caseName}" output differs from golden snapshot ${goldenPath} (re-run with --update-golden if the change is intended)`,
+    expected,
+    actual,
+  };
 }
 
 /**

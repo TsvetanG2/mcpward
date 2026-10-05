@@ -298,7 +298,7 @@ server:
 | `protocol_error_code` | number | Assert a JSON-RPC error code (e.g., -32602) |
 | `jsonpath` | object | Assert values at JSONPath locations |
 | `output_matches_schema` | boolean | Validate output against tool's outputSchema |
-| `golden` | string | Path to golden snapshot file for comparison |
+| `golden` | string | Path (relative to the config file) to a golden snapshot of the tool's output. A missing file fails; create or refresh it with `mcpward run --update-golden`. Deterministic tools only. |
 
 ## Check Families
 
