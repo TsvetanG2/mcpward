@@ -34,9 +34,35 @@ export const DRIFT_CLASSES = [
   'breaking_schema_change',
   'nonbreaking_schema_change',
   'annotation_changed',
+  'breaking_output_shape_change',
+  'nonbreaking_output_shape_change',
 ] as const;
 
 const DriftSeveritySchema = z.enum(['high', 'medium', 'low']);
+
+/**
+ * Output shape drift (M3). Calls tools to infer response shapes, so it is opt-in and
+ * only calls tools that are allowlisted here or annotated `readOnlyHint: true`.
+ */
+const OutputDriftConfigSchema = z
+  .object({
+    enabled: z.boolean().optional().default(false),
+    /** Calls per tool. Shapes are merged across samples; never infer from one response if avoidable. */
+    shape_samples: z.number().int().min(1).optional().default(3),
+    /** Auto-call tools annotated readOnlyHint: true that take no required arguments. */
+    call_readonly: z.boolean().optional().default(true),
+    /** Explicit allowlist. Listed tools are called with `args` regardless of annotations. */
+    tools: z
+      .array(
+        z.object({
+          name: z.string(),
+          args: z.record(z.string(), z.unknown()).optional().default({}),
+        })
+      )
+      .optional()
+      .default([]),
+  })
+  .optional();
 
 // Drift check configuration
 const DriftConfigSchema = z
@@ -71,6 +97,7 @@ const DriftConfigSchema = z
         'description_changed',
         'breaking_schema_change',
         'annotation_changed',
+        'breaking_output_shape_change',
       ]),
     /**
      * Per-class severity overrides (M2). For users who disagree with the default
@@ -78,6 +105,10 @@ const DriftConfigSchema = z
      * Only affects severity-threshold `fail_on` and reporting level.
      */
     severity: z.partialRecord(z.enum(DRIFT_CLASSES), DriftSeveritySchema).optional().default({}),
+    /**
+     * Output shape drift (M3). Off by default: it CALLS TOOLS.
+     */
+    output: OutputDriftConfigSchema,
     /**
      * Store full description text in lockfile for before/after diffs.
      * Default true - size cost is small, diff quality gain is significant.
@@ -153,6 +184,7 @@ export type ServerConfig = z.infer<typeof ServerSchema>;
 export type StdioTransport = z.infer<typeof StdioTransportSchema>;
 export type HttpTransport = z.infer<typeof HttpTransportSchema>;
 export type DriftConfig = z.infer<typeof DriftConfigSchema>;
+export type OutputDriftConfig = z.infer<typeof OutputDriftConfigSchema>;
 export type LatencyConfig = z.infer<typeof LatencyConfigSchema>;
 export type TimeoutConfig = z.infer<typeof TimeoutConfigSchema>;
 export type ResolvedTimeoutConfig = z.infer<typeof TimeoutConfigInnerSchema>;

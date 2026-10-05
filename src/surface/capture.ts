@@ -17,6 +17,7 @@ import {
   canonicalizeSchema,
 } from './canonical.js';
 import { MCPWARD_VERSION } from '../version.js';
+import { sampleOutputShapes, type SamplingNote } from './output-shape.js';
 
 /**
  * Computes SHA-256 hash of a description string.
@@ -115,6 +116,18 @@ export async function captureServerSurface(
   connection: McpConnection,
   config?: Config
 ): Promise<ServerSurface> {
+  return (await captureSurface(connection, config)).surface;
+}
+
+/**
+ * Captures the server surface and returns output-sampling notes alongside it
+ * (which tools were refused/skipped/failed — see output-shape.ts). Notes are empty
+ * unless `checks.drift.output.enabled` is set.
+ */
+export async function captureSurface(
+  connection: McpConnection,
+  config?: Config
+): Promise<{ surface: ServerSurface; notes: SamplingNote[] }> {
   // Get tools list
   const toolsResult = { tools: await listAllTools(connection.client) };
   const tools = toolsResult.tools as Tool[];
@@ -126,6 +139,18 @@ export async function captureServerSurface(
   const toolSurfaces: Record<string, ToolSurface> = {};
   for (const tool of tools) {
     toolSurfaces[tool.name] = captureToolSurface(tool, fullText);
+  }
+
+  // Infer output shapes (M3) — opt-in, because this CALLS TOOLS
+  let notes: SamplingNote[] = [];
+  const outputCfg = config?.checks?.drift?.output;
+  if (outputCfg?.enabled) {
+    const sampled = await sampleOutputShapes(connection, tools, outputCfg);
+    notes = sampled.notes;
+    for (const [name, shape] of Object.entries(sampled.shapes)) {
+      const surface = toolSurfaces[name];
+      if (surface) surface.outputShape = shape;
+    }
   }
 
   // Build target identity (M1 provenance)
@@ -143,7 +168,7 @@ export async function captureServerSurface(
   const environment = buildEnvironment();
 
   const caps = connection.capabilities as Record<string, unknown>;
-  return {
+  const surface: ServerSurface = {
     protocolVersion: connection.protocolVersion,
     capabilities: {
       tools: (caps.tools as Record<string, unknown>) ?? {},
@@ -163,6 +188,7 @@ export async function captureServerSurface(
       environment,
     },
   };
+  return { surface, notes };
 }
 
 /**

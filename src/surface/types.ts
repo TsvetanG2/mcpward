@@ -3,6 +3,7 @@
  */
 
 import type { JsonSchema, ToolAnnotations } from '../checks/schema.js';
+import type { InferredOutputShape } from './output-shape.js';
 
 /**
  * Captured tool surface for lockfile storage.
@@ -26,6 +27,13 @@ export interface ToolSurface {
 
   /** Tool annotations */
   annotations: Pick<ToolAnnotations, 'readOnlyHint' | 'destructiveHint' | 'idempotentHint' | 'openWorldHint'> | null;
+
+  /**
+   * Output shape inferred from real tool calls (M3).
+   * Absent when output sampling is disabled or the tool was not called (see the
+   * side-effect rule in output-shape.ts). Optional and additive — no schemaVersion bump.
+   */
+  outputShape?: InferredOutputShape;
 }
 
 // Re-export for convenience
@@ -142,7 +150,9 @@ export type DriftClass =
   | 'description_changed'
   | 'breaking_schema_change'
   | 'nonbreaking_schema_change'
-  | 'annotation_changed';
+  | 'annotation_changed'
+  | 'breaking_output_shape_change'
+  | 'nonbreaking_output_shape_change';
 
 /**
  * Drift severity levels based on blast radius (M2).

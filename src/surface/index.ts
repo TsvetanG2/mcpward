@@ -6,3 +6,4 @@ export * from './types.js';
 export * from './capture.js';
 export * from './diff.js';
 export * from './canonical.js';
+export * from './output-shape.js';

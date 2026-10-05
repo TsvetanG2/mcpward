@@ -25,6 +25,7 @@ import type {
   JsonSchema,
 } from './types.js';
 import { canonicalizeSchema } from './canonical.js';
+import { diffOutputShapes } from './output-shape.js';
 
 /**
  * Maps drift classes to default severity levels based on blast radius (M2).
@@ -68,6 +69,13 @@ function getDefaultSeverity(driftClass: DriftClass): DriftSeverity {
     case 'tool_removed':
       // CRITICAL: This is LOW, not HIGH.
       // Breaks loudly and gets fixed immediately. Not a silent security change.
+      return 'low';
+
+    case 'breaking_output_shape_change':
+      // M3: breaks downstream consumers, not the call site
+      return 'medium';
+
+    case 'nonbreaking_output_shape_change':
       return 'low';
 
     default:
@@ -250,6 +258,11 @@ function diffTool(
     current.outputSchema
   );
   changes.push(...outputSchemaChanges);
+
+  // Check inferred output shape changes (M3) — only when both sides were sampled
+  if (baseline.outputShape && current.outputShape) {
+    changes.push(...diffOutputShapes(toolName, baseline.outputShape, current.outputShape));
+  }
 
   // Check annotation changes
   const annotationChanges = diffAnnotations(
