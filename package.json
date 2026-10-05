@@ -17,7 +17,8 @@
     "mcpward": "./dist/cli.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "schemas"
   ],
   "publishConfig": {
     "access": "public"
@@ -33,7 +34,8 @@
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
     "prepublishOnly": "pnpm run build",
-    "integration:baseline": "node scripts/integration-baseline.mjs"
+    "integration:baseline": "node scripts/integration-baseline.mjs",
+    "schemas": "tsx scripts/generate-schemas.ts"
   },
   "keywords": [
     "mcp",

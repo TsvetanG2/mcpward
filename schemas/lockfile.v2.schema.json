@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/TsvetanG2/mcpward/main/schemas/lockfile.v2.schema.json",
+  "title": "mcpward baseline lockfile (meta.schemaVersion 2)",
+  "description": "Written by `mcpward baseline`. Never contains credential values: authContext stores env/header NAMES and a truncated, salted fingerprint only.",
+  "type": "object",
+  "required": ["protocolVersion", "capabilities", "tools", "meta"],
+  "properties": {
+    "protocolVersion": { "type": "string" },
+    "capabilities": { "type": "object" },
+    "tools": {
+      "type": "object",
+      "description": "Tool surfaces keyed by tool name.",
+      "additionalProperties": { "$ref": "#/$defs/toolSurface" }
+    },
+    "meta": {
+      "type": "object",
+      "required": [
+        "schemaVersion",
+        "mcpwardVersion",
+        "canonicalVersion",
+        "capturedAt",
+        "serverName",
+        "serverVersion",
+        "target",
+        "authContext",
+        "environment"
+      ],
+      "properties": {
+        "schemaVersion": { "const": 2 },
+        "mcpwardVersion": { "type": "string" },
+        "canonicalVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Canonicalization rules used for hashing. diff warns when it differs from the running mcpward."
+        },
+        "capturedAt": { "type": "string", "format": "date-time" },
+        "serverName": { "type": "string" },
+        "serverVersion": { "type": "string" },
+        "target": {
+          "type": "object",
+          "required": ["transport", "identity"],
+          "properties": {
+            "transport": { "enum": ["stdio", "http"] },
+            "identity": {
+              "type": "string",
+              "description": "stdio: command + args (no env values). http: origin + path (no query, no headers)."
+            }
+          }
+        },
+        "authContext": {
+          "type": "object",
+          "required": ["kind", "keys", "fingerprint", "label"],
+          "properties": {
+            "kind": { "enum": ["none", "env", "header", "unknown"] },
+            "keys": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Names of auth-bearing env vars or headers — never their values."
+            },
+            "fingerprint": {
+              "type": ["string", "null"],
+              "pattern": "^[0-9a-f]{16}$"
+            },
+            "label": { "type": ["string", "null"] }
+          }
+        },
+        "environment": {
+          "type": "object",
+          "required": ["ci", "nodeVersion", "platform"],
+          "properties": {
+            "ci": { "type": "boolean" },
+            "nodeVersion": { "type": "string" },
+            "platform": { "type": "string" }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "toolSurface": {
+      "type": "object",
+      "required": ["descriptionHash", "description", "inputSchema", "outputSchema", "annotations"],
+      "properties": {
+        "descriptionHash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "description": "SHA-256 of the canonicalized tool description."
+        },
+        "description": {
+          "type": ["string", "null"],
+          "description": "Canonical description text; null when checks.drift.full_text is false."
+        },
+        "inputSchema": { "type": ["object", "null"] },
+        "outputSchema": { "type": ["object", "null"] },
+        "annotations": {
+          "type": ["object", "null"],
+          "properties": {
+            "readOnlyHint": { "type": "boolean" },
+            "destructiveHint": { "type": "boolean" },
+            "idempotentHint": { "type": "boolean" },
+            "openWorldHint": { "type": "boolean" }
+          }
+        },
+        "outputShape": {
+          "type": "object",
+          "description": "Inferred output shape (checks.drift.output). Absent when the tool was not sampled.",
+          "required": ["source", "samples", "shape"],
+          "properties": {
+            "source": { "enum": ["structured", "json-text", "content"] },
+            "samples": { "type": "integer", "minimum": 1 },
+            "shape": { "$ref": "#/$defs/shapeNode" }
+          }
+        }
+      }
+    },
+    "shapeNode": {
+      "type": "object",
+      "required": ["types"],
+      "properties": {
+        "types": {
+          "type": "array",
+          "items": { "enum": ["null", "boolean", "number", "string", "array", "object"] }
+        },
+        "objectCount": { "type": "integer", "minimum": 0 },
+        "properties": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["seen", "shape"],
+            "properties": {
+              "seen": { "type": "integer", "minimum": 0 },
+              "shape": { "$ref": "#/$defs/shapeNode" }
+            }
+          }
+        },
+        "items": { "$ref": "#/$defs/shapeNode" }
+      }
+    }
+  }
+}
