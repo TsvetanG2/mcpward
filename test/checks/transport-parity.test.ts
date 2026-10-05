@@ -32,7 +32,7 @@ interface HttpFixture {
 
 /** Starts fixtures/http-host.ts for a fixture and resolves once it is listening. */
 async function startHttp(fixture: string, env: Record<string, string> = {}): Promise<HttpFixture> {
-  // node:child_process, not execa: execa 10 requires Node >= 22 and we support Node 20
+  // Plain node:child_process: the host must be killable directly (no npx wrapper in between)
   const proc = spawn(process.execPath, ['--import', 'tsx', HTTP_HOST, fixture], {
     env: { ...process.env, ...env },
     stdio: ['ignore', 'pipe', 'pipe'],
