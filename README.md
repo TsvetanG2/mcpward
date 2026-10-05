@@ -88,16 +88,16 @@ Not every change should fail a build. Adding an optional parameter is safe; addi
 |--------|----------------|----------|-------------------|
 | Description changed | `description_changed` | high | yes |
 | `readOnlyHint` true→false or `destructiveHint` false→true | `annotation_changed` | high | yes |
-| Required field added / field removed / narrowed or unrelated type change | `breaking_schema_change` | medium | yes |
+| Required field added / field removed / type narrowed / enum tightened / bound tightened / pattern added — at any depth | `breaking_schema_change` | medium | yes |
 | Output field removed / new output type / output format changed (inferred, opt-in) | `breaking_output_shape_change` | medium | yes |
 | Tool removed | `tool_removed` | low | yes |
 | Tool added | `tool_added` | low | no |
-| Optional field added / type widened | `nonbreaking_schema_change` | low | no |
+| Optional field added / type widened / enum or bound loosened — at any depth | `nonbreaking_schema_change` | low | no |
 | Output field added (inferred, opt-in) | `nonbreaking_output_shape_change` | low | no |
 
 **Severity is blast radius, not breakage.** A removed tool is breaking but *low*: it fails loudly at the call site and gets fixed in minutes. A `readOnlyHint` flip is *high*: it silently changes what clients auto-approve, and nobody notices.
 
-**Concrete examples:** A tool gains a new required `multiplier` parameter → `breaking_schema_change` (existing calls will fail). A tool adds an optional `limit` parameter → `nonbreaking_schema_change` (callers can ignore it). A parameter's type widens from `string` to `string | number` → `nonbreaking_schema_change`; narrowing the other way → `breaking_schema_change`. A description gains one zero-width character → `description_changed`, and the diff shows it as `<U+200B>`.
+**Concrete examples:** A tool gains a new required `multiplier` parameter → `breaking_schema_change` (existing calls will fail). A tool adds an optional `limit` parameter → `nonbreaking_schema_change` (callers can ignore it). A parameter's type widens from `string` to `string | number` → `nonbreaking_schema_change`; narrowing the other way → `breaking_schema_change`. An `enum` loses a value, `maxLength` drops from 100 to 10, or `filter.status` gains a `pattern` → `breaking_schema_change`. A description — of the tool or of any parameter — gains one zero-width character → `description_changed`, and the diff shows it as `<U+200B>`.
 
 ### Policy: choosing what fails CI
 
