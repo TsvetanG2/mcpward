@@ -104,7 +104,9 @@ export async function publishPrComment(report: CheckReport, ctx: PrContextResult
 export function closeOnce(connection: McpConnection): () => Promise<void> {
   let closing: Promise<void> | undefined;
   return () => {
-    closing ??= connection.close().catch(() => undefined);
+    // Memoize the ORIGINAL promise: callers that ignore close errors catch at the call site,
+    // callers that care (baseline) still see the failure.
+    closing ??= connection.close();
     return closing;
   };
 }

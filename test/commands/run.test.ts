@@ -120,4 +120,13 @@ describe('closeOnce', () => {
     await Promise.all([first, second]);
     expect(secondDone).toBe(true);
   });
+
+  it('does not swallow close errors — callers decide (baseline reports them)', async () => {
+    const connection = {
+      close: () => Promise.reject(new Error('kill failed')),
+    } as unknown as McpConnection;
+    const close = closeOnce(connection);
+    await expect(close()).rejects.toThrow('kill failed');
+    await expect(close()).rejects.toThrow('kill failed'); // same memoized outcome
+  });
 });

@@ -70,6 +70,6 @@ export async function diffCommand(config: Config, options: DiffOptions): Promise
     console.error(pc.red('Error:'), err instanceof Error ? err.message : String(err));
     return 2;
   } finally {
-    await close?.();
+    await close?.().catch(() => undefined); // close errors do not change the diff result
   }
 }
