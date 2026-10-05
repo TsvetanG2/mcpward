@@ -203,6 +203,8 @@ That last row is the practical reason to reach for mcpward on internal or client
 | Latency budgets | yes | no | no |
 | HTTP transport | yes | yes | no |
 
+**Description collisions** are caught on first contact, with no baseline. Two tools with near-identical descriptions but different payloads — one takes a nested `filter` object, the other a flat `status` string — make an agent pick confidently and wrong, and no success/error check can see it. mcpward flags a pair only when the descriptions are near-identical **and** the input schemas diverge, so ordinary tool families like `list_users` / `list_projects` stay silent. Similarity is computed offline; no model or API calls.
+
 **Two-layer error contract** deserves a note, because nothing else checks it. MCP distinguishes protocol errors (a JSON-RPC `error` object) from tool errors (a *successful* result carrying `isError: true`). A tool that fails its job should return the second, not the first. Servers get this backwards routinely, and it changes how a client must handle the failure.
 
 ## Features
@@ -211,6 +213,7 @@ That last row is the practical reason to reach for mcpward on internal or client
 - **Detects description rewrites (rug-pulls)** — hashes canonicalized descriptions and shows a word-level diff with invisible characters marked
 - **Ranks drift by blast radius** — high/medium/low severity, `fail_on: high` to fail only on silent security changes
 - **Catches tool-poisoning patterns** — injection phrasing, hidden unicode (including Unicode Tag "ASCII smuggling", decoded for you), secret-soliciting schemas, annotation mismatches — in tool and parameter descriptions
+- **Lints description collisions** — near-identical descriptions over divergent schemas, no baseline needed
 - **Detects output shape drift** — inferred from real (read-only or allowlisted) calls, structure only
 - **Validates error contracts** — verifies servers use protocol errors vs tool errors correctly (unique to mcpward)
 - **Runs behavioral test suites** — declarative cases with JSONPath assertions against tool outputs
@@ -251,6 +254,11 @@ checks:
       shape_samples: 3
       call_readonly: true    # auto-call readOnlyHint tools that take no arguments
       tools: []              # allowlist: [{ name: get_order, args: { id: "demo-1" } }]
+  collision:                 # description collision lint — on by default
+    enabled: true
+    threshold: 0.8           # description similarity (0–1)
+    max_tools: 500           # skip with a warning above this (pairwise is O(n²))
+    fail: false              # true = collisions fail the run instead of warning
   latency:
     samples: 5
     p95_budget_ms: 1000
@@ -327,6 +335,13 @@ server:
 
 See [How changes are classified](#how-changes-are-classified) for the full classification table and policy configuration.
 
+### Collision
+
+| Check | Description |
+|-------|-------------|
+| `collision/description-collision` | Near-identical descriptions over divergent input schemas (required-param types or nesting depth differ) |
+| `collision/summary` | Pairs checked, or skipped above `max_tools` |
+
 ### Behavioral
 
 | Check | Description |
@@ -397,8 +412,8 @@ The distinction between `1` and `2` matters: `2` means the run never happened, w
 ## Roadmap
 
 - **PR comment reporting** — post classified drift as a reviewable comment next to the code diff ([#13](https://github.com/TsvetanG2/mcpward/issues/13))
-- **Description collision lint** — flag near-identical descriptions over divergent schemas ([#22](https://github.com/TsvetanG2/mcpward/issues/22))
 - **Registry-published tool-surface hashes** — verify a server against a hash published by its registry, once registries publish them ([#21](https://github.com/TsvetanG2/mcpward/issues/21))
+- **Opt-in semantic scorer for the collision lint** — a local embedding model or bring-your-own endpoint behind the existing scorer interface; the offline lexical scorer stays the default
 - **Constraint-level schema analysis** — detect narrowed `maxItems`, removed `enum` values, and other JSON Schema constraint changes (currently property-level only)
 - **Supply chain / server identity** — the contract pins tool names and schemas, not the implementation; capturing binary or container digest alongside the contract is a future direction
 
