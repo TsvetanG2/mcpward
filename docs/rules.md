@@ -566,17 +566,19 @@ Review MCP error handling. Protocol errors are for invalid requests; tool errors
 
 Error contract rules verify that the server correctly distinguishes between protocol-level errors and tool-level errors.
 
+These checks **call tools**: a non-existent tool name, and every tool that has required parameters, with empty arguments. A server that validates its inputs rejects these calls before doing anything. They run on every `mcpward run`; turn them off with `checks.errors: false`.
+
 ### errors/list-tools
 
-**Severity:** info
+**Severity:** error
 
-Internal check that tools were listed for error testing.
+Tools could not be listed, so the error contract was not tested.
 
 ### errors/summary
 
-**Severity:** info
+**Severity:** error when a violation was found, info otherwise
 
-Summary of error contract checks.
+Number of error-contract violations.
 
 ### errors/unknown-tool
 
@@ -585,21 +587,23 @@ Summary of error contract checks.
 Tests that calling an unknown tool returns a proper protocol error (not a tool error).
 
 **What it checks:**
-- Unknown tool call returns JSON-RPC error
-- Error code indicates invalid method/tool
+- Unknown tool call returns a JSON-RPC error
+- The error code is a standard JSON-RPC code (`-32601`, `-32602` or `-32603`)
 
 **How to fix:**
 Ensure your server returns a protocol error (JSON-RPC error object) when an unknown tool is called, not a successful response with `isError: true`.
 
 ### errors/invalid-params
 
-**Severity:** error
+**Severity:** warning
 
-Tests that calling a tool with invalid parameters returns a proper protocol error.
+Tests that calling a tool without its required parameters returns a protocol error.
 
 **What it checks:**
-- Invalid params return JSON-RPC error
-- Error code is appropriate (-32602 for invalid params)
+- Missing required params return a JSON-RPC error
+- The error code is a standard JSON-RPC code (`-32602` for invalid params)
+
+A call that returns a result instead — even one with `isError: true` — is a warning: the request was invalid, so it should be rejected at the protocol layer.
 
 **How to fix:**
 Validate tool inputs against the schema and return a JSON-RPC error for schema violations.
@@ -608,35 +612,42 @@ Validate tool inputs against the schema and return a JSON-RPC error for schema v
 
 ## Latency Rules
 
-Latency rules measure tool response times against configured budgets.
+Latency rules measure tool response times against configured budgets. They run only when `checks.latency` is configured.
+
+Measuring a tool means calling it `samples` times, so by default only tools annotated `readOnlyHint: true` (and not `destructiveHint: true`) are measured, with generated minimal arguments. Other tools are measured only when listed in `checks.latency.tools`, with the arguments you give. `checks.latency.call_all: true` restores the pre-1.1.0 behavior of measuring every tool — use it only against a test instance.
 
 ### latency/list-tools
 
-**Severity:** info
+**Severity:** error
 
-Internal check that tools were listed for latency testing.
+Tools could not be listed, so latency was not measured.
 
 ### latency/no-tools
 
 **Severity:** info
 
-No tools available for latency testing.
+The server exposes no tools.
+
+### latency/sampling
+
+**Severity:** info (warning when an allowlisted tool does not exist)
+
+Lists the tools that were not measured and why, and allowlisted tools that the server does not expose.
+
+**How to fix:**
+To measure a tool that is not annotated read-only, add it to `checks.latency.tools` with arguments that are safe to call repeatedly.
 
 ### latency/summary
 
-**Severity:** info
+**Severity:** error when p95 exceeds the budget; warning (skipped) when no tool could be measured
 
-Summary of latency measurements including p50, p95, and max times.
+Overall p50 and p95 across all measured calls, compared with `p95_budget_ms`. This is the result that fails the run.
+
+**How to fix:**
+Optimize the slow tools, or raise `p95_budget_ms` if the threshold is too strict.
 
 ### latency/tool
 
-**Severity:** warning or error (configurable)
+**Severity:** info
 
-A tool's response time exceeded the configured latency budget.
-
-**What it checks:**
-- p50 latency vs budget
-- p95 latency vs budget
-
-**How to fix:**
-Optimize the tool's implementation or adjust the latency budget in your config if the current threshold is too strict.
+Per-tool min, p50, p95 and max. Informational — the budget is enforced by `latency/summary`.

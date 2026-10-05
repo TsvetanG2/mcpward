@@ -83,8 +83,10 @@ async function runAllChecks(
     results.push(...(await runBehavioralChecks({ connection, suites: config.suites, golden })));
   }
 
-  step('error contract checks');
-  results.push(...(await runErrorContractChecks({ connection })));
+  if (config.checks?.errors !== false) {
+    step('error contract checks');
+    results.push(...(await runErrorContractChecks({ connection })));
+  }
 
   if (config.checks?.latency) {
     step('latency checks');

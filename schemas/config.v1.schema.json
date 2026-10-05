@@ -99,6 +99,10 @@
           "default": true,
           "type": "boolean"
         },
+        "errors": {
+          "default": true,
+          "type": "boolean"
+        },
         "drift": {
           "type": "object",
           "properties": {
@@ -227,6 +231,37 @@
               "default": 1000,
               "type": "number",
               "exclusiveMinimum": 0
+            },
+            "call_readonly": {
+              "default": true,
+              "type": "boolean"
+            },
+            "tools": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "args": {
+                    "default": {},
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {}
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            },
+            "call_all": {
+              "default": false,
+              "type": "boolean"
             }
           }
         },

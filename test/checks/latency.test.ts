@@ -10,7 +10,7 @@ import { describe, it, expect } from 'vitest';
 import { join } from 'path';
 import { connect } from '../../src/client/connect.js';
 import { runLatencyChecks } from '../../src/checks/latency.js';
-import { testConfig } from '../helpers/config.js';
+import { latencyOf, testConfig } from '../helpers/config.js';
 
 // Fixture paths
 const FIXTURES_DIR = join(process.cwd(), 'fixtures');
@@ -29,6 +29,7 @@ const goodServerConfig = testConfig({
     latency: {
       samples: 3,
       p95_budget_ms: 5000, // 5 seconds - generous for good server
+      call_all: true, // fixture tools carry no annotations
     },
   },
   suites: [],
@@ -46,6 +47,11 @@ const slowServerConfigTightBudget = testConfig({
     latency: {
       samples: 2, // Fewer samples to keep test fast
       p95_budget_ms: 500, // 500ms - too tight for slow-server
+      tools: [
+        { name: 'always_slow' },
+        { name: 'fast_tool' },
+        { name: 'slow_echo', args: { message: 'x' } },
+      ],
     },
   },
   suites: [],
@@ -63,6 +69,11 @@ const slowServerConfigLooseBudget = testConfig({
     latency: {
       samples: 2,
       p95_budget_ms: 10000, // 10 seconds - loose enough for slow-server
+      tools: [
+        { name: 'always_slow' },
+        { name: 'fast_tool' },
+        { name: 'slow_echo', args: { message: 'x' } },
+      ],
     },
   },
   suites: [],
@@ -75,7 +86,7 @@ describe('Latency Checks', () => {
       try {
         const results = await runLatencyChecks({
           connection,
-          config: goodServerConfig.checks?.latency ?? { samples: 5, p95_budget_ms: 1000 },
+          config: latencyOf(goodServerConfig),
         });
 
         const summary = results.find((r) => r.id === 'latency/summary');
@@ -93,7 +104,7 @@ describe('Latency Checks', () => {
       try {
         const results = await runLatencyChecks({
           connection,
-          config: goodServerConfig.checks?.latency ?? { samples: 5, p95_budget_ms: 1000 },
+          config: latencyOf(goodServerConfig),
         });
 
         const toolResults = results.filter((r) => r.id === 'latency/tool');
@@ -117,10 +128,7 @@ describe('Latency Checks', () => {
       try {
         const results = await runLatencyChecks({
           connection,
-          config: slowServerConfigTightBudget.checks?.latency ?? {
-            samples: 5,
-            p95_budget_ms: 1000,
-          },
+          config: latencyOf(slowServerConfigTightBudget),
         });
 
         const summary = results.find((r) => r.id === 'latency/summary');
@@ -137,10 +145,7 @@ describe('Latency Checks', () => {
       try {
         const results = await runLatencyChecks({
           connection,
-          config: slowServerConfigLooseBudget.checks?.latency ?? {
-            samples: 5,
-            p95_budget_ms: 1000,
-          },
+          config: latencyOf(slowServerConfigLooseBudget),
         });
 
         const summary = results.find((r) => r.id === 'latency/summary');
@@ -156,10 +161,7 @@ describe('Latency Checks', () => {
       try {
         const results = await runLatencyChecks({
           connection,
-          config: slowServerConfigTightBudget.checks?.latency ?? {
-            samples: 5,
-            p95_budget_ms: 1000,
-          },
+          config: latencyOf(slowServerConfigTightBudget),
         });
 
         const toolResults = results.filter((r) => r.id === 'latency/tool');

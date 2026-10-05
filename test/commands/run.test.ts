@@ -4,6 +4,8 @@
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { join } from 'path';
+import { tmpdir } from 'os';
+import { mkdtemp, readFile, rm } from 'fs/promises';
 import { runCommand } from '../../src/commands/run.js';
 import { withRunDeadline, RunDeadlineError, closeOnce } from '../../src/commands/output.js';
 import type { McpConnection } from '../../src/client/connect.js';
@@ -131,4 +133,34 @@ describe('closeOnce', () => {
     await expect(close()).rejects.toThrow('kill failed');
     await expect(close()).rejects.toThrow('kill failed'); // same memoized outcome
   });
+});
+
+describe('checks.errors (1.1.0)', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  async function errorIds(checks: Record<string, unknown>): Promise<string[]> {
+    silenceConsole();
+    const dir = await mkdtemp(join(tmpdir(), 'mcpward-run-'));
+    const out = join(dir, 'report.json');
+    const config = testConfig({
+      server: {
+        transport: 'stdio',
+        command: 'npx',
+        args: ['tsx', join(FIXTURES, 'error-contract-server', 'index.ts')],
+      },
+      checks,
+    });
+    await runCommand(config, { config: 'mcpward.yaml', reporter: 'json', out });
+    const report = JSON.parse(await readFile(out, 'utf8')) as { results: { id: string }[] };
+    await rm(dir, { recursive: true, force: true });
+    return report.results.map((r) => r.id).filter((id) => id.startsWith('errors/'));
+  }
+
+  it('runs by default', async () => {
+    expect(await errorIds({})).toContain('errors/unknown-tool');
+  }, 60000);
+
+  it('errors: false calls no tool for the error contract', async () => {
+    expect(await errorIds({ errors: false })).toEqual([]);
+  }, 60000);
 });

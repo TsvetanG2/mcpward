@@ -37,6 +37,17 @@ export const DRIFT_CLASSES = [
 
 const DriftSeveritySchema = z.enum(['high', 'medium', 'low']);
 
+/** Tools a check may call regardless of annotations, with the arguments to call them with. */
+const ToolAllowlistSchema = z
+  .array(
+    z.object({
+      name: z.string(),
+      args: z.record(z.string(), z.unknown()).optional().default({}),
+    })
+  )
+  .optional()
+  .default([]);
+
 /**
  * Output shape drift (M3). Calls tools to infer response shapes, so it is opt-in and
  * only calls tools that are allowlisted here or annotated `readOnlyHint: true`.
@@ -49,15 +60,7 @@ const OutputDriftConfigSchema = z
     /** Auto-call tools annotated readOnlyHint: true that take no required arguments. */
     call_readonly: z.boolean().optional().default(true),
     /** Explicit allowlist. Listed tools are called with `args` regardless of annotations. */
-    tools: z
-      .array(
-        z.object({
-          name: z.string(),
-          args: z.record(z.string(), z.unknown()).optional().default({}),
-        })
-      )
-      .optional()
-      .default([]),
+    tools: ToolAllowlistSchema,
   })
   .optional();
 
@@ -116,11 +119,18 @@ const DriftConfigSchema = z
   })
   .optional();
 
-// Latency check configuration
+// Latency check configuration. Calls tools repeatedly, so (since 1.1.0) only tools that are
+// annotated read-only or allowlisted — the same policy as output drift.
 const LatencyConfigSchema = z
   .object({
     samples: z.number().int().positive().optional().default(5),
     p95_budget_ms: z.number().positive().optional().default(1000),
+    /** Measure tools annotated readOnlyHint: true (not destructive), with generated minimal arguments. */
+    call_readonly: z.boolean().optional().default(true),
+    /** Explicit allowlist. Listed tools are measured with `args` regardless of annotations. */
+    tools: ToolAllowlistSchema,
+    /** Pre-1.1.0 behavior: measure every tool, destructive ones included. Only for test instances. */
+    call_all: z.boolean().optional().default(false),
   })
   .optional();
 
@@ -153,6 +163,8 @@ const ChecksSchema = z
     compliance: z.boolean().optional().default(true),
     schema: z.boolean().optional().default(true),
     security: z.boolean().optional().default(true),
+    /** Error-contract checks call an unknown tool and every tool with required params, with `{}`. */
+    errors: z.boolean().optional().default(true),
     drift: DriftConfigSchema,
     latency: LatencyConfigSchema,
     collision: CollisionConfigSchema,

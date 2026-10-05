@@ -5,6 +5,9 @@
  * - Runs N samples (default: 5)
  * - Calculates p50 and p95 percentiles
  * - Fails if p95 exceeds configured budget
+ *
+ * Measuring means calling a tool repeatedly, so only tools that cannot have side effects
+ * are measured by default (see decideLatencyCall).
  */
 
 import type { CheckResult } from '../report/model.js';
@@ -21,6 +24,59 @@ export interface LatencyCheckContext {
 const DEFAULT_SAMPLES = 5;
 const DEFAULT_P95_BUDGET_MS = 1000;
 
+export interface LatencyCallPolicy {
+  call_readonly: boolean;
+  tools: { name: string; args: Record<string, unknown> }[];
+  call_all: boolean;
+}
+
+export type LatencyDecision =
+  { call: true; args: Record<string, unknown> } | { call: false; reason: string };
+
+/**
+ * Decides whether the latency check may call a tool, and with which arguments.
+ * Pure: the whole side-effect policy is this truth table.
+ *
+ * - allowlisted → called with the configured args
+ * - call_all → called with generated minimal args (pre-1.1.0 behavior)
+ * - readOnlyHint: true, not destructive, call_readonly → generated minimal args
+ * - anything else → refused
+ */
+export function decideLatencyCall(tool: Tool, policy: LatencyCallPolicy): LatencyDecision {
+  const allow = policy.tools.find((t) => t.name === tool.name);
+  if (allow) {
+    return { call: true, args: allow.args };
+  }
+  if (policy.call_all) {
+    return { call: true, args: buildMinimalArgs(tool) };
+  }
+
+  const readOnly = tool.annotations?.readOnlyHint === true;
+  const destructive = tool.annotations?.destructiveHint === true;
+
+  if (!readOnly) {
+    return {
+      call: false,
+      reason:
+        'not annotated readOnlyHint: true and not in checks.latency.tools — mcpward will not repeatedly call a tool that may have side effects',
+    };
+  }
+  if (destructive) {
+    return {
+      call: false,
+      reason:
+        'annotated both readOnlyHint and destructiveHint — contradictory, refusing to call without an explicit checks.latency.tools entry',
+    };
+  }
+  if (!policy.call_readonly) {
+    return {
+      call: false,
+      reason: 'call_readonly is disabled and the tool is not in checks.latency.tools',
+    };
+  }
+  return { call: true, args: buildMinimalArgs(tool) };
+}
+
 /**
  * Runs latency checks against all tools.
  */
@@ -28,6 +84,11 @@ export async function runLatencyChecks(ctx: LatencyCheckContext): Promise<CheckR
   const results: CheckResult[] = [];
   const samples = ctx.config?.samples ?? DEFAULT_SAMPLES;
   const p95Budget = ctx.config?.p95_budget_ms ?? DEFAULT_P95_BUDGET_MS;
+  const policy: LatencyCallPolicy = {
+    call_readonly: ctx.config?.call_readonly ?? true,
+    tools: ctx.config?.tools ?? [],
+    call_all: ctx.config?.call_all ?? false,
+  };
 
   // Get tools list
   let tools: Tool[];
@@ -66,33 +127,73 @@ export async function runLatencyChecks(ctx: LatencyCheckContext): Promise<CheckR
     return results;
   }
 
-  // Measure latency for each tool
+  // Measure latency for each tool the policy allows
   const allLatencies: number[] = [];
+  const refused: { tool: string; reason: string }[] = [];
 
   for (const tool of tools) {
-    const toolResult = await measureToolLatency(ctx.connection, tool, samples);
+    const decision = decideLatencyCall(tool, policy);
+    if (!decision.call) {
+      refused.push({ tool: tool.name, reason: decision.reason });
+      continue;
+    }
+    const toolResult = await measureToolLatency(ctx.connection, tool, decision.args, samples);
     results.push(toolResult.result);
     allLatencies.push(...toolResult.latencies);
   }
 
-  // Calculate overall p50/p95
-  if (allLatencies.length > 0) {
-    const sorted = allLatencies.sort((a, b) => a - b);
-    const p50 = percentile(sorted, 50);
-    const p95 = percentile(sorted, 95);
+  const known = new Set(tools.map((t) => t.name));
+  const unknownAllowlisted = policy.tools.map((t) => t.name).filter((name) => !known.has(name));
 
-    const status = p95 <= p95Budget ? 'pass' : 'fail';
+  if (refused.length > 0 || unknownAllowlisted.length > 0) {
+    const parts: string[] = [];
+    if (refused.length > 0) {
+      parts.push(
+        `${refused.length} tool(s) not measured: ${refused.map((r) => r.tool).join(', ')}`
+      );
+    }
+    if (unknownAllowlisted.length > 0) {
+      parts.push(`allowlisted but not on the server: ${unknownAllowlisted.join(', ')}`);
+    }
+    results.push({
+      id: 'latency/sampling',
+      family: 'latency',
+      status: unknownAllowlisted.length > 0 ? 'warn' : 'skip',
+      severity: unknownAllowlisted.length > 0 ? 'warning' : 'info',
+      message: `Latency: ${parts.join('; ')}. Add tools to checks.latency.tools (with args) to measure them.`,
+      actual: { refused, unknownAllowlisted },
+    });
+  }
 
+  if (allLatencies.length === 0) {
     results.unshift({
       id: 'latency/summary',
       family: 'latency',
-      status,
-      severity: status === 'pass' ? 'info' : 'error',
-      message: `Latency p50=${p50.toFixed(0)}ms p95=${p95.toFixed(0)}ms (budget: ${p95Budget}ms)`,
+      status: 'skip',
+      severity: 'warning',
+      message:
+        'Latency not measured: no tool is annotated readOnlyHint: true or allowlisted in checks.latency.tools',
       expected: `p95 <= ${p95Budget}ms`,
-      actual: `p95 = ${p95.toFixed(0)}ms`,
     });
+    return results;
   }
+
+  // Calculate overall p50/p95
+  const sorted = allLatencies.sort((a, b) => a - b);
+  const p50 = percentile(sorted, 50);
+  const p95 = percentile(sorted, 95);
+
+  const status = p95 <= p95Budget ? 'pass' : 'fail';
+
+  results.unshift({
+    id: 'latency/summary',
+    family: 'latency',
+    status,
+    severity: status === 'pass' ? 'info' : 'error',
+    message: `Latency p50=${p50.toFixed(0)}ms p95=${p95.toFixed(0)}ms (budget: ${p95Budget}ms)`,
+    expected: `p95 <= ${p95Budget}ms`,
+    actual: `p95 = ${p95.toFixed(0)}ms`,
+  });
 
   return results;
 }
@@ -103,12 +204,10 @@ export async function runLatencyChecks(ctx: LatencyCheckContext): Promise<CheckR
 async function measureToolLatency(
   connection: McpConnection,
   tool: Tool,
+  args: Record<string, unknown>,
   samples: number
 ): Promise<{ result: CheckResult; latencies: number[] }> {
   const latencies: number[] = [];
-
-  // Build minimal valid args for the tool
-  const args = buildMinimalArgs(tool);
 
   for (let i = 0; i < samples; i++) {
     const start = performance.now();
