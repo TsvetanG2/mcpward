@@ -43,7 +43,8 @@ function patchServerUrl(schema: Record<string, unknown>): void {
   const server = (schema.properties as Record<string, { oneOf?: unknown[] }> | undefined)?.server;
   const http = server?.oneOf?.find(
     (branch) =>
-      (branch as { properties?: { transport?: { const?: unknown } } }).properties?.transport?.const === 'http'
+      (branch as { properties?: { transport?: { const?: unknown } } }).properties?.transport
+        ?.const === 'http'
   ) as { properties: Record<string, unknown> } | undefined;
   if (!http) {
     throw new Error('config JSON Schema: http transport branch not found — update patchServerUrl');
@@ -58,10 +59,10 @@ function patchServerUrl(schema: Record<string, unknown>): void {
  * `schemas/config.v1.schema.json` equals this output.
  */
 export function configJsonSchema(): Record<string, unknown> {
-  const generated = z.toJSONSchema(ConfigSchema, { io: 'input', target: 'draft-2020-12' }) as Record<
-    string,
-    unknown
-  >;
+  const generated = z.toJSONSchema(ConfigSchema, {
+    io: 'input',
+    target: 'draft-2020-12',
+  }) as Record<string, unknown>;
   patchServerUrl(generated);
   return {
     $schema: generated.$schema,
