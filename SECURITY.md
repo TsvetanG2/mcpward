@@ -63,7 +63,7 @@ Anything that breaks the second assumption is a valid vulnerability report.
 
 ### Tool calls
 
-Most checks only read `tools/list`. The error-contract checks, latency measurement, behavioral suites and output drift **call tools** on the server under test. Since 1.1.0, latency and output drift call only tools annotated `readOnlyHint: true` (and not `destructiveHint: true`) unless you allowlist others; the error-contract checks call tools with empty arguments, which a server that validates input rejects, and can be turned off with `checks.errors: false`. The README section [*Which checks call tools*](README.md#which-checks-call-tools) lists exactly what each check calls. A check that calls a tool the documented policy forbids is a valid vulnerability report.
+Most checks only read `tools/list`. The error-contract checks, latency measurement, behavioral suites and output drift **call tools** on the server under test. Since 1.1.0, latency and output drift call only tools annotated `readOnlyHint: true` (and not `destructiveHint: true`) unless you allowlist others — or, for latency, set `checks.latency.call_all: true`, which calls every tool, destructive ones included; the error-contract checks call tools with empty arguments, which a server that validates input rejects, and can be turned off with `checks.errors: false`. The README section [*Which checks call tools*](README.md#which-checks-call-tools) lists exactly what each check calls. A check that calls a tool the documented policy forbids is a valid vulnerability report.
 
 ### Environment of a stdio server
 

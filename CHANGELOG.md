@@ -14,7 +14,7 @@ Since `1.0.0`, the public contract described in [`docs/stability.md`](docs/stabi
 
 ### Changed
 
-- **Latency measures only read-only tools by default.** Measuring latency calls each tool `samples` times; before 1.1.0 it called *every* tool with generated arguments, destructive ones included. It now follows the same policy as output drift: tools annotated `readOnlyHint: true` (and not `destructiveHint: true`) are measured, plus the tools you list in `checks.latency.tools` with arguments. Tools that are not measured are listed in the new `latency/sampling` result with the reason, and when nothing can be measured `latency/summary` is skipped instead of passing. This changes which tools are measured — a safety fix, so it ships in a minor version; `checks.latency.call_all: true` restores the previous behavior for test instances.
+- **Latency measures only read-only tools by default.** Measuring latency calls each tool `samples` times; before 1.1.0 it called *every* tool with generated arguments, destructive ones included. It now follows the same policy as output drift: tools annotated `readOnlyHint: true` (and not `destructiveHint: true`) are measured, plus the tools you list in `checks.latency.tools` with arguments. Tools that are not measured are listed in the new `latency/sampling` result with the reason, and when nothing can be measured `latency/summary` warns instead of passing. This changes which tools are measured — a safety fix, so it ships in a minor version; `checks.latency.call_all: true` restores the previous behavior for test instances.
 
 ### Added
 
@@ -25,6 +25,7 @@ Since `1.0.0`, the public contract described in [`docs/stability.md`](docs/stabi
 
 ### Fixed
 
+- Latency counts only completed calls. A rejected call (for example generated arguments failing validation) or an `isError: true` result was recorded as a sample, so a server that rejected every call quickly "passed" the budget. Failed calls are now excluded and reported; timeouts still count as slow.
 - `examples/ci.yml` no longer refreshes the baseline on every push to `main` — that would accept a rug-pull as the new contract. Examples pin `mcpward@1`, and `examples/mcpward.yaml` expects the protocol version the SDK negotiates today.
 - `docs/rules.md`: severities of the error-contract and latency rules match what mcpward emits (`errors/invalid-params` is a warning; `latency/summary`, not `latency/tool`, enforces the budget).
 - README comparison tables re-checked against each project's current documentation (mcp-scan is now Snyk Agent Scan).

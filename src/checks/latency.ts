@@ -124,6 +124,17 @@ export async function runLatencyChecks(ctx: LatencyCheckContext): Promise<CheckR
       severity: 'info',
       message: 'No tools to test latency',
     });
+    if (policy.tools.length > 0) {
+      const unknownAllowlisted = policy.tools.map((t) => t.name);
+      results.push({
+        id: 'latency/sampling',
+        family: 'latency',
+        status: 'warn',
+        severity: 'warning',
+        message: `Latency: allowlisted but not on the server: ${unknownAllowlisted.join(', ')}.`,
+        actual: { refused: [], unknownAllowlisted },
+      });
+    }
     return results;
   }
 
@@ -166,13 +177,15 @@ export async function runLatencyChecks(ctx: LatencyCheckContext): Promise<CheckR
   }
 
   if (allLatencies.length === 0) {
+    // A warning, not a skip: reporters hide skipped results, and an unevaluated budget
+    // must not read as "all checks passed".
     results.unshift({
       id: 'latency/summary',
       family: 'latency',
-      status: 'skip',
+      status: 'warn',
       severity: 'warning',
       message:
-        'Latency not measured: no tool is annotated readOnlyHint: true or allowlisted in checks.latency.tools',
+        'Latency not measured: no tool could be called successfully — annotate read-only tools with readOnlyHint: true, or list tools in checks.latency.tools with valid args',
       expected: `p95 <= ${p95Budget}ms`,
     });
     return results;
@@ -208,16 +221,43 @@ async function measureToolLatency(
   samples: number
 ): Promise<{ result: CheckResult; latencies: number[] }> {
   const latencies: number[] = [];
+  const failures: string[] = [];
 
   for (let i = 0; i < samples; i++) {
     const start = performance.now();
     try {
-      await connection.callTool({ name: tool.name, arguments: args });
-    } catch {
-      // Tool may fail, but we still measure latency
+      const result = (await connection.callTool({ name: tool.name, arguments: args })) as {
+        isError?: unknown;
+      };
+      if (result?.isError === true) {
+        failures.push('tool returned isError: true');
+        continue;
+      }
+    } catch (err) {
+      // A timeout is a measurement — the call was too slow. Any other error means the call
+      // was rejected (e.g. generated arguments failed validation): how fast a server says
+      // "no" is not the tool's latency, so it must not count toward a passing budget.
+      if (!isTimeout(err)) {
+        failures.push(err instanceof Error ? err.message : String(err));
+        continue;
+      }
     }
-    const end = performance.now();
-    latencies.push(end - start);
+    latencies.push(performance.now() - start);
+  }
+
+  if (latencies.length === 0) {
+    return {
+      result: {
+        id: 'latency/tool',
+        family: 'latency',
+        status: 'warn',
+        severity: 'warning',
+        message: `Tool "${tool.name}" not measured: all ${samples} call(s) failed (${failures[0] ?? 'unknown error'}). Add it to checks.latency.tools with valid args.`,
+        location: tool.name,
+        actual: { failed: failures.length, firstError: failures[0] },
+      },
+      latencies,
+    };
   }
 
   const sorted = latencies.sort((a, b) => a - b);
@@ -232,12 +272,18 @@ async function measureToolLatency(
       family: 'latency',
       status: 'pass', // Individual tool latencies are informational
       severity: 'info',
-      message: `Tool "${tool.name}" latency: min=${min.toFixed(0)}ms p50=${p50.toFixed(0)}ms p95=${p95.toFixed(0)}ms max=${max.toFixed(0)}ms`,
+      message: `Tool "${tool.name}" latency: min=${min.toFixed(0)}ms p50=${p50.toFixed(0)}ms p95=${p95.toFixed(0)}ms max=${max.toFixed(0)}ms${failures.length > 0 ? ` (${failures.length} failed call(s) excluded)` : ''}`,
       location: tool.name,
-      actual: { min, p50, p95, max, samples: latencies },
+      actual: { min, p50, p95, max, samples: latencies, failed: failures.length },
     },
     latencies,
   };
+}
+
+/** A call that ran out of time: mcpward's call_ms timeout, or the SDK's request timeout. */
+function isTimeout(err: unknown): boolean {
+  if (err instanceof Error && err.message.startsWith('Timeout:')) return true;
+  return (err as { code?: unknown } | null)?.code === -32001;
 }
 
 /**
