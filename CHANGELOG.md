@@ -8,6 +8,36 @@ Until `1.0.0`, minor versions may contain breaking changes to the config format.
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-10-05
+
+This release implements **M6 — keep the promises already made**. An audit after 0.6.0 found options that the docs and config accepted but the code ignored; for a testing tool, a silently ignored assertion is the worst kind of bug. All four are fixed, each with a test that fails without the fix.
+
+### Fixed
+
+- **`expect.golden` was accepted but never compared.** Behavioral cases with a golden snapshot now compare the tool's `content`, `structuredContent` and `isError` (key order ignored) against the file, which resolves relative to the config file. A **missing golden file fails** — it is never created implicitly. New `behavioral/golden` rule.
+- **`timeouts.run_ms` was never enforced.** `run`, `diff` and `baseline` now end at `run_ms` with **exit 2** (the run is incomplete, so it neither passes nor fails). A server that stalls between calls can no longer hold CI until the job timeout.
+- **Schema drift only compared top-level property types.** The drift truth table is now implemented in full, recursively (nested `properties`, array `items`, `additionalProperties`), with paths like `filter.status` and `rows[].id`:
+  - breaking: `enum` value removed or `enum` added; min-bounds raised/added; max-bounds lowered/added; `pattern`/`format`/`const`/`multipleOf` added or changed; `uniqueItems` on; `additionalProperties` closed; `items` constraint added; `anyOf`/`oneOf`/`allOf` changed (conservative, and the message says so)
+  - non-breaking: the reverse of each
+  - a changed **parameter** description is `description_changed` (high) — the model reads it like the tool description
+- **`mcpward diff` lacked the reporters of `run`.** It now supports `--reporter json|junit|sarif|markdown`, `--out` and `--pr-comment` through the same output path as `run`. Human-readable headers are printed only for the console reporter, so machine-readable stdout stays parseable.
+
+### Added
+
+- `mcpward run --update-golden` writes or refreshes golden snapshot files explicitly.
+
+### Changed
+
+- **Report contract:** `mcpward diff --json` now prints the full report object (like `run --json`) instead of a bare array of results.
+- **Report contract:** new rule id `behavioral/golden`. Schema drift reports more findings than before for the same change set (nested and constraint-level changes that were previously invisible); existing baselines do not need to be recaptured.
+- `JsonSchema.type` accepts an array of types, as JSON Schema allows.
+- The GitHub Action's default `version` is now `0.7.0`.
+
+### Internal
+
+- New fixtures `drift/schema-v1` → `schema-v2` (one change per tool, plus an unchanged deep schema as the negative case).
+- `run` and `diff` share one output module (report assembly, reporters, PR comment, run deadline).
+
 ## [0.6.0] — 2026-10-05
 
 This release implements **M5 (PR comment)** and completes the roadmap.
