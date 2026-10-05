@@ -648,7 +648,7 @@ Optimize the slow tools, or raise `p95_budget_ms` if the threshold is too strict
 
 ### latency/tool
 
-**Severity:** info; warning when every call failed
+**Severity:** info; warning when a call timed out or every call failed
 
 Per-tool min, p50, p95 and max. Informational — the budget is enforced by `latency/summary`.
 

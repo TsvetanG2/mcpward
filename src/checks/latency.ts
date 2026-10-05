@@ -290,8 +290,9 @@ async function measureToolLatency(
     result: {
       id: 'latency/tool',
       family: 'latency',
-      status: 'pass', // Individual tool latencies are informational
-      severity: 'info',
+      // Informational, except timeouts: those fail the summary, and this names the tool
+      status: timeouts > 0 ? 'warn' : 'pass',
+      severity: timeouts > 0 ? 'warning' : 'info',
       message: `Tool "${tool.name}" latency: min=${min.toFixed(0)}ms p50=${p50.toFixed(0)}ms p95=${p95.toFixed(0)}ms max=${max.toFixed(0)}ms${notes}`,
       location: tool.name,
       actual: { min, p50, p95, max, samples: latencies, failed: failures.length, timeouts },
