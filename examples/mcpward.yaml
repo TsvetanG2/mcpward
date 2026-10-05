@@ -36,11 +36,23 @@ checks:
   # Drift detection (requires baseline)
   drift:
     baseline: ./mcpward.lock.json
-    fail_on:
-      - tool_removed
-      - description_changed
-      - breaking_schema_change
-      - annotation_changed
+    # Severity threshold (high | medium | low) or a list of drift classes
+    fail_on: high
+    # Per-class severity overrides
+    severity:
+      tool_removed: medium
+    # Store description text in the lockfile for before/after diffs
+    full_text: true
+    # Output shape drift (opt-in) — CALLS TOOLS: only readOnlyHint tools that
+    # take no arguments, plus the allowlist below
+    output:
+      enabled: true
+      shape_samples: 3
+      call_readonly: true
+      tools:
+        - name: read_file
+          args:
+            path: /tmp/sandbox/hello.txt
 
   # Latency budgets
   latency:

@@ -84,34 +84,54 @@ Four contract changes, none of which would surface at runtime until something br
 
 Not every change should fail a build. Adding an optional parameter is safe; adding a required one breaks existing callers. The classifier encodes this judgment as a pure function with exhaustive fixture-backed tests.
 
-| Change | Classification | Fails by default? |
-|--------|----------------|-------------------|
-| Tool removed | `tool_removed` | yes |
-| Tool added | `tool_added` | no |
-| Description changed | `description_changed` | yes |
-| Required field added / field removed / type changed | `breaking_schema_change` | yes |
-| Optional field added | `nonbreaking_schema_change` | no |
-| `readOnlyHint` true→false or `destructiveHint` false→true | `annotation_changed` | yes |
+| Change | Classification | Severity | Fails by default? |
+|--------|----------------|----------|-------------------|
+| Description changed | `description_changed` | high | yes |
+| `readOnlyHint` true→false or `destructiveHint` false→true | `annotation_changed` | high | yes |
+| Required field added / field removed / narrowed or unrelated type change | `breaking_schema_change` | medium | yes |
+| Output field removed / new output type / output format changed (inferred, opt-in) | `breaking_output_shape_change` | medium | yes |
+| Tool removed | `tool_removed` | low | yes |
+| Tool added | `tool_added` | low | no |
+| Optional field added / type widened | `nonbreaking_schema_change` | low | no |
+| Output field added (inferred, opt-in) | `nonbreaking_output_shape_change` | low | no |
 
-**Concrete examples:** A tool gains a new required `multiplier` parameter → `breaking_schema_change` (existing calls will fail). A tool adds an optional `limit` parameter → `nonbreaking_schema_change` (callers can ignore it). An optional field becomes required → `breaking_schema_change`. A field is removed entirely → `breaking_schema_change` (callers may rely on it).
+**Severity is blast radius, not breakage.** A removed tool is breaking but *low*: it fails loudly at the call site and gets fixed in minutes. A `readOnlyHint` flip is *high*: it silently changes what clients auto-approve, and nobody notices.
+
+**Concrete examples:** A tool gains a new required `multiplier` parameter → `breaking_schema_change` (existing calls will fail). A tool adds an optional `limit` parameter → `nonbreaking_schema_change` (callers can ignore it). A parameter's type widens from `string` to `string | number` → `nonbreaking_schema_change`; narrowing the other way → `breaking_schema_change`. A description gains one zero-width character → `description_changed`, and the diff shows it as `<U+200B>`.
 
 ### Policy: choosing what fails CI
 
-The `fail_on` setting is your policy engine — it decides which change classes fail the build and which only report:
+The `fail_on` setting is your policy engine. Fail on a severity threshold (recommended) or list the classes explicitly:
 
 ```yaml
 checks:
   drift:
     baseline: ./mcpward.lock.json
-    fail_on:
-      - tool_removed
-      - description_changed
-      - breaking_schema_change
-      - annotation_changed
-      # tool_added and nonbreaking_schema_change will report but not fail
+    fail_on: high          # only silent security changes fail; schema breaks and removals report
+    # fail_on: medium      # high + schema/output breaks
+    # fail_on: [tool_removed, description_changed, breaking_schema_change, annotation_changed]
+    severity:              # optional per-class overrides
+      tool_removed: high
 ```
 
 Some teams fail on any description change; others only on removals. Encode your tolerance here. See [`docs/rules.md`](docs/rules.md) for the full rule reference.
+
+### Output drift (opt-in)
+
+Input drift breaks at the call site; output drift is silent until something downstream chokes. Many servers declare no `outputSchema`, so mcpward can **infer** each tool's output shape from real calls and diff the structure (fields, types, nesting — never values):
+
+```yaml
+checks:
+  drift:
+    output:
+      enabled: true
+      shape_samples: 3      # calls per tool; shapes are merged, so optional fields aren't "missing"
+      tools:                # explicit allowlist, with arguments
+        - name: get_order
+          args: { id: "demo-1" }
+```
+
+This **calls tools**, so mcpward refuses to call anything that might have side effects: only tools annotated `readOnlyHint: true` that need no arguments are called automatically, plus whatever you allowlist. Every refused or skipped tool is reported with the reason.
 
 ## Why mcpward?
 
@@ -188,12 +208,15 @@ That last row is the practical reason to reach for mcpward on internal or client
 ## Features
 
 - **Classifies every schema change as breaking or non-breaking** — fails CI only on the ones you configure, reports the rest
-- **Detects description rewrites (rug-pulls)** — hashes tool descriptions; catches silent changes that text diffs miss
-- **Catches tool-poisoning patterns** — injection phrasing, hidden unicode, secret-soliciting schemas, annotation mismatches
+- **Detects description rewrites (rug-pulls)** — hashes canonicalized descriptions and shows a word-level diff with invisible characters marked
+- **Ranks drift by blast radius** — high/medium/low severity, `fail_on: high` to fail only on silent security changes
+- **Catches tool-poisoning patterns** — injection phrasing, hidden unicode (including Unicode Tag "ASCII smuggling", decoded for you), secret-soliciting schemas, annotation mismatches — in tool and parameter descriptions
+- **Detects output shape drift** — inferred from real (read-only or allowlisted) calls, structure only
 - **Validates error contracts** — verifies servers use protocol errors vs tool errors correctly (unique to mcpward)
 - **Runs behavioral test suites** — declarative cases with JSONPath assertions against tool outputs
 - **Enforces latency budgets** — fails when p95 exceeds your threshold
-- **Outputs JUnit + SARIF** — integrates with GitHub Actions test results and Security tab
+- **stdio and Streamable HTTP** — identical results over both transports, tested for parity; paginated `tools/list` is read in full
+- **Outputs JUnit, SARIF and JSON** — integrates with GitHub Actions test results and the Security tab
 - **Works fully offline** — no accounts, no API calls, nothing leaves your machine
 
 See [`docs/rules.md`](docs/rules.md) for every check mcpward performs and what each finding means.
@@ -220,11 +243,14 @@ checks:
   security: true
   drift:
     baseline: ./mcpward.lock.json
-    fail_on:
-      - tool_removed
-      - description_changed
-      - breaking_schema_change
-      - annotation_changed
+    fail_on: high            # or medium / low, or a list of drift classes
+    severity: {}             # per-class overrides, e.g. { tool_removed: high }
+    full_text: true          # store description text in the lockfile for diffs
+    output:                  # output shape drift — opt-in, calls tools
+      enabled: false
+      shape_samples: 3
+      call_readonly: true    # auto-call readOnlyHint tools that take no arguments
+      tools: []              # allowlist: [{ name: get_order, args: { id: "demo-1" } }]
   latency:
     samples: 5
     p95_budget_ms: 1000
@@ -293,7 +319,7 @@ server:
 | Check | Description |
 |-------|-------------|
 | `security/injection-pattern` | Injection-like phrasing in descriptions |
-| `security/hidden-unicode` | Zero-width or bidirectional characters |
+| `security/hidden-unicode` | Zero-width, bidirectional, or Unicode Tag (ASCII smuggling) characters in names, descriptions, or parameter descriptions |
 | `security/secret-in-schema` | Schema fields soliciting secrets |
 | `security/annotation-mismatch` | readOnlyHint on destructive tools |
 
@@ -371,8 +397,8 @@ The distinction between `1` and `2` matters: `2` means the run never happened, w
 ## Roadmap
 
 - **PR comment reporting** — post classified drift as a reviewable comment next to the code diff ([#13](https://github.com/TsvetanG2/mcpward/issues/13))
-- **Show old vs new text for description changes** — surface the actual diff, not just "description changed" ([#14](https://github.com/TsvetanG2/mcpward/issues/14))
-- **Canonicalization audit** — normalize tool surface before hashing to avoid false-positive drift ([#12](https://github.com/TsvetanG2/mcpward/issues/12))
+- **Description collision lint** — flag near-identical descriptions over divergent schemas ([#22](https://github.com/TsvetanG2/mcpward/issues/22))
+- **Registry-published tool-surface hashes** — verify a server against a hash published by its registry, once registries publish them ([#21](https://github.com/TsvetanG2/mcpward/issues/21))
 - **Constraint-level schema analysis** — detect narrowed `maxItems`, removed `enum` values, and other JSON Schema constraint changes (currently property-level only)
 - **Supply chain / server identity** — the contract pins tool names and schemas, not the implementation; capturing binary or container digest alongside the contract is a future direction
 
