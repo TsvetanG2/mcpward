@@ -39,7 +39,10 @@ export type PrContextResult = ReturnType<typeof detectPrContext>;
  * nearest ancestor containing `.git`, else the cwd. NOT simply the cwd — the action's
  * `working-directory` (or a local run from a subfolder) would anchor alerts to the wrong path.
  */
-export function repoRoot(start: string = process.cwd(), env: NodeJS.ProcessEnv = process.env): string {
+export function repoRoot(
+  start: string = process.cwd(),
+  env: NodeJS.ProcessEnv = process.env
+): string {
   if (env.GITHUB_WORKSPACE) return resolve(env.GITHUB_WORKSPACE);
   let dir = resolve(start);
   for (;;) {
@@ -56,7 +59,10 @@ export function repoRoot(start: string = process.cwd(), env: NodeJS.ProcessEnv =
  * Each path segment is percent-encoded: `checks#prod.yaml` must not become a fragment and
  * spaces are not valid in a URI.
  */
-export function sarifArtifactUri(configPath: string | undefined, root: string = repoRoot()): string {
+export function sarifArtifactUri(
+  configPath: string | undefined,
+  root: string = repoRoot()
+): string {
   if (!configPath) return 'mcpward.yaml';
   return relative(root, resolve(configPath))
     .split(sep)

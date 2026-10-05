@@ -98,8 +98,12 @@ describe('mcpward diff', () => {
 
   it('SARIF URIs percent-encode each path segment (# and spaces)', () => {
     const root = join(dir, 'repo');
-    expect(sarifArtifactUri(join(root, 'ci', 'checks#prod.yaml'), root)).toBe('ci/checks%23prod.yaml');
-    expect(sarifArtifactUri(join(root, 'my checks', 'mcp.yaml'), root)).toBe('my%20checks/mcp.yaml');
+    expect(sarifArtifactUri(join(root, 'ci', 'checks#prod.yaml'), root)).toBe(
+      'ci/checks%23prod.yaml'
+    );
+    expect(sarifArtifactUri(join(root, 'my checks', 'mcp.yaml'), root)).toBe(
+      'my%20checks/mcp.yaml'
+    );
   });
 
   it('--json prints the full report and nothing else on stdout', async () => {
