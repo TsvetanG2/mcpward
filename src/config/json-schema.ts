@@ -10,22 +10,29 @@ export const CONFIG_SCHEMA_VERSION = 1;
  * validating. A plain `format: "uri"` both accepts schemes the parser rejects (file:, ftp:)
  * and rejects placeholders the parser accepts.
  */
+/**
+ * Design rule: the schema is an editor aid and must NEVER reject a config the parser accepts
+ * (a false error on a valid file is worse than a slightly permissive schema). A regex cannot
+ * replicate the WHATWG URL parser exactly, so this checks the parts that matter — scheme,
+ * authority shape, numeric port in range — and leaves hostname details (IDN etc.) to the
+ * parser. `format: "uri"` is deliberately not used: it rejects internationalized hostnames.
+ */
 const RAW_SERVER_URL = {
   type: 'string',
   anyOf: [
-    // A literal URL: http(s) scheme (case-insensitive — the parser accepts `HTTPS://`), then an
-    // explicit authority check: optional userinfo, host or [IPv6], NUMERIC port. `format: uri`
-    // alone is not enough — ajv-formats accepts `https://host:abc/`, which URL() rejects.
+    // A literal URL: http(s) scheme (case-insensitive — the parser accepts `HTTPS://`), optional
+    // userinfo, a host or [IPv6] literal (any Unicode, so IDNs pass), and a numeric port
+    // 0–65535 (leading zeros allowed, as in the WHATWG parser).
     {
-      format: 'uri',
       pattern:
         '^[hH][tT][tT][pP][sS]?://([^/?#\\s@]+@)?(\\[[0-9A-Fa-f:.]+\\]|[^/?#\\s:@\\[\\]]+)' +
-        // port 0–65535
-        '(:(6553[0-5]|655[0-2][0-9]|65[0-4][0-9]{2}|6[0-4][0-9]{3}|[1-5][0-9]{4}|[0-9]{1,4}))?' +
+        '(:0*(6553[0-5]|655[0-2][0-9]|65[0-4][0-9]{2}|6[0-4][0-9]{3}|[1-5][0-9]{4}|[0-9]{1,4}))?' +
         '([/?#]\\S*)?$',
     },
-    // A placeholder expanded at load time; the expanded value is validated by the parser.
-    { pattern: '\\$\\{[^}]+\\}' },
+    // A placeholder expanded at load time (the expanded value is validated by the parser). It
+    // must either supply the scheme itself or follow a literal http(s) scheme — a fixed
+    // `ftp://${HOST}` can never become a valid URL.
+    { pattern: '^(\\$\\{[^}]+\\}|[hH][tT][tT][pP][sS]?://\\S*\\$\\{[^}]+\\})\\S*$' },
   ],
   description:
     'Streamable HTTP endpoint (http or https), or a value containing a ${ENV_VAR} placeholder resolved at load time.',
