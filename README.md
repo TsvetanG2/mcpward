@@ -537,7 +537,7 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the testing rules (every check need
 
 [Apache License 2.0](LICENSE) — Copyright 2025-2026 Tsvetan Gerginov.
 
-You may use, modify and redistribute mcpward, commercially too. Redistributions and derivative works must keep the [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE) files, and modified files must say that they were changed.
+You may use, modify and redistribute mcpward, commercially too. Redistributions and derivative works must include a copy of the [license](LICENSE) and carry the attribution in [`NOTICE`](NOTICE) — in a NOTICE file, in their documentation, or wherever they display third-party notices — and modified files must say that they were changed.
 
 The name **mcpward** is not licensed (Apache-2.0, section 6): a fork or derivative product must not present itself as mcpward or as endorsed by its author.
 
