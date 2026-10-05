@@ -242,6 +242,10 @@ describe('only completed calls are latency samples', () => {
     const summary = results.find((r) => r.id === 'latency/summary');
     expect(summary?.status).toBe('fail');
     expect(summary?.message).toContain('timed out');
+    // ...and the reports name the tool that timed out
+    const perTool = results.find((r) => r.id === 'latency/tool');
+    expect(perTool?.status).toBe('warn');
+    expect(perTool?.location).toBe('get_status');
   });
 
   it('timeouts ARE counted — a call that runs out of time is slow, not invalid', async () => {
