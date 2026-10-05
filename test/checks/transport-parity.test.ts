@@ -9,7 +9,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { join } from 'path';
 import { mkdir, rm } from 'fs/promises';
-import { execa, type ResultPromise } from 'execa';
+import { spawn } from 'node:child_process';
 import { connect, type McpConnection } from '../../src/client/connect.js';
 import { runComplianceChecks } from '../../src/checks/compliance.js';
 import { runSchemaChecks } from '../../src/checks/schema.js';
@@ -31,17 +31,24 @@ interface HttpFixture {
 
 /** Starts fixtures/http-host.ts for a fixture and resolves once it is listening. */
 async function startHttp(fixture: string, env: Record<string, string> = {}): Promise<HttpFixture> {
-  const proc: ResultPromise = execa(process.execPath, ['--import', 'tsx', HTTP_HOST, fixture], {
-    env,
-    reject: false,
+  // node:child_process, not execa: execa 10 requires Node >= 22 and we support Node 20
+  const proc = spawn(process.execPath, ['--import', 'tsx', HTTP_HOST, fixture], {
+    env: { ...process.env, ...env },
+    stdio: ['ignore', 'pipe', 'pipe'],
   });
+  const exited = new Promise<void>((resolve) => proc.once('exit', () => resolve()));
+  let stderr = '';
+  proc.stderr.on('data', (chunk: Buffer) => {
+    stderr += chunk.toString();
+  });
+
   const port = await new Promise<number>((resolve, reject) => {
     let buffer = '';
     const timer = setTimeout(
       () => reject(new Error(`http-host did not start for ${fixture}`)),
       20000
     );
-    proc.stdout?.on('data', (chunk: Buffer) => {
+    proc.stdout.on('data', (chunk: Buffer) => {
       buffer += chunk.toString();
       const match = /LISTENING (\d+)/.exec(buffer);
       if (match) {
@@ -49,16 +56,16 @@ async function startHttp(fixture: string, env: Record<string, string> = {}): Pro
         resolve(Number(match[1]));
       }
     });
-    void proc.then((r) => {
+    void exited.then(() => {
       clearTimeout(timer);
-      reject(new Error(`http-host exited early: ${String(r.stderr)}`));
+      reject(new Error(`http-host exited early: ${stderr}`));
     });
   });
   return {
     url: `http://127.0.0.1:${port}/mcp`,
     stop: async () => {
       proc.kill();
-      await proc;
+      await exited;
     },
   };
 }
