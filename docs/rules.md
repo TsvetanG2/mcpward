@@ -639,7 +639,7 @@ To measure a tool that is not annotated read-only, add it to `checks.latency.too
 
 ### latency/summary
 
-**Severity:** error when p95 exceeds the budget; warning (skipped) when no tool could be measured
+**Severity:** error when p95 exceeds the budget; warning when no tool could be measured (the budget was not evaluated; the run does not fail)
 
 Overall p50 and p95 across all measured calls, compared with `p95_budget_ms`. This is the result that fails the run.
 
@@ -648,6 +648,11 @@ Optimize the slow tools, or raise `p95_budget_ms` if the threshold is too strict
 
 ### latency/tool
 
-**Severity:** info
+**Severity:** info; warning when every call failed
 
 Per-tool min, p50, p95 and max. Informational — the budget is enforced by `latency/summary`.
+
+Only completed calls are samples. A call the server rejects (for example because generated arguments fail validation) or that returns `isError: true` is excluded — how fast a server says "no" is not the tool's latency. A call that times out *is* counted: it was slow. When every call to a tool failed, the tool is reported as a warning with the first error.
+
+**How to fix:**
+Add the tool to `checks.latency.tools` with arguments that make the call succeed.

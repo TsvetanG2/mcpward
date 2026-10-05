@@ -16,6 +16,7 @@ import {
   type LatencyCallPolicy,
 } from '../../src/checks/latency.js';
 import type { Tool } from '../../src/checks/schema.js';
+import { getExitCode, summarizeResults } from '../../src/report/model.js';
 import { latencyOf, testConfig } from '../helpers/config.js';
 
 const OUTPUT_V1 = join(process.cwd(), 'fixtures', 'drift', 'output-v1', 'index.ts');
@@ -126,12 +127,27 @@ describe('runLatencyChecks never calls tools the policy refuses', () => {
     expect(results.find((r) => r.id === 'latency/summary')?.status).toBe('pass');
   });
 
-  it('nothing measurable: summary is skipped, not passed, and nothing is called', async () => {
+  it('nothing measurable: summary warns (visible, not passed) and nothing is called', async () => {
     const { connection, called } = recordingConnection(surface.slice(1));
     const results = await runLatencyChecks({ connection, config: latencyConfig() });
 
     expect(called).toEqual([]);
-    expect(results.find((r) => r.id === 'latency/summary')?.status).toBe('skip');
+    const summary = results.find((r) => r.id === 'latency/summary');
+    expect(summary?.status).toBe('warn');
+    expect(summarizeResults(results).warnings).toBeGreaterThan(0);
+    expect(getExitCode(results)).toBe(0); // visible, but not a failure
+  });
+
+  it('a server with no tools still warns about allowlisted tools', async () => {
+    const { connection } = recordingConnection([]);
+    const results = await runLatencyChecks({
+      connection,
+      config: latencyConfig({ tools: [{ name: 'get_order', args: {} }] }),
+    });
+    expect(results.find((r) => r.id === 'latency/no-tools')).toBeDefined();
+    const sampling = results.find((r) => r.id === 'latency/sampling');
+    expect(sampling?.status).toBe('warn');
+    expect(sampling?.message).toContain('get_order');
   });
 
   it('allowlisting a tool that is not on the server warns', async () => {
@@ -170,4 +186,43 @@ describe('against an annotated fixture server', () => {
       await connection.close();
     }
   }, 30000);
+});
+
+describe('only completed calls are latency samples', () => {
+  const readOnly: Tool[] = [{ ...tool({ readOnlyHint: true }), name: 'get_status' }];
+
+  function connectionThat(callTool: () => Promise<unknown>): McpConnection {
+    const client = { listTools: async () => ({ tools: readOnly }) } as unknown as Client;
+    return { client, callTool } as unknown as McpConnection;
+  }
+
+  it('rejected calls are not counted: the budget is not "passed" by fast rejections', async () => {
+    const connection = connectionThat(async () => {
+      throw Object.assign(new Error('MCP error -32602: Invalid params'), { code: -32602 });
+    });
+    const results = await runLatencyChecks({ connection, config: latencyConfig() });
+
+    const perTool = results.find((r) => r.id === 'latency/tool');
+    expect(perTool?.status).toBe('warn');
+    expect(perTool?.message).toContain('Invalid params');
+    expect(results.find((r) => r.id === 'latency/summary')?.status).toBe('warn');
+  });
+
+  it('isError results are not counted', async () => {
+    const connection = connectionThat(async () => ({ isError: true, content: [] }));
+    const results = await runLatencyChecks({ connection, config: latencyConfig() });
+    expect(results.find((r) => r.id === 'latency/summary')?.status).toBe('warn');
+  });
+
+  it('timeouts ARE counted — a call that runs out of time is slow, not invalid', async () => {
+    const connection = connectionThat(async () => {
+      await new Promise((r) => setTimeout(r, 30));
+      throw new Error('Timeout: tool call "get_status" (30ms)');
+    });
+    const results = await runLatencyChecks({
+      connection,
+      config: { ...latencyConfig(), p95_budget_ms: 5 },
+    });
+    expect(results.find((r) => r.id === 'latency/summary')?.status).toBe('fail');
+  });
 });
