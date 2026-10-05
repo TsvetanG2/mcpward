@@ -8,7 +8,7 @@
 
 Treat an MCP server like any other external dependency: snapshot its contract, then fail the build when it changes underneath you. Black-box, so it works against servers you didn't write. **Runs entirely on your machine — no account, no API calls, no telemetry.**
 
-Catches schema drift, silently changed tool descriptions, protocol violations, error-contract mistakes, and tool-poisoning patterns. Reports to console, JSON, JUnit, or SARIF.
+Catches schema drift, silently changed tool descriptions, protocol violations, error-contract mistakes, and tool-poisoning patterns. Reports to console, JSON, JUnit, SARIF or Markdown, and can post the result as a pull-request comment.
 
 <!-- TODO: add docs/demo.gif — baseline → diff showing rug-pull, breaking schema change, readOnlyHint flip -->
 
@@ -67,10 +67,13 @@ The server ships an update. In CI:
 $ mcpward diff
 
 DRIFT (5 failed)
+  ✗ Drift detected: 4 failing change(s) out of 6 total
+  ✗ Tool "removed_tool" was removed
   ✗ Tool "echo" description changed (possible rug-pull)
+    description diff:
+      [-Original-]{+Modified+} description: [-echoes-]{+now+} [-back-]{+it+} {+also logs +}the [-message.-]{+message internally.+}
   ✗ Tool "compute" inputSchema added required property "multiplier"
   ✗ Tool "read_data" readOnlyHint changed from true to false (tool may now mutate state)
-  ✗ Tool "removed_tool" was removed
 
 Summary: 2 passed | 5 failed
 
@@ -155,6 +158,10 @@ SECURITY (9 failed)
   ✗ Tool "delete_files" has readOnlyHint=true but name implies mutation
 ```
 
+**Description collisions** are caught on first contact, with no baseline. Two tools with near-identical descriptions but different payloads — one takes a nested `filter` object, the other a flat `status` string — make an agent pick confidently and wrong, and no success/error check can see it. mcpward flags a pair only when the descriptions are near-identical **and** the input schemas diverge, so ordinary tool families like `list_users` / `list_projects` stay silent. Similarity is computed offline; no model or API calls.
+
+**Two-layer error contract** deserves a note, because nothing else checks it. MCP distinguishes protocol errors (a JSON-RPC `error` object) from tool errors (a *successful* result carrying `isError: true`). A tool that fails its job should return the second, not the first. Servers get this backwards routinely, and it changes how a client must handle the failure.
+
 ## Where mcpward fits
 
 MCP tooling splits into three jobs. Pick the one you actually have:
@@ -202,10 +209,6 @@ That last row is the practical reason to reach for mcpward on internal or client
 | Behavioral test suites | yes | no | yes |
 | Latency budgets | yes | no | no |
 | HTTP transport | yes | yes | no |
-
-**Description collisions** are caught on first contact, with no baseline. Two tools with near-identical descriptions but different payloads — one takes a nested `filter` object, the other a flat `status` string — make an agent pick confidently and wrong, and no success/error check can see it. mcpward flags a pair only when the descriptions are near-identical **and** the input schemas diverge, so ordinary tool families like `list_users` / `list_projects` stay silent. Similarity is computed offline; no model or API calls.
-
-**Two-layer error contract** deserves a note, because nothing else checks it. MCP distinguishes protocol errors (a JSON-RPC `error` object) from tool errors (a *successful* result carrying `isError: true`). A tool that fails its job should return the second, not the first. Servers get this backwards routinely, and it changes how a client must handle the failure.
 
 ## Features
 
@@ -290,6 +293,8 @@ server:
     Authorization: "Bearer ${MCP_TOKEN}"
 ```
 
+A stdio server inherits mcpward's environment — except mcpward's own credentials (`MCPWARD_GITHUB_TOKEN`, `GITHUB_TOKEN`), which are always withheld — plus anything in `server.env`. When testing a server you do not trust, keep unrelated secrets out of that job's environment; see [`SECURITY.md`](SECURITY.md#environment-of-a-stdio-server).
+
 ### Behavioral Test Expectations
 
 | Option | Type | Description |
@@ -311,6 +316,7 @@ server:
 | `compliance/server-info` | Server name and version present |
 | `compliance/capabilities` | Server declares capabilities |
 | `compliance/ping` | Server responds to ping |
+| `compliance/expected-protocol-version` | Negotiated version matches `expect.protocol_version` (when set) |
 
 ### Schema
 
@@ -350,6 +356,7 @@ See [How changes are classified](#how-changes-are-classified) for the full class
 | `behavioral/jsonpath` | Assert values at JSONPath locations |
 | `behavioral/output-schema` | Validate output against schema |
 | `behavioral/protocol-error` | Assert protocol error codes |
+| `behavioral/golden` | Output matches its golden snapshot (`--update-golden` to refresh) |
 
 ### Latency
 
@@ -372,17 +379,17 @@ See [How changes are classified](#how-changes-are-classified) for the full class
   run: npx mcpward run --reporter junit --out results.xml
 
 - name: Upload test results
-  uses: actions/upload-artifact@v4
+  uses: actions/upload-artifact@v7
   with:
     name: mcpward-results
     path: results.xml
 
-# SARIF output for GitHub Security tab
+# SARIF output for GitHub Security tab (the job needs `permissions: security-events: write`)
 - name: Run with SARIF output
   run: npx mcpward run --reporter sarif --out results.sarif
 
 - name: Upload SARIF to GitHub Security
-  uses: github/codeql-action/upload-sarif@v3
+  uses: github/codeql-action/upload-sarif@v4
   with:
     sarif_file: results.sarif
 ```
@@ -390,16 +397,16 @@ See [How changes are classified](#how-changes-are-classified) for the full class
 Findings appear in the repository's **Security → Code scanning** tab, with rule descriptions and remediation guidance from [`docs/rules.md`](docs/rules.md).
 
 ```yaml
-# Using the mcpward action — pin a release tag
+# Using the mcpward action
 - name: Run mcpward
-  uses: TsvetanG2/mcpward@v0.9.0
+  uses: TsvetanG2/mcpward@v1
   with:
     config: mcpward.yaml
     reporter: junit
     output: results.xml
 ```
 
-Pin the action to a release tag. From 1.0.0 a moving major tag (`@v1`) tracks the latest compatible release. The action's `version` input defaults to the release it belongs to, so the action and the CLI it runs always match. The older path `TsvetanG2/mcpward/action@…` keeps working.
+`@v1` always points to the latest 1.x release, which never breaks the public contract ([`docs/stability.md`](docs/stability.md)). Pin an exact tag (`@v1.0.0`) to control upgrades yourself. The action's `version` input defaults to the release it belongs to, so the action and the CLI it runs always match. The older path `TsvetanG2/mcpward/action@…` keeps working.
 
 ### PR comment
 
@@ -414,8 +421,8 @@ jobs:
   mcpward:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: TsvetanG2/mcpward@v0.9.0
+      - uses: actions/checkout@v7
+      - uses: TsvetanG2/mcpward@v1
         with:
           config: mcpward.yaml
           pr-comment: true
@@ -451,8 +458,15 @@ The JSON report, the config file and the baseline lockfile each have a published
 
 - **Registry-published tool-surface hashes** — verify a server against a hash published by its registry, once registries publish them ([#21](https://github.com/TsvetanG2/mcpward/issues/21))
 - **Opt-in semantic scorer for the collision lint** — a local embedding model or bring-your-own endpoint behind the existing scorer interface; the offline lexical scorer stays the default
-- **Constraint-level schema analysis** — detect narrowed `maxItems`, removed `enum` values, and other JSON Schema constraint changes (currently property-level only)
+- **Resources and prompts** — the contract checks cover tools today; extend snapshots and drift to `resources/list` and `prompts/list`
 - **Supply chain / server identity** — the contract pins tool names and schemas, not the implementation; capturing binary or container digest alongside the contract is a future direction
+
+## Articles
+
+- [Pin your MCP server contracts the way you pin your dependencies](https://dev.to/tsvetang2/pin-your-mcp-server-contracts-the-way-you-pin-your-dependencies-43j8) — dev.to
+- [MCP servers are becoming infrastructure](https://mcpward.hashnode.dev/mcp-servers-are-becoming-infrastructure-how-do-we-know-that-the-contract-an-ai-agent-trusts-today-is-the-same-contract-it-will-receive-tomorrow) — Hashnode
+- [MCP servers are becoming infrastructure](https://medium.com/@t.gerginov/mcp-servers-are-becoming-infrastructure-c64ed86241fb) — Medium
+- [I kept worrying about MCP servers silently changing…](https://www.reddit.com/r/mcp/comments/1v7kbyx/i_kept_worrying_about_mcp_servers_silently/) — discussion on r/mcp
 
 ## Development
 
@@ -461,7 +475,12 @@ pnpm install
 pnpm run build
 pnpm run test
 pnpm run lint
+pnpm run typecheck      # src and tests
+pnpm run format:check   # Prettier (code only)
+pnpm run schemas        # regenerate schemas/config.v1.schema.json after changing the config
 ```
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the testing rules (every check needs a fixture that makes it fail).
 
 ## License
 

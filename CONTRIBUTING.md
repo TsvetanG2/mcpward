@@ -6,8 +6,9 @@ Thanks for considering a contribution. This document covers the rules that are s
 
 Before contributing, please read:
 
-- **[CLAUDE.md](CLAUDE.md)** — Project guidelines and guardrails for development (especially helpful if using AI assistance)
-- **[docs/SPEC.md](docs/SPEC.md)** — Full MVP specification with check families, drift classification, and architecture details
+- **[docs/rules.md](docs/rules.md)** — every check, rule id and drift class, and what each finding means
+- **[docs/stability.md](docs/stability.md)** — the public contract (exit codes, report/config/lockfile formats, rule ids) and what counts as a breaking change
+- **[SECURITY.md](SECURITY.md)** — threat model: the server under test is untrusted
 
 ## Prime directive
 
@@ -24,7 +25,8 @@ pnpm install
 pnpm run build
 pnpm run test
 pnpm run lint
-pnpm run typecheck
+pnpm run typecheck      # src and tests
+pnpm run format:check   # Prettier; `pnpm run format` to fix
 ```
 
 Requires **Node ≥ 22** and **pnpm**.
@@ -44,8 +46,17 @@ We do not validate checks against real third-party servers, because we do not co
 | `error-contract-server` | For testing two-layer error contract validation |
 | `hanging-server` | Never responds to tool calls (timeout testing) |
 | `drift/v1` → `drift/v2` | Exactly one change per classification class |
+| `drift/schema-v1` → `schema-v2` | One schema change per tool: enums, bounds, patterns, nested properties, array items, parameter descriptions |
+| `drift/output-v1` → `output-v2` | Output shape changes with identical input schemas; a destructive tool that must never be called |
+| `canonical/*` | Byte-different but logically identical surfaces (no drift), a real rewording, a zero-width-only change |
 | `slow-server` | Deliberately over the latency budget |
 | `poisoned-server` | Injection text, hidden unicode, secret-soliciting schema |
+| `smuggling-server` | Unicode Tag smuggling, fake flag sequences, hidden unicode in nested parameter descriptions; a real flag that must stay silent |
+| `paginated-server` | A poisoned tool hidden on page 2 of `tools/list` |
+| `collision-server` | One description collision and tool families that must stay silent |
+| `env-echo-server` | Reports which environment variables it received (credential isolation) |
+
+`fixtures/http-host.ts` serves any fixture over Streamable HTTP, so stdio and HTTP results can be compared.
 
 ### 2. Write the fixture before the check
 
@@ -65,7 +76,10 @@ The drift classifier, schema wrappers, JSONPath assertions, config parser, and e
 
 ### 6. Report shapes are a public contract
 
-The JSON, JUnit, and SARIF output shapes and the exit codes (`0`/`1`/`2`) are consumed by other people's CI. They are golden-snapshotted. Changing them is a deliberate, documented, semver-relevant decision — never an accident.
+The JSON, JUnit, SARIF and Markdown output shapes and the exit codes (`0`/`1`/`2`) are consumed by other people's CI. They are golden-snapshotted, and the JSON report, config and lockfile are validated against the published schemas in `schemas/`. Changing them is a deliberate, documented, semver-relevant decision — never an accident. See [`docs/stability.md`](docs/stability.md).
+
+- Every rule id a check can emit must have a heading in `docs/rules.md` — a test fails otherwise.
+- Changing the config schema in `src/config/schema.ts`: run `pnpm run schemas` and commit the regenerated `schemas/config.v1.schema.json` — a test fails if it is stale.
 
 ## Architecture rules
 
@@ -83,6 +97,7 @@ The JSON, JUnit, and SARIF output shapes and the exit codes (`0`/`1`/`2`) are co
 3. Implement the matcher.
 4. Verify `good-server` stays clean.
 5. Ensure the finding maps to a sensible SARIF rule with a `location`.
+6. Document a new rule id in `docs/rules.md`.
 
 ## Integration baselines
 
@@ -113,7 +128,7 @@ Never regenerate baselines blindly to make CI green. That defeats the entire pur
 
 - Use [Conventional Commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `docs:`, `test:`, `chore:`, `refactor:`. Breaking changes get `!` or a `BREAKING CHANGE:` footer.
 - One logical change per PR.
-- CI (lint, typecheck, unit + fixture + negative + golden tests, Node 22/24 × Linux/macOS) must be green before merge.
+- CI (lint, format, typecheck, unit + fixture + negative + golden tests, Node 22/24 × Linux/macOS, GitHub Action end-to-end) must be green before merge.
 - Do not commit red or broken states.
 - Update `README.md` when you change user-facing behavior, and `CHANGELOG.md` under `Unreleased`.
 
