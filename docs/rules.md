@@ -367,7 +367,7 @@ Review the new tool carefully. If legitimate, update the baseline.
 
 A tool's description has changed since the baseline. The model reads descriptions to decide what to call and how, so a silent description change is the classic **rug-pull** vector: behavior is steered after trust is established.
 
-This also fires for a changed **parameter** description anywhere in the input schema — the model reads those too.
+This also fires when a **parameter** description anywhere in the input schema is changed, added where there was none, or removed — the model reads those too. Formatting-only edits (whitespace, line endings, Unicode normalization) are not drift.
 
 **What it checks:**
 - SHA-256 of the canonicalized description (formatting-only changes such as line endings, NFC/NFD, or whitespace do not count; injected zero-width or bidi characters do)

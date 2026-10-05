@@ -55,6 +55,14 @@ export function canonicalizeDescription(text: string | undefined): string {
 }
 
 /**
+ * Sets an own, enumerable property. Plain `obj[key] = v` invokes the `__proto__` setter for
+ * that key instead of creating a field — server-controlled keys must stay ordinary data.
+ */
+function setOwn(obj: Record<string, unknown>, key: string, value: unknown): void {
+  Object.defineProperty(obj, key, { value, enumerable: true, writable: true, configurable: true });
+}
+
+/**
  * Canonicalizes a JSON Schema for drift detection.
  *
  * Normalizations applied:
@@ -124,9 +132,9 @@ export function canonicalizeSchema(
 
       // Special case: sort the `required` array since it's a set
       if (key === 'required' && Array.isArray(val)) {
-        result[key] = [...val].sort();
+        setOwn(result, key, [...val].sort());
       } else {
-        result[key] = canonicalizeValue(val, depth + 1);
+        setOwn(result, key, canonicalizeValue(val, depth + 1));
       }
     }
 
@@ -162,7 +170,7 @@ export function canonicalJson(value: unknown): string {
     for (const key of sortedKeys) {
       const value = obj[key];
       if (value !== undefined) {
-        result[key] = canonicalize(value);
+        setOwn(result, key, canonicalize(value));
       }
     }
 

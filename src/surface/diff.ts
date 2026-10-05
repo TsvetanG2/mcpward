@@ -24,7 +24,7 @@ import type {
   DriftSeverity,
   JsonSchema,
 } from './types.js';
-import { canonicalizeSchema, canonicalJson } from './canonical.js';
+import { canonicalizeSchema, canonicalJson, canonicalizeDescription } from './canonical.js';
 import { diffOutputShapes } from './output-shape.js';
 
 /**
@@ -110,6 +110,11 @@ function classifyTypeChange(
     : currentType
       ? [currentType]
       : [];
+
+  // No `type` means ANY type: adding one narrows what is accepted, removing one widens it.
+  // (Treating "absent" as an empty set would call `{}` → `{type: string}` a widening.)
+  if (baseTypes.length === 0 && currTypes.length > 0) return 'narrowing';
+  if (baseTypes.length > 0 && currTypes.length === 0) return 'widening';
 
   const baseSet = new Set(baseTypes);
   const currSet = new Set(currTypes);
@@ -374,14 +379,15 @@ function diffSchemaNode(
   const subject = path === '' ? '' : `property "${path}" `;
 
   // --- description (parameter-level rug-pull vector) ---
-  if (path !== '' && typeof base.description === 'string' && typeof curr.description === 'string') {
-    if (base.description !== curr.description) {
-      emit(
-        'description_changed',
-        `${subject}description changed (possible rug-pull)`,
-        base.description,
-        curr.description
-      );
+  // Absent counts as empty: ADDING a description to a parameter that had none is the easiest
+  // rug-pull of all. Compared canonically, like tool descriptions, so formatting-only edits
+  // (CRLF, whitespace, NFC/NFD) are not drift; zero-width characters still are.
+  if (path !== '') {
+    const before = typeof base.description === 'string' ? base.description : '';
+    const after = typeof curr.description === 'string' ? curr.description : '';
+    if (canonicalizeDescription(before) !== canonicalizeDescription(after)) {
+      const what = before === '' ? 'description added' : after === '' ? 'description removed' : 'description changed';
+      emit('description_changed', `${subject}${what} (possible rug-pull)`, base.description, curr.description);
     }
   }
 
@@ -520,7 +526,14 @@ function diffSchemaNode(
   const currRequired = new Set(Array.isArray(curr.required) ? curr.required : []);
   const child = (name: string) => (path === '' ? name : `${path}.${name}`);
 
-  for (const name of new Set([...Object.keys(baseProps), ...Object.keys(currProps)])) {
+  // `required` may name properties that are not declared in `properties` — still a contract
+  const names = new Set<string>([
+    ...Object.keys(baseProps),
+    ...Object.keys(currProps),
+    ...baseRequired,
+    ...currRequired,
+  ]);
+  for (const name of names) {
     const wasPresent = Object.hasOwn(baseProps, name);
     const isPresent = Object.hasOwn(currProps, name);
     const childPath = child(name);
@@ -544,10 +557,8 @@ function diffSchemaNode(
       emit('nonbreaking_schema_change', `property "${childPath}" became optional`, { required: true }, { required: false });
     }
 
-    const baseChild = asSchema(baseProps[name]);
-    const currChild = asSchema(currProps[name]);
-    if (baseChild && currChild) {
-      diffSchemaNode(baseChild, currChild, childPath, depth + 1, emit);
+    if (wasPresent && isPresent) {
+      diffSubschema(baseProps[name], currProps[name], childPath, depth, emit);
     }
   }
 
@@ -555,26 +566,64 @@ function diffSchemaNode(
   const itemsPath = `${path}[]`;
   const baseItems = base.items;
   const currItems = curr.items;
-  if (asSchema(baseItems) && asSchema(currItems)) {
-    diffSchemaNode(baseItems as JsonSchema, currItems as JsonSchema, itemsPath, depth + 1, emit);
-  } else if (Array.isArray(baseItems) && Array.isArray(currItems)) {
-    // Tuple form: compare position by position
+  if (Array.isArray(baseItems) && Array.isArray(currItems)) {
+    // Tuple form: compare position by position. Whether a dropped/added position narrows or
+    // widens depends on additionalItems: positions beyond the tuple are free unless it is false.
     const n = Math.max(baseItems.length, currItems.length);
     for (let i = 0; i < n; i++) {
-      const b = asSchema(baseItems[i]);
-      const c = asSchema(currItems[i]);
-      if (b && c) diffSchemaNode(b, c, `${path}[${i}]`, depth + 1, emit);
-      else if (!same(b, c)) {
-        emit('breaking_schema_change', `property "${path}[${i}]" changed (tuple position ${c ? 'added' : 'removed'})`, b, c);
+      const p = `${path}[${i}]`;
+      if (i < baseItems.length && i < currItems.length) {
+        diffSubschema(baseItems[i], currItems[i], p, depth, emit);
+      } else if (i >= currItems.length) {
+        const closed = curr.additionalItems === false;
+        emit(
+          closed ? 'breaking_schema_change' : 'nonbreaking_schema_change',
+          `property "${p}" tuple position removed (${closed ? 'now forbidden by additionalItems: false' : 'now unconstrained'})`,
+          baseItems[i],
+          undefined
+        );
+      } else {
+        const wasClosed = base.additionalItems === false;
+        emit(
+          wasClosed ? 'nonbreaking_schema_change' : 'breaking_schema_change',
+          `property "${p}" tuple position added (${wasClosed ? 'previously forbidden' : 'previously unconstrained'})`,
+          undefined,
+          currItems[i]
+        );
       }
     }
+  } else if (baseItems !== undefined && currItems !== undefined && !Array.isArray(baseItems) && !Array.isArray(currItems)) {
+    diffSubschema(baseItems, currItems, itemsPath, depth, emit);
   } else if (baseItems === undefined && currItems !== undefined) {
     emit('breaking_schema_change', `property "${itemsPath}" items constraint added`, undefined, currItems);
   } else if (baseItems !== undefined && currItems === undefined) {
     emit('nonbreaking_schema_change', `property "${itemsPath}" items constraint removed`, baseItems, undefined);
   } else if (!same(baseItems, currItems)) {
-    emit('breaking_schema_change', `property "${itemsPath}" items changed (compatibility cannot be determined)`, baseItems, currItems);
+    emit('breaking_schema_change', `property "${itemsPath}" items changed between list and tuple form (compatibility cannot be determined)`, baseItems, currItems);
   }
+}
+
+/**
+ * Compares two subschemas, which may be objects OR the boolean schemas `true` (accept
+ * anything) and `false` (reject everything). Objects recurse; otherwise acceptance is ranked
+ * true > object > false, and moving down that order is breaking.
+ */
+function diffSubschema(base: unknown, curr: unknown, path: string, depth: number, emit: Emit): void {
+  const b = asSchema(base);
+  const c = asSchema(curr);
+  if (b && c) {
+    diffSchemaNode(b, c, path, depth + 1, emit);
+    return;
+  }
+  if (same(base, curr)) return;
+  const rank = (v: unknown) => (v === false ? 0 : v === true || v === undefined ? 2 : 1);
+  const label = (v: unknown) => (v === false ? 'false (rejects everything)' : v === true ? 'true (accepts anything)' : 'a schema');
+  emit(
+    rank(curr) < rank(base) ? 'breaking_schema_change' : 'nonbreaking_schema_change',
+    `property "${path}" changed from ${label(base)} to ${label(curr)}`,
+    base,
+    curr
+  );
 }
 
 /**

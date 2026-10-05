@@ -321,3 +321,12 @@ describe('canonicalJson', () => {
     expect(result).toBe('{"a":1,"b":null,"c":3}');
   });
 });
+
+describe('canonical forms keep server keys named __proto__', () => {
+  test('canonicalJson does not drop or merge a "__proto__" key', async () => {
+    const { canonicalJson } = await import('../../src/surface/canonical.js');
+    const withProto = JSON.parse('{"__proto__":{"v":1},"a":1}') as unknown;
+    expect(canonicalJson(withProto)).toBe('{"__proto__":{"v":1},"a":1}');
+    expect(canonicalJson(withProto)).not.toBe(canonicalJson({ a: 1 }));
+  });
+});
