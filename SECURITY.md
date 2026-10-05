@@ -75,7 +75,7 @@ The consequence: any secret in the environment where mcpward runs is visible to 
 
 ### Advisories in dependencies
 
-mcpward pins no transitive dependency: `npm install` / `npx` resolve the newest versions its ranges allow, so a patched release of a transitive dependency reaches users without a new mcpward release. Our own lockfile is kept free of known advisories (`pnpm audit --prod`), and Dependabot opens updates weekly.
+mcpward pins no transitive dependency: a fresh `npx mcpward` or `npm install` resolves the newest versions its ranges allow, so a patched release of a transitive dependency reaches users without a new mcpward release. A project that already has mcpward in its own lockfile keeps the locked versions until that lockfile is refreshed (`npm update`, `pnpm update`). Our own lockfile is kept free of known advisories (`pnpm audit --prod`), and Dependabot opens updates weekly.
 
 Most advisories reported against the installed tree concern the HTTP *server* stack that `@modelcontextprotocol/sdk` ships (`hono`, `express`, `qs`). mcpward is an MCP *client*: it never starts an HTTP server, so those code paths are not executed.
 
