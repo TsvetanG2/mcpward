@@ -156,7 +156,7 @@ SECURITY (9 failed)
     "Ignore all previous instructions"
   ✗ Tool "safe​tool" name contains hidden unicode: U+200B (zero-width)
   ✗ Tool "api_connector" schema solicits secrets: api_key, password
-  ✗ Tool "delete_files" has readOnlyHint=true but name implies mutation
+  ✗ Tool "delete_files" has readOnlyHint=true but name/description implies mutation
 ```
 
 **Description collisions** are caught on first contact, with no baseline. Two tools with near-identical descriptions but different payloads — one takes a nested `filter` object, the other a flat `status` string — make an agent pick confidently and wrong, and no success/error check can see it. mcpward flags a pair only when the descriptions are near-identical **and** the input schemas diverge, so ordinary tool families like `list_users` / `list_projects` stay silent. Similarity is computed offline; no model or API calls.
@@ -235,7 +235,7 @@ See [`docs/rules.md`](docs/rules.md) for every check mcpward performs and what e
 
 ## Configuration
 
-Create `mcpward.yaml`:
+Create `mcpward.yaml` (`mcpward init` writes a starter file). The example shows every option; only `server` is required:
 
 ```yaml
 server:
@@ -243,6 +243,9 @@ server:
   command: npx
   args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp/sandbox"]
   env: {}
+
+expect:
+  protocol_version: "2025-11-25"   # optional: fail if the server negotiates anything else
 
 timeouts:
   connect_ms: 10000    # Connection timeout (default: 10s)
@@ -255,7 +258,7 @@ checks:
   security: true
   drift:
     baseline: ./mcpward.lock.json
-    fail_on: high            # or medium / low, or a list of drift classes
+    fail_on: high            # or medium / low, or a list of drift classes (default: the classes marked "fails by default")
     severity: {}             # per-class overrides, e.g. { tool_removed: high }
     full_text: true          # store description text in the lockfile for diffs
     output:                  # output shape drift — opt-in, calls tools
@@ -268,7 +271,7 @@ checks:
     threshold: 0.8           # description similarity (0–1)
     max_tools: 500           # skip with a warning above this (pairwise is O(n²))
     fail: false              # true = collisions fail the run instead of warning
-  latency:
+  latency:                   # opt-in — calls every tool, see "Which checks call tools"
     samples: 5
     p95_budget_ms: 1000
 
@@ -286,6 +289,21 @@ suites:
         expect:
           tool_is_error: true
 ```
+
+Compliance, schema, security, collision and error-contract checks run by default (the first four can be turned off). Drift runs when `checks.drift` is present, latency when `checks.latency` is present, behavioral tests when `suites` is non-empty. `mcpward diff` runs only the drift check.
+
+### Which checks call tools
+
+Most checks only read `tools/list`. These actually call tools on the server:
+
+| Check | Calls | When |
+|---|---|---|
+| Error contract | A non-existent tool name, and every tool that has required parameters, with empty arguments | Every `run` |
+| Behavioral suites | Exactly the tools and arguments you list | When `suites` is set |
+| Output drift | Only `readOnlyHint: true` tools without required arguments, plus your allowlist | When `checks.drift.output.enabled` |
+| Latency | **Every tool**, `samples` times, with minimal generated arguments — destructive tools included | When `checks.latency` is set |
+
+A server that validates its inputs rejects the empty-argument calls before doing anything. Still, run `mcpward run` against a test instance or sandbox, not production — especially with `latency` enabled.
 
 ### Environment Variables
 
@@ -342,6 +360,14 @@ A stdio server inherits mcpward's environment — except mcpward's own credentia
 | `security/hidden-unicode` | Zero-width, bidirectional, or Unicode Tag (ASCII smuggling) characters in names, descriptions, or parameter descriptions |
 | `security/secret-in-schema` | Schema fields soliciting secrets |
 | `security/annotation-mismatch` | readOnlyHint on destructive tools |
+
+### Error contract
+
+| Check | Description |
+|-------|-------------|
+| `errors/unknown-tool` | Calling a non-existent tool returns a JSON-RPC protocol error |
+| `errors/invalid-params` | Calling a tool without its required parameters returns a protocol error; a call that returns a result instead (even with `isError: true`) is a warning |
+| `errors/summary` | Number of error-contract violations |
 
 ### Drift
 
@@ -411,6 +437,18 @@ Findings appear in the repository's **Security → Code scanning** tab, with rul
     reporter: junit
     output: results.xml
 ```
+
+| Input | Default | Description |
+|---|---|---|
+| `config` | `mcpward.yaml` | Path to the config file |
+| `reporter` | `console` | `console`, `json`, `junit`, `sarif` or `markdown` |
+| `output` | — | Write the report to this file |
+| `version` | the action's release | mcpward version to run |
+| `working-directory` | `.` | Directory to run in |
+| `pr-comment` | `false` | Post or update a PR comment |
+| `github-token` | `${{ github.token }}` | Token for the PR comment |
+
+Outputs: `exit-code` (`0`/`1`/`2`) and `report-path`. Any non-zero exit fails the step.
 
 `@v1` always points to the latest 1.x release, which never breaks the public contract ([`docs/stability.md`](docs/stability.md)). Pin an exact tag (`@v1.0.0`) to control upgrades yourself. The action's `version` input defaults to the release it belongs to, so the action and the CLI it runs always match. The older path `TsvetanG2/mcpward/action@…` keeps working.
 
