@@ -330,3 +330,19 @@ describe('canonical forms keep server keys named __proto__', () => {
     expect(canonicalJson(withProto)).not.toBe(canonicalJson({ a: 1 }));
   });
 });
+
+describe('edge trimming is ASCII-only (canonicalization v2)', () => {
+  test.each([
+    ['leading U+FEFF', '\uFEFFRead a file'],
+    ['trailing U+FEFF', 'Read a file\uFEFF'],
+    ['leading NBSP', '\u00A0Read a file'],
+    ['trailing U+2028', 'Read a file\u2028'],
+    ['FEFF at the edge of an inner line', 'Read a file\n\uFEFFthen stop'],
+  ])('%s is preserved, so it shows up as drift', (_label, text) => {
+    expect(canonicalizeDescription(text)).not.toBe(canonicalizeDescription(text.replace(/[\uFEFF\u00A0\u2028]/g, '')));
+  });
+
+  test('ASCII spaces, tabs and newlines at the edges are still trimmed', () => {
+    expect(canonicalizeDescription(' \t Read a file \n ')).toBe('Read a file');
+  });
+});

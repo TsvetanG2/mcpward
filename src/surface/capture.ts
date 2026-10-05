@@ -15,6 +15,7 @@ import type { Config } from '../config/schema.js';
 import {
   canonicalizeDescription,
   canonicalizeSchema,
+  CANONICAL_VERSION,
 } from './canonical.js';
 import { MCPWARD_VERSION } from '../version.js';
 import { sampleOutputShapes, type SamplingNote } from './output-shape.js';
@@ -179,7 +180,7 @@ export async function captureSurface(
     meta: {
       schemaVersion: 2,
       mcpwardVersion: MCPWARD_VERSION,
-      canonicalVersion: 1,
+      canonicalVersion: CANONICAL_VERSION,
       capturedAt: new Date().toISOString(),
       serverName: connection.serverInfo.name,
       serverVersion: connection.serverInfo.version,

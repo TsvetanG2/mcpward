@@ -11,6 +11,7 @@ import { describe, test, expect } from 'vitest';
 import { connect } from '../../src/client/connect.js';
 import { captureServerSurface, saveLockfile } from '../../src/surface/capture.js';
 import { diffSurfaces } from '../../src/surface/diff.js';
+import { CANONICAL_VERSION } from '../../src/surface/canonical.js';
 import { runSecurityChecks } from '../../src/checks/security.js';
 import type { Config } from '../../src/config/schema.js';
 import { testConfig } from '../helpers/config.js';
@@ -136,7 +137,7 @@ describe('Canonicalization integration', () => {
     await connection.close();
 
     // Verify canonicalVersion is set
-    expect(surface.meta.canonicalVersion).toBe(1);
+    expect(surface.meta.canonicalVersion).toBe(CANONICAL_VERSION);
   }, 30000);
 
   test('lockfile can be saved and loaded with canonicalVersion', async () => {
@@ -158,7 +159,7 @@ describe('Canonicalization integration', () => {
       const loaded = await loadLockfile(lockfilePath);
 
       // Verify canonicalVersion persisted
-      expect(loaded.meta.canonicalVersion).toBe(1);
+      expect(loaded.meta.canonicalVersion).toBe(CANONICAL_VERSION);
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
     }
