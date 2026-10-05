@@ -10,7 +10,7 @@ Treat an MCP server like any other external dependency: snapshot its contract, t
 
 Catches schema drift, silently changed tool descriptions, protocol violations, error-contract mistakes, and tool-poisoning patterns. Reports to console, JSON, JUnit, SARIF or Markdown, and can post the result as a pull-request comment.
 
-<!-- TODO: add docs/demo.gif — baseline → diff showing rug-pull, breaking schema change, readOnlyHint flip -->
+![mcpward catching a rug-pull, a readOnlyHint flip and a breaking schema change](docs/demo.gif)
 
 ## Requirements
 
