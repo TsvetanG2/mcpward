@@ -8,6 +8,33 @@ Until `1.0.0`, minor versions may contain breaking changes to the config format.
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-10-05
+
+This release implements **M7 — freeze the contract**. Everything a pipeline depends on is now written down, versioned, and validated against real output. See [`docs/stability.md`](docs/stability.md).
+
+### Added
+
+- **`schemaVersion` in the JSON report** (`1`). It changes only on a breaking change to the report shape; additive changes (new optional fields, rule ids, check families) do not bump it.
+- **Published JSON Schemas**, shipped in the npm package under `schemas/`:
+  - `schemas/report.v1.schema.json` — the JSON report
+  - `schemas/config.v1.schema.json` — `mcpward.yaml`, **generated from the config parser** so it cannot drift (`pnpm run schemas`; a test fails if the committed file is stale)
+  - `schemas/lockfile.v2.schema.json` — the baseline lockfile, including inferred output shapes
+  Tests validate real `run` reports and real baselines against them, and assert they reject malformed input (a missing `schemaVersion`, an unknown status, a malformed hash, a credential-shaped fingerprint).
+- **`docs/stability.md`** — what is public contract (exit codes, CLI, config, report, lockfile, rule ids, drift classes, SARIF/JUnit structure, Action inputs/outputs), what is not (human-readable text, result order, which findings a server produces), what counts as breaking, and the deprecation policy.
+- `mcpward init` and `examples/mcpward.yaml` include a `yaml-language-server` schema comment, so editors validate and autocomplete the config.
+
+### Changed
+
+- **Report contract:** the JSON report has a new top-level `schemaVersion` field.
+
+### Fixed
+
+- **SARIF alerts pointed at `mcpward.yaml` regardless of `--config`.** `artifactLocation.uri` is now the repo-relative path of the config file actually used, so code-scanning alerts open the right file.
+
+### Removed
+
+- Legacy hyphenated SARIF rule-description keys (`drift/tool-added`, `drift/tool-removed`) that no emitted rule id used.
+
 ## [0.7.2] — 2026-10-05
 
 Fixes from review of 0.7.1.
