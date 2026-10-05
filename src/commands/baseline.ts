@@ -3,6 +3,8 @@ import type { Config } from '../config/schema.js';
 import { connect } from '../client/connect.js';
 import { captureSurface, saveLockfile } from '../surface/index.js';
 import { redactString } from '../report/redact.js';
+import { withRunDeadline } from './output.js';
+import { DEFAULT_RUN_MS } from './run.js';
 
 export interface BaselineOptions {
   config: string;
@@ -31,7 +33,13 @@ export async function baselineCommand(
     console.log(pc.green('✓') + ` Connected to ${connection.serverInfo.name} v${connection.serverInfo.version}`);
 
     // Capture surface
-    const { surface, notes } = await captureSurface(connection, config);
+    // Output sampling calls tools, so the whole-run deadline applies here too
+    const conn = connection;
+    const { surface, notes } = await withRunDeadline(
+      captureSurface(conn, config),
+      config.timeouts?.run_ms ?? DEFAULT_RUN_MS,
+      () => conn.close()
+    );
     const toolCount = Object.keys(surface.tools).length;
     console.log(pc.green('✓') + ` Captured ${toolCount} tool(s)`);
     if (config.checks?.drift?.output?.enabled) {
