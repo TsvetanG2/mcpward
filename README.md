@@ -5,6 +5,7 @@
 [![npm downloads](https://img.shields.io/npm/dm/mcpward)](https://www.npmjs.com/package/mcpward)
 [![node version](https://img.shields.io/node/v/mcpward)](https://www.npmjs.com/package/mcpward)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Featured on VibeLeaderboard](https://img.shields.io/endpoint?url=https%3A%2F%2Fwww.vibeleaderboard.ai%2Fapi%2Fv1%2Fapps%2F5af89df6-6c01-4715-a462-67ef41513c5a%2Fbadge)](https://www.vibeleaderboard.ai/app/5af89df6-6c01-4715-a462-67ef41513c5a)
 
 Treat an MCP server like any other external dependency: snapshot its contract, then fail the build when it changes underneath you. Black-box, so it works against servers you didn't write. **Runs entirely on your machine — no account, no API calls, no telemetry.**
 
