@@ -54,6 +54,13 @@ checks:
           args:
             path: /tmp/sandbox/hello.txt
 
+  # Description collision lint (no baseline needed)
+  collision:
+    enabled: true
+    threshold: 0.8
+    max_tools: 500
+    fail: false
+
   # Latency budgets
   latency:
     samples: 5

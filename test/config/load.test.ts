@@ -318,6 +318,7 @@ describe('shipped configs stay valid', () => {
   it('examples/mcpward.yaml parses against the current schema', async () => {
     const config = await loadConfig(join(process.cwd(), 'examples', 'mcpward.yaml'));
     expect(config.checks?.drift?.output?.enabled).toBe(true);
+    expect(config.checks?.collision?.threshold).toBe(0.8);
   });
 });
 

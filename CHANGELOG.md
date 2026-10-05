@@ -8,6 +8,26 @@ Until `1.0.0`, minor versions may contain breaking changes to the config format.
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-10-05
+
+This release implements **M4 (description collision lint)** — the check no other contract-diff tool performs.
+
+### Added
+
+- **Description collision lint (M4, #22 + #23)** — new `collision` check family, on by default, needs no baseline. Flags tool pairs whose descriptions are near-identical (offline character-trigram Dice, default threshold 0.8) **and** whose input schemas diverge (required-parameter *types* or nesting depth differ). Tool families such as `list_users` / `list_projects` and `get_user(user_id)` / `get_project(project_id)` stay silent by design. Warns by default; `checks.collision.fail: true` fails the run. Skips with a warning above `max_tools` (default 500). The scorer sits behind an interface so an opt-in semantic scorer can be added later without network calls becoming the default.
+- Config: `checks.collision` (`enabled`, `threshold`, `max_tools`, `fail`).
+
+### Changed
+
+- **Report contract:** new family `collision` and rule ids `collision/description-collision`, `collision/summary`, `collision/list-tools`. Findings are `warn` unless `checks.collision.fail: true`, so exit codes are unchanged for existing configs.
+- `mcpward init` scaffolds the collision lint.
+- The GitHub Action's default `version` is now `0.5.0`.
+
+### Internal
+
+- New fixture `collision-server`: one true collision and three negatives. A test asserts the negative family pairs score *above* the threshold, so the schema gate — not the scorer — is what keeps them silent.
+- No collision findings on the pinned reference servers (`server-filesystem`, `server-memory`, `server-everything`).
+
 ## [0.4.0] — 2026-10-05
 
 This release implements **M3 (output shape drift)**, completes M2, adds **stdio ↔ HTTP parity** (the last v1 Definition-of-Done item), and fixes two false negatives in the security checks.
