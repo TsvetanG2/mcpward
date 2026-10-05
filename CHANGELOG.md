@@ -8,6 +8,55 @@ Until `1.0.0`, minor versions may contain breaking changes to the config format.
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-10-05
+
+This release implements **M3 (output shape drift)**, completes M2, adds **stdio ↔ HTTP parity** (the last v1 Definition-of-Done item), and fixes two false negatives in the security checks.
+
+### Security
+
+- **Paginated `tools/list` is now read in full.** Every check previously read only the first page, so a server could hide a poisoned tool on page 2 and get a clean report. All checks now follow `nextCursor` (with loop and page-count guards). Fixture: `paginated-server`.
+- **Unicode Tag characters ("ASCII smuggling") are detected.** U+E0000–U+E007F are invisible and map 1:1 onto ASCII; they were not flagged at all. `security/hidden-unicode` now flags them and decodes the hidden text into the finding. Well-formed emoji tag sequences (subdivision flags) are not flagged. Fixture: `smuggling-server`.
+- **Hidden unicode in parameter descriptions** is now flagged (previously only injection phrasing was checked there).
+- **`mcpward diff` now redacts secrets** before output. The `--json` path printed results without passing through `redactReport`.
+- **Server URLs are redacted** in `baseline`/`diff` console headers.
+- **HTTP server URLs must be `http(s)`** (`file:`, `javascript:` etc. are rejected at config load).
+
+### Added
+
+- **Output shape drift (M3, #20)** — opt-in `checks.drift.output`. Infers each tool's output shape from real calls (`structuredContent`, JSON text, or content-block kinds), merged across `shape_samples` calls, and diffs structure only — never values.
+  - New drift classes `breaking_output_shape_change` (medium) and `nonbreaking_output_shape_change` (low). Consumer-side semantics: a removed or newly-optional field, or a newly-appearing type, is breaking.
+  - **Side-effect rule:** only tools annotated `readOnlyHint: true` (and not `destructiveHint: true`) that take no required arguments are called automatically; anything else must be allowlisted in `checks.drift.output.tools` with `args`. Every refused/skipped/failed tool is reported as `drift/output-sampling`.
+  - Sample counts are recorded in every finding. Depth/width limits protect against hostile output.
+  - Lockfile: optional `outputShape` per tool (additive; no `schemaVersion` bump).
+- **Per-class severity overrides (M2)** — `checks.drift.severity: { tool_removed: high }`.
+- **Word-level description diff (M2)** — the console shows `[-removed-]{+added+}` instead of only before/after. Long or hostile-size text falls back to before/after.
+- **stdio ↔ Streamable HTTP parity** — tested: the same fixture over both transports produces identical normalized results for compliance, schema, security, error-contract and drift checks. `fixtures/http-host.ts` serves any fixture over HTTP.
+- `docs/rules.md` documents every emitted rule id; a test harvests ids from the source and fails if one is undocumented.
+
+### Changed
+
+- **Report contract:** new rule ids `drift/breaking_output_shape_change`, `drift/nonbreaking_output_shape_change`, `drift/output-sampling`.
+- **Report contract:** `server.protocolVersion` is now the version the server actually negotiated (it previously always reported the SDK's latest version).
+- **Report contract:** the error-contract probe calls a fixed tool name `__mcpward_unknown_tool__` (previously suffixed with a timestamp), so reports are deterministic.
+- **Report contract:** SARIF rules for `drift/tool_added`, `drift/tool_removed` and `drift/annotation_changed` now carry their real descriptions; `docs/rules.md` headings use the real (underscore) ids, so SARIF `helpUri` links for drift rules resolve.
+- The default `fail_on` list includes `breaking_output_shape_change` (only produced when output drift is enabled).
+- `mcpward init` scaffolds `fail_on: high` and links to the correct repository.
+- The GitHub Action's default `version` is now `0.4.0` (was `0.1.0`).
+- Upgraded `zod` 3 → 4 and `eslint` 10.
+- GitHub Actions: third-party actions pinned to commit SHAs.
+
+### Fixed
+
+- **`mcpward baseline` exited 0 on failure** — it now exits 2 on config/connection errors like the other commands.
+- **Short descriptions got no diff** — the console reporter used `length > 64` to tell text from a hash (`sha256:` + 64 hex is 71 characters), so descriptions under 64 characters fell back to plain expected/actual and hashes were rendered as text. Hashes are now matched exactly, with an explicit "full text unavailable" note.
+- Per-call timeout timers were never cleared, keeping the event loop alive for up to `call_ms` after each call.
+- `scripts/integration-baseline.mjs` crashed on re-run on Windows.
+
+### Internal
+
+- Integration baselines for `server-memory` and `server-everything` captured from real runs (were placeholders).
+- New fixtures: `paginated-server`, `smuggling-server`, `drift/output-v1` → `output-v2`, `http-host.ts`.
+
 ## [0.3.0] — 2026-08-05
 
 This release implements **M2 (Severity classification + description diffs)** from the roadmap. Adds a blast-radius-based severity axis separate from breaking/non-breaking classification, improved type change detection, and before/after description rendering with invisible character detection.
