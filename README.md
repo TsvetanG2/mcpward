@@ -219,8 +219,8 @@ That last row is the practical reason to reach for mcpward on internal or client
 - **Runs behavioral test suites** — declarative cases with JSONPath assertions against tool outputs
 - **Enforces latency budgets** — fails when p95 exceeds your threshold
 - **stdio and Streamable HTTP** — identical results over both transports, tested for parity; paginated `tools/list` is read in full
-- **Outputs JUnit, SARIF and JSON** — integrates with GitHub Actions test results and the Security tab
-- **Works fully offline** — no accounts, no API calls, nothing leaves your machine
+- **Outputs JUnit, SARIF, JSON and Markdown** — plus an opt-in PR comment that updates in place
+- **Works fully offline** — no accounts, no API calls, nothing leaves your machine (the PR comment talks only to your own GitHub API, and only when you enable it)
 
 See [`docs/rules.md`](docs/rules.md) for every check mcpward performs and what each finding means.
 
@@ -399,6 +399,30 @@ Findings appear in the repository's **Security → Code scanning** tab, with rul
     output: results.xml
 ```
 
+### PR comment
+
+Post the classified report — drift with severity, before/after description diffs, collisions — as a pull request comment. Re-runs update the same comment instead of stacking new ones; outside a pull request it does nothing.
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  mcpward:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: TsvetanG2/mcpward/action@main
+        with:
+          config: mcpward.yaml
+          pr-comment: true
+```
+
+Without the action: `GITHUB_TOKEN=${{ github.token }} npx mcpward run --pr-comment`. The comment is rendered from the same redacted report as every other reporter, and all server-supplied text is escaped so a malicious tool description cannot inject links, HTML, or @-mentions into your PR.
+
+The same Markdown works as a job summary: `npx mcpward run --reporter markdown --out "$GITHUB_STEP_SUMMARY"`.
+
 ## Exit Codes
 
 | Code | Meaning |
@@ -411,7 +435,6 @@ The distinction between `1` and `2` matters: `2` means the run never happened, w
 
 ## Roadmap
 
-- **PR comment reporting** — post classified drift as a reviewable comment next to the code diff ([#13](https://github.com/TsvetanG2/mcpward/issues/13))
 - **Registry-published tool-surface hashes** — verify a server against a hash published by its registry, once registries publish them ([#21](https://github.com/TsvetanG2/mcpward/issues/21))
 - **Opt-in semantic scorer for the collision lint** — a local embedding model or bring-your-own endpoint behind the existing scorer interface; the offline lexical scorer stays the default
 - **Constraint-level schema analysis** — detect narrowed `maxItems`, removed `enum` values, and other JSON Schema constraint changes (currently property-level only)

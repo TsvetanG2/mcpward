@@ -12,7 +12,7 @@ inputs:
     required: false
     default: 'mcpward.yaml'
   reporter:
-    description: 'Output format: console, json, junit, sarif'
+    description: 'Output format: console, json, junit, sarif, markdown'
     required: false
     default: 'console'
   output:
@@ -21,7 +21,7 @@ inputs:
   version:
     description: 'mcpward version to use (ignored if local is true)'
     required: false
-    default: '0.5.0'
+    default: '0.6.0'
   local:
     description: 'Use local build (node dist/cli.js) instead of npx. For testing in mcpward repo.'
     required: false
@@ -30,6 +30,16 @@ inputs:
     description: 'Working directory for running mcpward'
     required: false
     default: '.'
+  pr-comment:
+    description: >-
+      Post the report as a pull request comment, updated in place on re-runs.
+      Requires `permissions: pull-requests: write`. Ignored outside pull_request events.
+    required: false
+    default: 'false'
+  github-token:
+    description: 'Token used to post the PR comment (only read when pr-comment is true)'
+    required: false
+    default: ${{ github.token }}
 
 outputs:
   exit-code:
@@ -57,6 +67,8 @@ runs:
         IN_REPORTER: ${{ inputs.reporter }}
         IN_OUTPUT: ${{ inputs.output }}
         IN_LOCAL: ${{ inputs.local }}
+        IN_PR_COMMENT: ${{ inputs.pr-comment }}
+        MCPWARD_GITHUB_TOKEN: ${{ inputs.pr-comment == 'true' && inputs.github-token || '' }}
       run: |
         set -uo pipefail
 
@@ -65,6 +77,10 @@ runs:
 
         if [ "$IN_REPORTER" != "console" ]; then
           args+=(--reporter "$IN_REPORTER")
+        fi
+
+        if [ "$IN_PR_COMMENT" = "true" ]; then
+          args+=(--pr-comment)
         fi
 
         if [ -n "$IN_OUTPUT" ]; then

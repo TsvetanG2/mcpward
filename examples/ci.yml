@@ -5,6 +5,7 @@
 # 2. JUnit output for test result integration
 # 3. SARIF output for GitHub Security tab
 # 4. Using the mcpward action
+# 5. PR comment (updated in place)
 
 name: MCP Server Validation
 
@@ -99,6 +100,22 @@ jobs:
         with:
           name: mcpward-action-results
           path: results.xml
+
+  # Report as a PR comment, updated in place on every push
+  pr-comment:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run mcpward
+        uses: TsvetanG2/mcpward/action@main
+        with:
+          config: mcpward.yaml
+          pr-comment: true
 
   # Drift detection workflow
   drift:

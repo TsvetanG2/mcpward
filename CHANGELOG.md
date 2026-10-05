@@ -8,6 +8,21 @@ Until `1.0.0`, minor versions may contain breaking changes to the config format.
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-10-05
+
+This release implements **M5 (PR comment)** and completes the roadmap.
+
+### Added
+
+- **PR comment (M5, #13)** — `mcpward run --pr-comment` posts the report as a pull request comment and updates the same comment on re-runs (hidden `<!-- mcpward-report -->` marker). Outside a PR it prints why and does nothing; posting failures warn on stderr and never change the exit code or stdout. Token: `MCPWARD_GITHUB_TOKEN` or `GITHUB_TOKEN` (needs `pull-requests: write`); it is registered as a secret so it never appears in output.
+- **Markdown reporter** — `--reporter markdown`. Renders the same redacted model as every reporter, with word-level description diffs and invisible characters marked. Server-supplied text is escaped so it cannot inject HTML, links, or @-mentions. Also usable as a job summary: `--reporter markdown --out "$GITHUB_STEP_SUMMARY"`.
+- **GitHub Action:** new inputs `pr-comment` (default `false`) and `github-token` (default `${{ github.token }}`); `reporter` accepts `markdown`.
+
+### Changed
+
+- **Report contract:** new reporter output format (Markdown), locked by a golden snapshot. Existing JSON/JUnit/SARIF shapes are unchanged.
+- The GitHub Action's default `version` is now `0.6.0`.
+
 ## [0.5.0] — 2026-10-05
 
 This release implements **M4 (description collision lint)** — the check no other contract-diff tool performs.
