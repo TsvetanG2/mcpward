@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { writeFile, rm, mkdir } from 'node:fs/promises';
+import { writeFile, rm, mkdtemp } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { loadConfig } from '../../src/config/load.js';
@@ -8,8 +8,7 @@ describe('loadConfig', () => {
   let testDir: string;
 
   beforeEach(async () => {
-    testDir = join(tmpdir(), `mcpward-test-${Date.now()}`);
-    await mkdir(testDir, { recursive: true });
+    testDir = await mkdtemp(join(tmpdir(), 'mcpward-test-'));
   });
 
   afterEach(async () => {
@@ -238,8 +237,7 @@ suites:
 
 describe('loadConfig — zod 4 validation', () => {
   it('rejects non-http(s) server URLs', async () => {
-    const dir = join(tmpdir(), `mcpward-url-${Date.now()}`);
-    await mkdir(dir, { recursive: true });
+    const dir = await mkdtemp(join(tmpdir(), 'mcpward-url-'));
     try {
       const p = join(dir, 'mcpward.yaml');
       await writeFile(p, 'server:\n  transport: http\n  url: file:///etc/passwd\n');
@@ -253,8 +251,7 @@ describe('loadConfig — zod 4 validation', () => {
 describe('loadConfig — drift severity overrides', () => {
   const SERVER = 'server:\n  transport: stdio\n  command: node\n';
   const load = async (yaml: string) => {
-    const dir = join(tmpdir(), `mcpward-sev-${Date.now()}-${Math.random()}`);
-    await mkdir(dir, { recursive: true });
+    const dir = await mkdtemp(join(tmpdir(), 'mcpward-sev-'));
     try {
       const p = join(dir, 'mcpward.yaml');
       await writeFile(p, yaml);
@@ -286,8 +283,7 @@ describe('loadConfig — drift severity overrides', () => {
 describe('loadConfig — output shape drift (M3)', () => {
   const SERVER = 'server:\n  transport: stdio\n  command: node\n';
   const load = async (yaml: string) => {
-    const dir = join(tmpdir(), `mcpward-out-${Date.now()}-${Math.random()}`);
-    await mkdir(dir, { recursive: true });
+    const dir = await mkdtemp(join(tmpdir(), 'mcpward-out-'));
     try {
       const p = join(dir, 'mcpward.yaml');
       await writeFile(p, yaml);
@@ -324,8 +320,7 @@ describe('shipped configs stay valid', () => {
 
 describe('loadConfig — collision lint (M4)', () => {
   it('applies collision defaults', async () => {
-    const dir = join(tmpdir(), `mcpward-col-${Date.now()}`);
-    await mkdir(dir, { recursive: true });
+    const dir = await mkdtemp(join(tmpdir(), 'mcpward-col-'));
     try {
       const p = join(dir, 'mcpward.yaml');
       await writeFile(p, 'server:\n  transport: stdio\n  command: node\nchecks:\n  collision: {}\n');
