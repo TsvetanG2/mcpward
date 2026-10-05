@@ -35,9 +35,9 @@ describe('Timeout Handling', () => {
     const connection = await connect(HANGING_SERVER_CONFIG);
 
     try {
-      await expect(
-        connection.callTool({ name: 'hang_forever', arguments: {} })
-      ).rejects.toThrow(/Timeout.*tool call.*hang_forever.*2000ms/);
+      await expect(connection.callTool({ name: 'hang_forever', arguments: {} })).rejects.toThrow(
+        /Timeout.*tool call.*hang_forever.*2000ms/
+      );
     } finally {
       await connection.close();
     }

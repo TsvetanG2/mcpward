@@ -100,16 +100,8 @@ function classifyTypeChange(
   currentType: string | string[] | undefined
 ): 'widening' | 'narrowing' | 'unrelated' {
   // Normalize to arrays for union type handling
-  const baseTypes = Array.isArray(baselineType)
-    ? baselineType
-    : baselineType
-      ? [baselineType]
-      : [];
-  const currTypes = Array.isArray(currentType)
-    ? currentType
-    : currentType
-      ? [currentType]
-      : [];
+  const baseTypes = Array.isArray(baselineType) ? baselineType : baselineType ? [baselineType] : [];
+  const currTypes = Array.isArray(currentType) ? currentType : currentType ? [currentType] : [];
 
   // No `type` means ANY type: adding one narrows what is accepted, removing one widens it.
   // (Treating "absent" as an empty set would call `{}` → `{type: string}` a widening.)
@@ -146,10 +138,7 @@ function classifyTypeChange(
  * Compares baseline and current surfaces, returning classified changes.
  * This is a pure function for easy testing.
  */
-export function diffSurfaces(
-  baseline: ServerSurface,
-  current: ServerSurface
-): DriftResult {
+export function diffSurfaces(baseline: ServerSurface, current: ServerSurface): DriftResult {
   const changes: DriftChange[] = [];
 
   // Check for canonicalization version mismatch
@@ -220,11 +209,7 @@ export function diffSurfaces(
 /**
  * Compares two tool surfaces and returns changes.
  */
-function diffTool(
-  toolName: string,
-  baseline: ToolSurface,
-  current: ToolSurface
-): DriftChange[] {
+function diffTool(toolName: string, baseline: ToolSurface, current: ToolSurface): DriftChange[] {
   const changes: DriftChange[] = [];
 
   // Check description hash (rug-pull detection)
@@ -270,11 +255,7 @@ function diffTool(
   }
 
   // Check annotation changes
-  const annotationChanges = diffAnnotations(
-    toolName,
-    baseline.annotations,
-    current.annotations
-  );
+  const annotationChanges = diffAnnotations(toolName, baseline.annotations, current.annotations);
   changes.push(...annotationChanges);
 
   return changes;
@@ -348,8 +329,20 @@ type Emit = (driftClass: DriftClass, message: string, previous: unknown, current
 /** Nesting limit for the recursive walk (canonicalizeSchema already bounds input depth). */
 const MAX_DIFF_DEPTH = 64;
 
-const MIN_BOUNDS = ['minimum', 'exclusiveMinimum', 'minLength', 'minItems', 'minProperties'] as const;
-const MAX_BOUNDS = ['maximum', 'exclusiveMaximum', 'maxLength', 'maxItems', 'maxProperties'] as const;
+const MIN_BOUNDS = [
+  'minimum',
+  'exclusiveMinimum',
+  'minLength',
+  'minItems',
+  'minProperties',
+] as const;
+const MAX_BOUNDS = [
+  'maximum',
+  'exclusiveMaximum',
+  'maxLength',
+  'maxItems',
+  'maxProperties',
+] as const;
 /** Constraints where any addition or change narrows what is accepted, removal widens it. */
 const OPAQUE_CONSTRAINTS = ['pattern', 'format', 'const', 'multipleOf'] as const;
 const COMBINATORS = ['anyOf', 'oneOf', 'allOf'] as const;
@@ -415,13 +408,28 @@ function diffSchemaNode(
     const removed = baseEnum.filter((v) => !currKeys.has(canonicalJson(v)));
     const added = currEnum.filter((v) => !baseKeys.has(canonicalJson(v)));
     if (removed.length > 0) {
-      emit('breaking_schema_change', `${subject}enum tightened: removed ${JSON.stringify(removed)}`, baseEnum, currEnum);
+      emit(
+        'breaking_schema_change',
+        `${subject}enum tightened: removed ${JSON.stringify(removed)}`,
+        baseEnum,
+        currEnum
+      );
     }
     if (added.length > 0) {
-      emit('nonbreaking_schema_change', `${subject}enum loosened: added ${JSON.stringify(added)}`, baseEnum, currEnum);
+      emit(
+        'nonbreaking_schema_change',
+        `${subject}enum loosened: added ${JSON.stringify(added)}`,
+        baseEnum,
+        currEnum
+      );
     }
   } else if (!baseEnum && currEnum) {
-    emit('breaking_schema_change', `${subject}enum constraint added ${JSON.stringify(currEnum)}`, undefined, currEnum);
+    emit(
+      'breaking_schema_change',
+      `${subject}enum constraint added ${JSON.stringify(currEnum)}`,
+      undefined,
+      currEnum
+    );
   } else if (baseEnum && !currEnum) {
     emit('nonbreaking_schema_change', `${subject}enum constraint removed`, baseEnum, undefined);
   }
@@ -434,7 +442,12 @@ function diffSchemaNode(
     if (b === undefined) {
       emit('breaking_schema_change', `${subject}${key} added (${JSON.stringify(c)})`, undefined, c);
     } else if (c === undefined) {
-      emit('nonbreaking_schema_change', `${subject}${key} removed (was ${JSON.stringify(b)})`, b, undefined);
+      emit(
+        'nonbreaking_schema_change',
+        `${subject}${key} removed (was ${JSON.stringify(b)})`,
+        b,
+        undefined
+      );
     } else if (typeof b === 'number' && typeof c === 'number') {
       const tightened = tightenWhenHigher ? c > b : c < b;
       emit(
@@ -444,7 +457,12 @@ function diffSchemaNode(
         c
       );
     } else {
-      emit('breaking_schema_change', `${subject}${key} changed from ${JSON.stringify(b)} to ${JSON.stringify(c)} (compatibility cannot be determined)`, b, c);
+      emit(
+        'breaking_schema_change',
+        `${subject}${key} changed from ${JSON.stringify(b)} to ${JSON.stringify(c)} (compatibility cannot be determined)`,
+        b,
+        c
+      );
     }
   };
   for (const key of MIN_BOUNDS) diffBound(key, true);
@@ -456,7 +474,12 @@ function diffSchemaNode(
     const c = curr[key];
     if (same(b, c)) continue;
     if (c === undefined) {
-      emit('nonbreaking_schema_change', `${subject}${key} removed (was ${JSON.stringify(b)})`, b, undefined);
+      emit(
+        'nonbreaking_schema_change',
+        `${subject}${key} removed (was ${JSON.stringify(b)})`,
+        b,
+        undefined
+      );
     } else {
       emit(
         'breaking_schema_change',
@@ -531,22 +554,47 @@ function diffSchemaNode(
     const childPath = child(name);
 
     if (wasPresent && !isPresent) {
-      emit('breaking_schema_change', `property "${childPath}" was removed`, baseProps[name], undefined);
+      emit(
+        'breaking_schema_change',
+        `property "${childPath}" was removed`,
+        baseProps[name],
+        undefined
+      );
       continue;
     }
     if (!wasPresent && isPresent) {
       if (currRequired.has(name)) {
-        emit('breaking_schema_change', `added required property "${childPath}"`, undefined, currProps[name]);
+        emit(
+          'breaking_schema_change',
+          `added required property "${childPath}"`,
+          undefined,
+          currProps[name]
+        );
       } else {
-        emit('nonbreaking_schema_change', `added optional property "${childPath}"`, undefined, currProps[name]);
+        emit(
+          'nonbreaking_schema_change',
+          `added optional property "${childPath}"`,
+          undefined,
+          currProps[name]
+        );
       }
       continue;
     }
 
     if (!baseRequired.has(name) && currRequired.has(name)) {
-      emit('breaking_schema_change', `property "${childPath}" became required`, { required: false }, { required: true });
+      emit(
+        'breaking_schema_change',
+        `property "${childPath}" became required`,
+        { required: false },
+        { required: true }
+      );
     } else if (baseRequired.has(name) && !currRequired.has(name)) {
-      emit('nonbreaking_schema_change', `property "${childPath}" became optional`, { required: true }, { required: false });
+      emit(
+        'nonbreaking_schema_change',
+        `property "${childPath}" became optional`,
+        { required: true },
+        { required: false }
+      );
     }
 
     if (wasPresent && isPresent) {
@@ -570,14 +618,34 @@ function diffSchemaNode(
       const after = i < currItems.length ? currItems[i] : (curr.additionalItems ?? true);
       diffSubschema(before, after, p, depth, emit);
     }
-  } else if (baseItems !== undefined && currItems !== undefined && !Array.isArray(baseItems) && !Array.isArray(currItems)) {
+  } else if (
+    baseItems !== undefined &&
+    currItems !== undefined &&
+    !Array.isArray(baseItems) &&
+    !Array.isArray(currItems)
+  ) {
     diffSubschema(baseItems, currItems, itemsPath, depth, emit);
   } else if (baseItems === undefined && currItems !== undefined) {
-    emit('breaking_schema_change', `property "${itemsPath}" items constraint added`, undefined, currItems);
+    emit(
+      'breaking_schema_change',
+      `property "${itemsPath}" items constraint added`,
+      undefined,
+      currItems
+    );
   } else if (baseItems !== undefined && currItems === undefined) {
-    emit('nonbreaking_schema_change', `property "${itemsPath}" items constraint removed`, baseItems, undefined);
+    emit(
+      'nonbreaking_schema_change',
+      `property "${itemsPath}" items constraint removed`,
+      baseItems,
+      undefined
+    );
   } else if (!same(baseItems, currItems)) {
-    emit('breaking_schema_change', `property "${itemsPath}" items changed between list and tuple form (compatibility cannot be determined)`, baseItems, currItems);
+    emit(
+      'breaking_schema_change',
+      `property "${itemsPath}" items changed between list and tuple form (compatibility cannot be determined)`,
+      baseItems,
+      currItems
+    );
   }
 }
 
@@ -586,7 +654,13 @@ function diffSchemaNode(
  * anything) and `false` (reject everything). Objects recurse; otherwise acceptance is ranked
  * true > object > false, and moving down that order is breaking.
  */
-function diffSubschema(base: unknown, curr: unknown, path: string, depth: number, emit: Emit): void {
+function diffSubschema(
+  base: unknown,
+  curr: unknown,
+  path: string,
+  depth: number,
+  emit: Emit
+): void {
   const b = asSchema(base);
   const c = asSchema(curr);
   if (b && c) {
@@ -602,7 +676,11 @@ function diffSubschema(base: unknown, curr: unknown, path: string, depth: number
   const rank = (v: unknown) => (v === false ? 0 : acceptsAnything(v) ? 2 : 1);
   if (rank(base) === rank(curr)) return; // e.g. `true` ↔ `{}`: same accepted values
   const label = (v: unknown) =>
-    v === false ? 'false (rejects everything)' : acceptsAnything(v) ? 'accept-anything' : 'a schema';
+    v === false
+      ? 'false (rejects everything)'
+      : acceptsAnything(v)
+        ? 'accept-anything'
+        : 'a schema';
   emit(
     rank(curr) < rank(base) ? 'breaking_schema_change' : 'nonbreaking_schema_change',
     `property "${path}" changed from ${label(base)} to ${label(curr)}`,
@@ -639,7 +717,8 @@ function diffDescription(before: unknown, after: unknown, subject: string, emit:
   const b = typeof before === 'string' ? before : '';
   const a = typeof after === 'string' ? after : '';
   if (canonicalizeDescription(b) === canonicalizeDescription(a)) return;
-  const what = b === '' ? 'description added' : a === '' ? 'description removed' : 'description changed';
+  const what =
+    b === '' ? 'description added' : a === '' ? 'description removed' : 'description changed';
   emit('description_changed', `${subject}${what} (possible rug-pull)`, before, after);
 }
 

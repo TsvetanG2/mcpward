@@ -20,7 +20,11 @@ describe('mcpward diff', () => {
 
   const config = (version: 'v1' | 'v2') =>
     testConfig({
-      server: { transport: 'stdio', command: 'npx', args: ['tsx', join(FIXTURES, version, 'index.ts')] },
+      server: {
+        transport: 'stdio',
+        command: 'npx',
+        args: ['tsx', join(FIXTURES, version, 'index.ts')],
+      },
       checks: { drift: { baseline } },
     });
 
@@ -66,12 +70,20 @@ describe('mcpward diff', () => {
   it('anchors SARIF alerts to the config file actually used, not always mcpward.yaml', async () => {
     captureStdout();
     const out = join(dir, 'anchored.sarif');
-    await diffCommand(config('v2'), { config: join('ci', 'mcp-checks.yaml'), reporter: 'sarif', out });
+    await diffCommand(config('v2'), {
+      config: join('ci', 'mcp-checks.yaml'),
+      reporter: 'sarif',
+      out,
+    });
     const sarif = JSON.parse(await readFile(out, 'utf-8')) as {
-      runs: { results: { locations: { physicalLocation?: { artifactLocation: { uri: string } } }[] }[] }[];
+      runs: {
+        results: { locations: { physicalLocation?: { artifactLocation: { uri: string } } }[] }[];
+      }[];
     };
     const uris = new Set(
-      sarif.runs[0]?.results.flatMap((r) => r.locations.map((l) => l.physicalLocation?.artifactLocation.uri))
+      sarif.runs[0]?.results.flatMap((r) =>
+        r.locations.map((l) => l.physicalLocation?.artifactLocation.uri)
+      )
     );
     expect([...uris]).toEqual(['ci/mcp-checks.yaml']);
   }, 30000);

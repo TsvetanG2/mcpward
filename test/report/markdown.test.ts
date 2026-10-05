@@ -54,7 +54,9 @@ describe('escapeMarkdown (untrusted server text)', () => {
   });
 
   it('puts bare URLs, www. hosts and e-mails in code spans so GitHub cannot autolink them', () => {
-    expect(escapeMarkdown('go to https://evil.example/x now')).toBe('go to `https://evil.example/x` now');
+    expect(escapeMarkdown('go to https://evil.example/x now')).toBe(
+      'go to `https://evil.example/x` now'
+    );
     expect(escapeMarkdown('visit www.evil.example')).toBe('visit `www.evil.example`');
     expect(escapeMarkdown('mail me@evil.example')).toBe('mail `me@evil.example`');
   });
@@ -128,7 +130,13 @@ describe('renderMarkdownReport', () => {
           message: 'Tool "compute" inputSchema added required property "multiplier"',
           location: 'compute',
         }),
-        finding({ id: 'drift/no-changes', family: 'drift', status: 'pass', severity: 'info', message: 'NOCHANGE' }),
+        finding({
+          id: 'drift/no-changes',
+          family: 'drift',
+          status: 'pass',
+          severity: 'info',
+          message: 'NOCHANGE',
+        }),
       ])
     );
     expect(md).toContain('### Drift (1 change(s) reported)');
@@ -207,7 +215,10 @@ describe('upsertPrComment', () => {
    * Fake GitHub: `pages` of existing comments; records every request. `viewer` is the
    * login GET /user returns; undefined mimics the Actions GITHUB_TOKEN (403 on /user).
    */
-  function fakeGitHub(pages: FakeComment[][], opts: { patchStatus?: number; viewer?: string } = {}) {
+  function fakeGitHub(
+    pages: FakeComment[][],
+    opts: { patchStatus?: number; viewer?: string } = {}
+  ) {
     const calls: { method: string; url: string; body?: string }[] = [];
     const fetchImpl = async (url: string, init?: RequestInit) => {
       const method = init?.method ?? 'GET';
@@ -234,18 +245,31 @@ describe('upsertPrComment', () => {
       'created'
     );
     expect(gh.writes()).toEqual([
-      expect.objectContaining({ method: 'POST', url: 'https://api.example/repos/o/r/issues/7/comments' }),
+      expect.objectContaining({
+        method: 'POST',
+        url: 'https://api.example/repos/o/r/issues/7/comments',
+      }),
     ]);
   });
 
   it('updates our existing comment instead of stacking (found on page 2)', async () => {
-    const page1 = Array.from({ length: 100 }, (_, i) => ({ id: i + 1, body: 'chatter', user: BOT }));
-    const gh = fakeGitHub([page1, [{ id: 555, body: `${MARKDOWN_REPORT_MARKER}\nold`, user: BOT }]]);
+    const page1 = Array.from({ length: 100 }, (_, i) => ({
+      id: i + 1,
+      body: 'chatter',
+      user: BOT,
+    }));
+    const gh = fakeGitHub([
+      page1,
+      [{ id: 555, body: `${MARKDOWN_REPORT_MARKER}\nold`, user: BOT }],
+    ]);
     expect(await upsertPrComment(ctx, `${MARKDOWN_REPORT_MARKER}\nnew`, gh.fetchImpl)).toBe(
       'updated'
     );
     expect(gh.writes()).toEqual([
-      expect.objectContaining({ method: 'PATCH', url: 'https://api.example/repos/o/r/issues/comments/555' }),
+      expect.objectContaining({
+        method: 'PATCH',
+        url: 'https://api.example/repos/o/r/issues/comments/555',
+      }),
     ]);
   });
 
@@ -268,7 +292,9 @@ describe('upsertPrComment', () => {
   });
 
   it('falls back to a new comment if editing ours is refused (403)', async () => {
-    const gh = fakeGitHub([[{ id: 9, body: MARKDOWN_REPORT_MARKER, user: BOT }]], { patchStatus: 403 });
+    const gh = fakeGitHub([[{ id: 9, body: MARKDOWN_REPORT_MARKER, user: BOT }]], {
+      patchStatus: 403,
+    });
     expect(await upsertPrComment(ctx, MARKDOWN_REPORT_MARKER, gh.fetchImpl)).toBe('created');
   });
 

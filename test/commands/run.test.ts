@@ -76,7 +76,9 @@ describe('withRunDeadline', () => {
   });
 
   it('a result that wins the race is returned untouched', async () => {
-    await expect(withRunDeadline(Promise.resolve(42), 1000, async () => undefined)).resolves.toBe(42);
+    await expect(withRunDeadline(Promise.resolve(42), 1000, async () => undefined)).resolves.toBe(
+      42
+    );
   });
 
   it('work that settles because the connection was closed does not count as a result', async () => {

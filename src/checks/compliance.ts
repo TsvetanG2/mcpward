@@ -20,9 +20,7 @@ export interface ComplianceCheckContext {
 /**
  * Runs all compliance checks.
  */
-export async function runComplianceChecks(
-  ctx: ComplianceCheckContext
-): Promise<CheckResult[]> {
+export async function runComplianceChecks(ctx: ComplianceCheckContext): Promise<CheckResult[]> {
   const results: CheckResult[] = [];
 
   // Check 1: Handshake completed (if we got here, it did)

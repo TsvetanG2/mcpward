@@ -53,9 +53,7 @@ describe('Security Checks', () => {
         const results = await runSecurityChecks({ connection });
 
         // Filter out summary
-        const findings = results.filter(
-          (r) => r.status === 'fail' && r.id !== 'security/summary'
-        );
+        const findings = results.filter((r) => r.status === 'fail' && r.id !== 'security/summary');
 
         // Must be ZERO false positives
         expect(findings).toHaveLength(0);
@@ -83,15 +81,11 @@ describe('Security Checks', () => {
         expect(injectionFindings.length).toBeGreaterThanOrEqual(2);
 
         // Check specific tools
-        const injectionTool = injectionFindings.find(
-          (r) => r.location === 'injection_tool'
-        );
+        const injectionTool = injectionFindings.find((r) => r.location === 'injection_tool');
         expect(injectionTool).toBeDefined();
         expect(injectionTool?.message).toContain('injection-like pattern');
 
-        const searchDocs = injectionFindings.find(
-          (r) => r.location === 'search_docs.query'
-        );
+        const searchDocs = injectionFindings.find((r) => r.location === 'search_docs.query');
         expect(searchDocs).toBeDefined();
       } finally {
         await connection.close();
@@ -111,15 +105,11 @@ describe('Security Checks', () => {
         expect(unicodeFindings.length).toBeGreaterThanOrEqual(3);
 
         // Check for zero-width detection
-        const zeroWidth = unicodeFindings.find((r) =>
-          r.message.includes('zero-width')
-        );
+        const zeroWidth = unicodeFindings.find((r) => r.message.includes('zero-width'));
         expect(zeroWidth).toBeDefined();
 
         // Check for bidirectional override detection
-        const bidi = unicodeFindings.find((r) =>
-          r.message.includes('bidirectional')
-        );
+        const bidi = unicodeFindings.find((r) => r.message.includes('bidirectional'));
         expect(bidi).toBeDefined();
       } finally {
         await connection.close();
@@ -139,17 +129,13 @@ describe('Security Checks', () => {
         expect(secretFindings.length).toBeGreaterThanOrEqual(2);
 
         // Check api_connector
-        const apiConnector = secretFindings.find(
-          (r) => r.location === 'api_connector'
-        );
+        const apiConnector = secretFindings.find((r) => r.location === 'api_connector');
         expect(apiConnector).toBeDefined();
         expect(apiConnector?.message).toContain('api_key');
         expect(apiConnector?.message).toContain('password');
 
         // Check login_helper
-        const loginHelper = secretFindings.find(
-          (r) => r.location === 'login_helper'
-        );
+        const loginHelper = secretFindings.find((r) => r.location === 'login_helper');
         expect(loginHelper).toBeDefined();
         expect(loginHelper?.message).toContain('secret');
       } finally {
@@ -169,9 +155,7 @@ describe('Security Checks', () => {
         // Should find in delete_files
         expect(mismatchFindings.length).toBeGreaterThanOrEqual(1);
 
-        const deleteFiles = mismatchFindings.find(
-          (r) => r.location === 'delete_files'
-        );
+        const deleteFiles = mismatchFindings.find((r) => r.location === 'delete_files');
         expect(deleteFiles).toBeDefined();
         expect(deleteFiles?.message).toContain('readOnlyHint=true');
         expect(deleteFiles?.message).toContain('implies mutation');
@@ -242,7 +226,9 @@ describe('Security Checks', () => {
         ]);
 
         // NEGATIVE: a well-formed emoji tag sequence is a flag, not smuggling
-        expect(results.filter((r) => r.location?.startsWith('scotland_flag') && r.status === 'fail')).toEqual([]);
+        expect(
+          results.filter((r) => r.location?.startsWith('scotland_flag') && r.status === 'fail')
+        ).toEqual([]);
       } finally {
         await connection.close();
       }

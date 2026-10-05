@@ -28,15 +28,14 @@ interface AjvLike {
 
 const ROOT = process.cwd();
 const FIXTURES = join(ROOT, 'fixtures');
-const readSchema = (name: string) => JSON.parse(readFileSync(join(ROOT, 'schemas', name), 'utf-8')) as unknown;
+const readSchema = (name: string) =>
+  JSON.parse(readFileSync(join(ROOT, 'schemas', name), 'utf-8')) as unknown;
 
 function validator(name: string): ValidateFn {
-  const Ajv = ((Ajv2020Module as unknown as { default?: unknown }).default ?? Ajv2020Module) as new (
-    opts: object
-  ) => AjvLike;
-  const addFormats = ((addFormatsModule as unknown as { default?: unknown }).default ?? addFormatsModule) as (
-    ajv: AjvLike
-  ) => void;
+  const Ajv = ((Ajv2020Module as unknown as { default?: unknown }).default ??
+    Ajv2020Module) as new (opts: object) => AjvLike;
+  const addFormats = ((addFormatsModule as unknown as { default?: unknown }).default ??
+    addFormatsModule) as (ajv: AjvLike) => void;
   const ajv = new Ajv({ strict: false, allErrors: true });
   addFormats(ajv);
   return ajv.compile(readSchema(name));
@@ -102,7 +101,10 @@ describe('config schema', () => {
     const validate = validator('config.v1.schema.json');
     expect(validate({ server: { transport: 'ftp', command: 'x' } })).toBe(false);
     expect(
-      validate({ server: { transport: 'stdio', command: 'x' }, checks: { drift: { fail_on: 'critical' } } })
+      validate({
+        server: { transport: 'stdio', command: 'x' },
+        checks: { drift: { fail_on: 'critical' } },
+      })
     ).toBe(false);
   });
 });
@@ -122,7 +124,13 @@ describe('report schema', () => {
     const out = join(dir, `${fixture}.json`);
     try {
       await runCommand(
-        testConfig({ server: { transport: 'stdio', command: 'npx', args: ['tsx', join(FIXTURES, fixture, 'index.ts')] } }),
+        testConfig({
+          server: {
+            transport: 'stdio',
+            command: 'npx',
+            args: ['tsx', join(FIXTURES, fixture, 'index.ts')],
+          },
+        }),
         { config: 'mcpward.yaml', reporter: 'json', out }
       );
     } finally {
@@ -144,7 +152,9 @@ describe('report schema', () => {
 
   it('NEGATIVE: rejects a report without schemaVersion or with an unknown status', async () => {
     const validate = validator('report.v1.schema.json');
-    const report = (await realReport('good-server')) as Record<string, unknown> & { results: Record<string, unknown>[] };
+    const report = (await realReport('good-server')) as Record<string, unknown> & {
+      results: Record<string, unknown>[];
+    };
 
     const noVersion = { ...report };
     delete noVersion.schemaVersion;

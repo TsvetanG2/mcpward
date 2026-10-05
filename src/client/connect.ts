@@ -3,7 +3,12 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { LATEST_PROTOCOL_VERSION } from '@modelcontextprotocol/sdk/types.js';
-import type { Config, StdioTransport, HttpTransport, ResolvedTimeoutConfig } from '../config/schema.js';
+import type {
+  Config,
+  StdioTransport,
+  HttpTransport,
+  ResolvedTimeoutConfig,
+} from '../config/schema.js';
 import { MCPWARD_VERSION } from '../version.js';
 
 /** Default timeout values in milliseconds */

@@ -28,8 +28,9 @@ function slug(heading: string): string {
 
 describe('docs/rules.md coverage', () => {
   const anchors = new Set(
-    Array.from(readFileSync(join(ROOT, 'docs', 'rules.md'), 'utf-8').matchAll(/^#{2,3}\s+(.+)$/gm), (m) =>
-      slug(m[1] ?? '')
+    Array.from(
+      readFileSync(join(ROOT, 'docs', 'rules.md'), 'utf-8').matchAll(/^#{2,3}\s+(.+)$/gm),
+      (m) => slug(m[1] ?? '')
     )
   );
 

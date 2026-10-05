@@ -71,21 +71,23 @@ async function startHttp(fixture: string, env: Record<string, string> = {}): Pro
   };
 }
 
-const stdioConfig = (fixture: string, checks: ConfigInput['checks'] = {}): Config => testConfig({
-  server: { transport: 'stdio', command: 'npx', args: ['tsx', fixture], env: {} },
-  checks,
-  suites: [],
-});
+const stdioConfig = (fixture: string, checks: ConfigInput['checks'] = {}): Config =>
+  testConfig({
+    server: { transport: 'stdio', command: 'npx', args: ['tsx', fixture], env: {} },
+    checks,
+    suites: [],
+  });
 
 const httpConfig = (
   url: string,
   checks: ConfigInput['checks'] = {},
   headers: Record<string, string> = {}
-): Config => testConfig({
-  server: { transport: 'http', url, headers },
-  checks,
-  suites: [],
-});
+): Config =>
+  testConfig({
+    server: { transport: 'http', url, headers },
+    checks,
+    suites: [],
+  });
 
 async function runFamilies(config: Config): Promise<CheckResult[]> {
   const connection: McpConnection = await connect(config);

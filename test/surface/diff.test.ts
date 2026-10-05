@@ -194,9 +194,7 @@ describe('diffSurfaces classifier', () => {
       const result = diffSurfaces(baseline, current);
 
       expect(result.unchanged).toBe(false);
-      const breakingChange = result.changes.find(
-        (c) => c.class === 'breaking_schema_change'
-      );
+      const breakingChange = result.changes.find((c) => c.class === 'breaking_schema_change');
       expect(breakingChange).toBeDefined();
       expect(breakingChange?.message).toContain('required');
       expect(breakingChange?.message).toContain('multiplier');
@@ -232,9 +230,7 @@ describe('diffSurfaces classifier', () => {
       const result = diffSurfaces(baseline, current);
 
       expect(result.unchanged).toBe(false);
-      const breakingChange = result.changes.find(
-        (c) => c.class === 'breaking_schema_change'
-      );
+      const breakingChange = result.changes.find((c) => c.class === 'breaking_schema_change');
       expect(breakingChange).toBeDefined();
       expect(breakingChange?.message).toContain('removed');
       expect(breakingChange?.message).toContain('filter');
@@ -259,9 +255,7 @@ describe('diffSurfaces classifier', () => {
       const result = diffSurfaces(baseline, current);
 
       expect(result.unchanged).toBe(false);
-      const breakingChange = result.changes.find(
-        (c) => c.class === 'breaking_schema_change'
-      );
+      const breakingChange = result.changes.find((c) => c.class === 'breaking_schema_change');
       expect(breakingChange).toBeDefined();
       expect(breakingChange?.message).toContain('removed');
     });
@@ -296,9 +290,7 @@ describe('diffSurfaces classifier', () => {
       const result = diffSurfaces(baseline, current);
 
       expect(result.unchanged).toBe(false);
-      const breakingChange = result.changes.find(
-        (c) => c.class === 'breaking_schema_change'
-      );
+      const breakingChange = result.changes.find((c) => c.class === 'breaking_schema_change');
       expect(breakingChange).toBeDefined();
       expect(breakingChange?.message).toContain('became required');
     });
@@ -334,9 +326,7 @@ describe('diffSurfaces classifier', () => {
       const result = diffSurfaces(baseline, current);
 
       expect(result.unchanged).toBe(false);
-      const nonBreakingChange = result.changes.find(
-        (c) => c.class === 'nonbreaking_schema_change'
-      );
+      const nonBreakingChange = result.changes.find((c) => c.class === 'nonbreaking_schema_change');
       expect(nonBreakingChange).toBeDefined();
       expect(nonBreakingChange?.message).toContain('optional');
       expect(nonBreakingChange?.message).toContain('limit');
@@ -361,9 +351,7 @@ describe('diffSurfaces classifier', () => {
       const result = diffSurfaces(baseline, current);
 
       expect(result.unchanged).toBe(false);
-      const nonBreakingChange = result.changes.find(
-        (c) => c.class === 'nonbreaking_schema_change'
-      );
+      const nonBreakingChange = result.changes.find((c) => c.class === 'nonbreaking_schema_change');
       expect(nonBreakingChange).toBeDefined();
       expect(nonBreakingChange?.message).toContain('added');
     });
@@ -398,9 +386,7 @@ describe('diffSurfaces classifier', () => {
       const result = diffSurfaces(baseline, current);
 
       expect(result.unchanged).toBe(false);
-      const nonBreakingChange = result.changes.find(
-        (c) => c.class === 'nonbreaking_schema_change'
-      );
+      const nonBreakingChange = result.changes.find((c) => c.class === 'nonbreaking_schema_change');
       expect(nonBreakingChange).toBeDefined();
       expect(nonBreakingChange?.message).toContain('became optional');
     });
@@ -423,9 +409,7 @@ describe('diffSurfaces classifier', () => {
       const result = diffSurfaces(baseline, current);
 
       expect(result.unchanged).toBe(false);
-      const annotationChange = result.changes.find(
-        (c) => c.class === 'annotation_changed'
-      );
+      const annotationChange = result.changes.find((c) => c.class === 'annotation_changed');
       expect(annotationChange).toBeDefined();
       expect(annotationChange?.message).toContain('readOnlyHint');
     });
@@ -446,9 +430,7 @@ describe('diffSurfaces classifier', () => {
       const result = diffSurfaces(baseline, current);
 
       expect(result.unchanged).toBe(false);
-      const annotationChange = result.changes.find(
-        (c) => c.class === 'annotation_changed'
-      );
+      const annotationChange = result.changes.find((c) => c.class === 'annotation_changed');
       expect(annotationChange).toBeDefined();
       expect(annotationChange?.message).toContain('destructiveHint');
     });
@@ -554,9 +536,24 @@ describe('filterFailingChanges', () => {
     const changes = [
       { tool: 'a', class: 'tool_removed' as const, severity: 'low' as const, message: 'removed' },
       { tool: 'b', class: 'tool_added' as const, severity: 'low' as const, message: 'added' },
-      { tool: 'c', class: 'description_changed' as const, severity: 'high' as const, message: 'desc' },
-      { tool: 'd', class: 'breaking_schema_change' as const, severity: 'medium' as const, message: 'break' },
-      { tool: 'e', class: 'nonbreaking_schema_change' as const, severity: 'low' as const, message: 'non' },
+      {
+        tool: 'c',
+        class: 'description_changed' as const,
+        severity: 'high' as const,
+        message: 'desc',
+      },
+      {
+        tool: 'd',
+        class: 'breaking_schema_change' as const,
+        severity: 'medium' as const,
+        message: 'break',
+      },
+      {
+        tool: 'e',
+        class: 'nonbreaking_schema_change' as const,
+        severity: 'low' as const,
+        message: 'non',
+      },
     ];
 
     const failOn = ['tool_removed', 'description_changed', 'breaking_schema_change'];
@@ -573,7 +570,12 @@ describe('filterFailingChanges', () => {
   it('returns empty array when no changes match fail_on', () => {
     const changes = [
       { tool: 'a', class: 'tool_added' as const, severity: 'low' as const, message: 'added' },
-      { tool: 'b', class: 'nonbreaking_schema_change' as const, severity: 'low' as const, message: 'non' },
+      {
+        tool: 'b',
+        class: 'nonbreaking_schema_change' as const,
+        severity: 'low' as const,
+        message: 'non',
+      },
     ];
 
     const failOn = ['tool_removed', 'description_changed'];
@@ -586,11 +588,17 @@ describe('filterFailingChanges', () => {
 describe('M2: Severity levels', () => {
   it('assigns high severity to description_changed', () => {
     const baseline = createSurface({
-      test_tool: createTool({ descriptionHash: hashDescription('Original'), description: 'Original' }),
+      test_tool: createTool({
+        descriptionHash: hashDescription('Original'),
+        description: 'Original',
+      }),
     });
 
     const current = createSurface({
-      test_tool: createTool({ descriptionHash: hashDescription('Changed'), description: 'Changed' }),
+      test_tool: createTool({
+        descriptionHash: hashDescription('Changed'),
+        description: 'Changed',
+      }),
     });
 
     const result = diffSurfaces(baseline, current);
@@ -728,7 +736,7 @@ describe('M2: filterFailingChanges with severity threshold', () => {
   it('severity threshold "medium" fails high and medium severity changes', () => {
     const failing = filterFailingChanges(changes, 'medium');
     expect(failing).toHaveLength(2);
-    expect(failing.map(c => c.severity).sort()).toEqual(['high', 'medium']);
+    expect(failing.map((c) => c.severity).sort()).toEqual(['high', 'medium']);
   });
 
   it('severity threshold "low" fails all changes', () => {

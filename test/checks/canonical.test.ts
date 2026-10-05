@@ -37,9 +37,7 @@ function makeConfig(fixturePath: string): Config {
 describe('Canonicalization integration', () => {
   test('identical-v1 vs identical-v2 produces zero drift', async () => {
     // Capture baseline from identical-v1
-    const v1Connection = await connect(
-      makeConfig('fixtures/canonical/identical-v1/index.ts')
-    );
+    const v1Connection = await connect(makeConfig('fixtures/canonical/identical-v1/index.ts'));
 
     const v1Config = makeConfig('fixtures/canonical/identical-v1/index.ts');
     const v1Surface = await captureServerSurface(v1Connection, v1Config);
@@ -107,9 +105,7 @@ describe('Canonicalization integration', () => {
     await poisonedConnection.close();
 
     // ACCEPTANCE: Security check detects zero-width character
-    const zeroWidthFindings = securityResults.filter(
-      (r) => r.id === 'security/hidden-unicode'
-    );
+    const zeroWidthFindings = securityResults.filter((r) => r.id === 'security/hidden-unicode');
     expect(zeroWidthFindings.length).toBeGreaterThan(0);
     expect(zeroWidthFindings[0]?.status).toBe('fail');
 
@@ -118,9 +114,7 @@ describe('Canonicalization integration', () => {
 
     // ACCEPTANCE: description_changed fires (hash is different)
     expect(diff.unchanged).toBe(false);
-    const descriptionChanges = diff.changes.filter(
-      (c) => c.class === 'description_changed'
-    );
+    const descriptionChanges = diff.changes.filter((c) => c.class === 'description_changed');
     expect(descriptionChanges).toHaveLength(1);
     expect(descriptionChanges[0]?.tool).toBe('test_tool');
 

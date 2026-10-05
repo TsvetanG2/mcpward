@@ -78,7 +78,10 @@ export function schemaDriftTools(v: Version) {
       name: 'items_narrowed',
       description: 'Deletes rows by id.',
       inputSchema: obj({
-        rows: { type: 'array', items: obj({ id: { type: isV2 ? 'string' : ['string', 'number'] } }) },
+        rows: {
+          type: 'array',
+          items: obj({ id: { type: isV2 ? 'string' : ['string', 'number'] } }),
+        },
       }),
     },
     {
@@ -98,8 +101,15 @@ export function schemaDriftTools(v: Version) {
       description: 'Creates an order.',
       inputSchema: obj(
         {
-          customer: obj({ email: { type: 'string', format: 'email', maxLength: 200 } }, { required: ['email'] }),
-          lines: { type: 'array', minItems: 1, items: obj({ sku: { type: 'string', pattern: '^SKU' } }) },
+          customer: obj(
+            { email: { type: 'string', format: 'email', maxLength: 200 } },
+            { required: ['email'] }
+          ),
+          lines: {
+            type: 'array',
+            minItems: 1,
+            items: obj({ sku: { type: 'string', pattern: '^SKU' } }),
+          },
         },
         { required: ['customer'], additionalProperties: false }
       ),
@@ -108,7 +118,10 @@ export function schemaDriftTools(v: Version) {
 }
 
 export function startSchemaDriftServer(v: Version): void {
-  const server = new Server({ name: 'schema-drift-server', version: v }, { capabilities: { tools: {} } });
+  const server = new Server(
+    { name: 'schema-drift-server', version: v },
+    { capabilities: { tools: {} } }
+  );
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: schemaDriftTools(v) }));
   server.setRequestHandler(CallToolRequestSchema, async (request) => ({
     content: [{ type: 'text', text: `called ${request.params.name}` }],

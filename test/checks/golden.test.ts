@@ -19,7 +19,9 @@ const GOOD_SERVER = join(process.cwd(), 'fixtures', 'good-server', 'index.ts');
 const suites: TestSuite[] = [
   {
     tool: 'echo',
-    cases: [{ name: 'echoes hello', args: { message: 'hello' }, expect: { golden: 'golden/echo.json' } }],
+    cases: [
+      { name: 'echoes hello', args: { message: 'hello' }, expect: { golden: 'golden/echo.json' } },
+    ],
   },
 ];
 
@@ -44,14 +46,18 @@ describe('behavioral golden snapshots', () => {
     results.find((r) => r.id === 'behavioral/golden');
 
   it('FAILS when the golden file is missing (never created implicitly)', async () => {
-    const result = golden(await runBehavioralChecks({ connection, suites, golden: { baseDir, update: false } }));
+    const result = golden(
+      await runBehavioralChecks({ connection, suites, golden: { baseDir, update: false } })
+    );
     expect(result?.status).toBe('fail');
     expect(result?.message).toContain('--update-golden');
     await expect(readFile(join(baseDir, 'golden', 'echo.json'), 'utf-8')).rejects.toThrow();
   });
 
   it('--update-golden writes the file, then a normal run passes against it', async () => {
-    const written = golden(await runBehavioralChecks({ connection, suites, golden: { baseDir, update: true } }));
+    const written = golden(
+      await runBehavioralChecks({ connection, suites, golden: { baseDir, update: true } })
+    );
     expect(written?.status).toBe('pass');
 
     const file = JSON.parse(await readFile(join(baseDir, 'golden', 'echo.json'), 'utf-8')) as {
@@ -59,7 +65,9 @@ describe('behavioral golden snapshots', () => {
     };
     expect(file.isError).toBe(false);
 
-    const compared = golden(await runBehavioralChecks({ connection, suites, golden: { baseDir, update: false } }));
+    const compared = golden(
+      await runBehavioralChecks({ connection, suites, golden: { baseDir, update: false } })
+    );
     expect(compared?.status).toBe('pass');
   });
 
@@ -69,7 +77,9 @@ describe('behavioral golden snapshots', () => {
     const tampered = (await readFile(path, 'utf-8')).replace('hello', 'goodbye');
     await writeFile(path, tampered);
 
-    const result = golden(await runBehavioralChecks({ connection, suites, golden: { baseDir, update: false } }));
+    const result = golden(
+      await runBehavioralChecks({ connection, suites, golden: { baseDir, update: false } })
+    );
     expect(result?.status).toBe('fail');
     expect(JSON.stringify(result?.expected)).toContain('goodbye');
     expect(JSON.stringify(result?.actual)).toContain('hello');
@@ -82,14 +92,18 @@ describe('behavioral golden snapshots', () => {
     const reordered = Object.fromEntries(Object.entries(parsed).reverse());
     await writeFile(path, JSON.stringify(reordered));
 
-    const result = golden(await runBehavioralChecks({ connection, suites, golden: { baseDir, update: false } }));
+    const result = golden(
+      await runBehavioralChecks({ connection, suites, golden: { baseDir, update: false } })
+    );
     expect(result?.status).toBe('pass');
   });
 
   it('FAILS on a golden file that is not JSON', async () => {
     await runBehavioralChecks({ connection, suites, golden: { baseDir, update: true } });
     await writeFile(join(baseDir, 'golden', 'echo.json'), 'not json');
-    const result = golden(await runBehavioralChecks({ connection, suites, golden: { baseDir, update: false } }));
+    const result = golden(
+      await runBehavioralChecks({ connection, suites, golden: { baseDir, update: false } })
+    );
     expect(result?.status).toBe('fail');
     expect(result?.message).toContain('not valid JSON');
   });

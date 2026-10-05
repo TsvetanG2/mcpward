@@ -96,9 +96,7 @@ function setOwn(obj: Record<string, unknown>, key: string, value: unknown): void
  * @returns Canonical form of the schema, or null if input was null
  * @throws Error if schema exceeds max depth or contains cycles
  */
-export function canonicalizeSchema(
-  schema: JsonSchema | null
-): JsonSchema | null {
+export function canonicalizeSchema(schema: JsonSchema | null): JsonSchema | null {
   if (schema === null) return null;
 
   const seen = new WeakSet<object>();

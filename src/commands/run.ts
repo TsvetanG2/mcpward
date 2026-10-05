@@ -75,9 +75,7 @@ async function runAllChecks(
   // Description collision lint (M4) — on by default, needs no baseline
   if (config.checks?.collision?.enabled !== false) {
     step('collision lint');
-    results.push(
-      ...(await runCollisionChecks({ connection, config: config.checks?.collision }))
-    );
+    results.push(...(await runCollisionChecks({ connection, config: config.checks?.collision })));
   }
 
   if (config.suites && config.suites.length > 0) {
@@ -131,7 +129,10 @@ export async function runCommand(config: Config, options: RunOptions): Promise<n
   try {
     const runMs = config.timeouts?.run_ms ?? DEFAULT_RUN_MS;
     // Golden paths resolve relative to the config file, not the cwd
-    const golden = { baseDir: dirname(resolve(options.config)), update: options.updateGolden ?? false };
+    const golden = {
+      baseDir: dirname(resolve(options.config)),
+      update: options.updateGolden ?? false,
+    };
     const results = await withRunDeadline(
       runAllChecks(connection, config, verbose, golden),
       runMs,

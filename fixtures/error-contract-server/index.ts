@@ -67,7 +67,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'fake_protocol_error',
-        description: 'Returns isError:true when it should throw a protocol error for invalid params.',
+        description:
+          'Returns isError:true when it should throw a protocol error for invalid params.',
         inputSchema: {
           type: 'object' as const,
           properties: {
@@ -94,10 +95,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       // VIOLATION: File not found should be a tool error (isError: true),
       // but we throw a protocol error instead
       if (path === '/nonexistent') {
-        throw new McpError(
-          ErrorCode.InternalError,
-          `File not found: ${path}`
-        );
+        throw new McpError(ErrorCode.InternalError, `File not found: ${path}`);
       }
 
       return {

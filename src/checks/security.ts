@@ -209,7 +209,12 @@ export function collectParamDescriptions(schema: unknown): { path: string; descr
   const seen = new WeakSet<object>();
 
   const walk = (node: unknown, path: string, depth: number): void => {
-    if (depth > MAX_PARAM_DEPTH || node === null || typeof node !== 'object' || Array.isArray(node)) {
+    if (
+      depth > MAX_PARAM_DEPTH ||
+      node === null ||
+      typeof node !== 'object' ||
+      Array.isArray(node)
+    ) {
       return;
     }
     if (seen.has(node)) return;
@@ -274,9 +279,7 @@ function hasDestructiveKeywords(text: string): boolean {
 /**
  * Runs all security checks on tools.
  */
-export async function runSecurityChecks(
-  ctx: SecurityCheckContext
-): Promise<CheckResult[]> {
+export async function runSecurityChecks(ctx: SecurityCheckContext): Promise<CheckResult[]> {
   const results: CheckResult[] = [];
 
   // Get tools list
@@ -409,7 +412,9 @@ function checkToolSecurity(tool: Tool): CheckResult[] {
 
   // 5. Check parameter descriptions at every nesting level (the model reads them all)
   if (inputSchema) {
-    for (const { path: fieldName, description: fieldDesc } of collectParamDescriptions(inputSchema)) {
+    for (const { path: fieldName, description: fieldDesc } of collectParamDescriptions(
+      inputSchema
+    )) {
       // Parameter descriptions are read by the model too — same hidden-unicode rule
       const paramUnicode = findSuspiciousUnicode(fieldDesc);
       if (paramUnicode.length > 0) {

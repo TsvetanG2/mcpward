@@ -47,8 +47,7 @@ describe('Version consistency', () => {
       // Verify file imports MCPWARD_VERSION from version.ts
       // (path varies: './version.js' for cli.ts, '../version.js' for others)
       const hasVersionImport =
-        content.includes("from './version.js'") ||
-        content.includes("from '../version.js'");
+        content.includes("from './version.js'") || content.includes("from '../version.js'");
       expect(hasVersionImport).toBe(true);
       expect(content).toContain('MCPWARD_VERSION');
 
@@ -62,7 +61,8 @@ describe('Version consistency', () => {
         }
 
         // Check for hardcoded version patterns
-        const hardcodedVersionPattern = /(version:\s*['"]0\.\d+\.\d+['"]|\.version\(['"]0\.\d+\.\d+['"]\))/;
+        const hardcodedVersionPattern =
+          /(version:\s*['"]0\.\d+\.\d+['"]|\.version\(['"]0\.\d+\.\d+['"]\))/;
         if (hardcodedVersionPattern.test(line)) {
           throw new Error(
             `Found hardcoded version in ${file}:\n${line.trim()}\n` +

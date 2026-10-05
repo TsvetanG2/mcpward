@@ -48,9 +48,7 @@ describe('Error Contract Checks', () => {
       try {
         const results = await runErrorContractChecks({ connection });
 
-        const unknownToolResult = results.find(
-          (r) => r.id === 'errors/unknown-tool'
-        );
+        const unknownToolResult = results.find((r) => r.id === 'errors/unknown-tool');
         expect(unknownToolResult).toBeDefined();
         expect(unknownToolResult?.status).toBe('pass');
         expect(unknownToolResult?.message).toContain('protocol error');
@@ -65,9 +63,7 @@ describe('Error Contract Checks', () => {
         const results = await runErrorContractChecks({ connection });
 
         // good-server has 'echo' with required 'message' param
-        const invalidParamsResults = results.filter(
-          (r) => r.id === 'errors/invalid-params'
-        );
+        const invalidParamsResults = results.filter((r) => r.id === 'errors/invalid-params');
 
         // Should have at least one check for tools with required params
         expect(invalidParamsResults.length).toBeGreaterThan(0);
@@ -105,9 +101,7 @@ describe('Error Contract Checks', () => {
       try {
         const results = await runErrorContractChecks({ connection });
 
-        const unknownToolResult = results.find(
-          (r) => r.id === 'errors/unknown-tool'
-        );
+        const unknownToolResult = results.find((r) => r.id === 'errors/unknown-tool');
         expect(unknownToolResult).toBeDefined();
         // The error-contract-server correctly returns protocol error for unknown tools
         expect(unknownToolResult?.status).toBe('pass');
@@ -121,9 +115,7 @@ describe('Error Contract Checks', () => {
       try {
         const results = await runErrorContractChecks({ connection });
 
-        const invalidParamsResults = results.filter(
-          (r) => r.id === 'errors/invalid-params'
-        );
+        const invalidParamsResults = results.filter((r) => r.id === 'errors/invalid-params');
 
         // error-contract-server has 'read_file' with required 'path' param
         expect(invalidParamsResults.length).toBeGreaterThan(0);

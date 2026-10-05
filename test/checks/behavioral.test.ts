@@ -14,16 +14,17 @@ const FIXTURES_DIR = join(process.cwd(), 'fixtures');
 const GOOD_SERVER = join(FIXTURES_DIR, 'good-server', 'index.ts');
 
 // Config for good server
-const makeConfig = (suites: TestSuite[]): Config => testConfig({
-  server: {
-    transport: 'stdio',
-    command: 'npx',
-    args: ['tsx', GOOD_SERVER],
-    env: {},
-  },
-  checks: {},
-  suites,
-});
+const makeConfig = (suites: TestSuite[]): Config =>
+  testConfig({
+    server: {
+      transport: 'stdio',
+      command: 'npx',
+      args: ['tsx', GOOD_SERVER],
+      env: {},
+    },
+    checks: {},
+    suites,
+  });
 
 describe('Behavioral Checks', () => {
   describe('against good-server', () => {
@@ -77,9 +78,7 @@ describe('Behavioral Checks', () => {
           suites: config.suites,
         });
 
-        const isErrorResult = results.find(
-          (r) => r.id === 'behavioral/tool-is-error'
-        );
+        const isErrorResult = results.find((r) => r.id === 'behavioral/tool-is-error');
         expect(isErrorResult?.status).toBe('pass');
       } finally {
         await connection.close();
@@ -107,9 +106,7 @@ describe('Behavioral Checks', () => {
           suites: config.suites,
         });
 
-        const isErrorResult = results.find(
-          (r) => r.id === 'behavioral/tool-is-error'
-        );
+        const isErrorResult = results.find((r) => r.id === 'behavioral/tool-is-error');
         expect(isErrorResult?.status).toBe('pass');
       } finally {
         await connection.close();
@@ -142,9 +139,7 @@ describe('Behavioral Checks', () => {
           suites: config.suites,
         });
 
-        const jsonpathResult = results.find(
-          (r) => r.id === 'behavioral/jsonpath'
-        );
+        const jsonpathResult = results.find((r) => r.id === 'behavioral/jsonpath');
         expect(jsonpathResult?.status).toBe('pass');
       } finally {
         await connection.close();
@@ -172,9 +167,7 @@ describe('Behavioral Checks', () => {
           suites: config.suites,
         });
 
-        const isErrorResult = results.find(
-          (r) => r.id === 'behavioral/tool-is-error'
-        );
+        const isErrorResult = results.find((r) => r.id === 'behavioral/tool-is-error');
         expect(isErrorResult?.status).toBe('fail');
       } finally {
         await connection.close();
@@ -201,9 +194,7 @@ describe('Behavioral Checks', () => {
           suites: config.suites,
         });
 
-        const toolExistsResult = results.find(
-          (r) => r.id === 'behavioral/tool-exists'
-        );
+        const toolExistsResult = results.find((r) => r.id === 'behavioral/tool-exists');
         expect(toolExistsResult?.status).toBe('fail');
         expect(toolExistsResult?.message).toContain('not found');
       } finally {

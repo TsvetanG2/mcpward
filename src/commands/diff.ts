@@ -5,13 +5,7 @@ import { runDriftChecks } from '../checks/drift.js';
 import { getExitCode } from '../report/model.js';
 import { detectPrContext } from '../report/github.js';
 import { redactString } from '../report/redact.js';
-import {
-  buildReport,
-  emitReport,
-  publishPrComment,
-  withRunDeadline,
-  closeOnce,
-} from './output.js';
+import { buildReport, emitReport, publishPrComment, withRunDeadline, closeOnce } from './output.js';
 import { DEFAULT_RUN_MS } from './run.js';
 
 export interface DiffOptions {
