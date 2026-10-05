@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/TsvetanG2/mcpward/main/schemas/config.v1.schema.json
 # Example mcpward configuration
 #
 # This file shows all available configuration options.

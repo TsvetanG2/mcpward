@@ -1,0 +1,343 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/TsvetanG2/mcpward/main/schemas/config.v1.schema.json",
+  "title": "mcpward configuration (mcpward.yaml)",
+  "type": "object",
+  "properties": {
+    "server": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "transport": {
+              "type": "string",
+              "const": "stdio"
+            },
+            "command": {
+              "type": "string"
+            },
+            "args": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "env": {
+              "default": {},
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "transport",
+            "command"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "transport": {
+              "type": "string",
+              "const": "http"
+            },
+            "url": {
+              "type": "string",
+              "format": "uri"
+            },
+            "headers": {
+              "default": {},
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "transport",
+            "url"
+          ]
+        }
+      ]
+    },
+    "expect": {
+      "type": "object",
+      "properties": {
+        "protocol_version": {
+          "type": "string"
+        }
+      }
+    },
+    "checks": {
+      "type": "object",
+      "properties": {
+        "compliance": {
+          "default": true,
+          "type": "boolean"
+        },
+        "schema": {
+          "default": true,
+          "type": "boolean"
+        },
+        "security": {
+          "default": true,
+          "type": "boolean"
+        },
+        "drift": {
+          "type": "object",
+          "properties": {
+            "baseline": {
+              "default": "./mcpward.lock.json",
+              "type": "string"
+            },
+            "fail_on": {
+              "default": [
+                "tool_removed",
+                "description_changed",
+                "breaking_schema_change",
+                "annotation_changed",
+                "breaking_output_shape_change"
+              ],
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "tool_removed",
+                      "tool_added",
+                      "description_changed",
+                      "breaking_schema_change",
+                      "nonbreaking_schema_change",
+                      "annotation_changed",
+                      "breaking_output_shape_change",
+                      "nonbreaking_output_shape_change"
+                    ]
+                  }
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "high",
+                    "medium",
+                    "low"
+                  ]
+                }
+              ]
+            },
+            "severity": {
+              "default": {},
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "enum": [
+                  "tool_removed",
+                  "tool_added",
+                  "description_changed",
+                  "breaking_schema_change",
+                  "nonbreaking_schema_change",
+                  "annotation_changed",
+                  "breaking_output_shape_change",
+                  "nonbreaking_output_shape_change"
+                ]
+              },
+              "additionalProperties": {
+                "type": "string",
+                "enum": [
+                  "high",
+                  "medium",
+                  "low"
+                ]
+              }
+            },
+            "output": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "default": false,
+                  "type": "boolean"
+                },
+                "shape_samples": {
+                  "default": 3,
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "call_readonly": {
+                  "default": true,
+                  "type": "boolean"
+                },
+                "tools": {
+                  "default": [],
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "args": {
+                        "default": {},
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {}
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ]
+                  }
+                }
+              }
+            },
+            "full_text": {
+              "default": true,
+              "type": "boolean"
+            }
+          }
+        },
+        "latency": {
+          "type": "object",
+          "properties": {
+            "samples": {
+              "default": 5,
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "p95_budget_ms": {
+              "default": 1000,
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          }
+        },
+        "collision": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "default": true,
+              "type": "boolean"
+            },
+            "threshold": {
+              "default": 0.8,
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "max_tools": {
+              "default": 500,
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "fail": {
+              "default": false,
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "timeouts": {
+      "type": "object",
+      "properties": {
+        "connect_ms": {
+          "default": 10000,
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "call_ms": {
+          "default": 30000,
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "run_ms": {
+          "default": 300000,
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        }
+      }
+    },
+    "suites": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "tool": {
+            "type": "string"
+          },
+          "cases": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "args": {
+                  "default": {},
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                },
+                "expect": {
+                  "type": "object",
+                  "properties": {
+                    "tool_is_error": {
+                      "type": "boolean"
+                    },
+                    "protocol_error_code": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "output_matches_schema": {
+                      "type": "boolean"
+                    },
+                    "jsonpath": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {}
+                    },
+                    "golden": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "required": [
+                "name"
+              ]
+            }
+          }
+        },
+        "required": [
+          "tool",
+          "cases"
+        ]
+      }
+    }
+  },
+  "required": [
+    "server"
+  ]
+}

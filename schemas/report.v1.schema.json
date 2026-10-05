@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/TsvetanG2/mcpward/main/schemas/report.v1.schema.json",
+  "title": "mcpward JSON report (schemaVersion 1)",
+  "description": "Output of `mcpward run --reporter json` and `mcpward diff --json`. Additive changes (new optional fields, new rule ids, new check families) do not change schemaVersion, so unknown properties and family names are allowed.",
+  "type": "object",
+  "required": ["schemaVersion", "version", "timestamp", "server", "summary", "results"],
+  "properties": {
+    "schemaVersion": {
+      "const": 1,
+      "description": "Report format version. Changes only on a breaking change to this shape."
+    },
+    "version": {
+      "type": "string",
+      "description": "mcpward version that produced the report."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "server": {
+      "type": "object",
+      "required": ["name", "version", "protocolVersion"],
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" },
+        "protocolVersion": {
+          "type": "string",
+          "description": "MCP protocol version negotiated with the server."
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": ["total", "passed", "failed", "warnings", "skipped"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "passed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 },
+        "warnings": { "type": "integer", "minimum": 0 },
+        "skipped": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "results": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/checkResult" }
+    }
+  },
+  "$defs": {
+    "checkResult": {
+      "type": "object",
+      "required": ["id", "family", "status", "severity", "message"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z]+/[a-z0-9_-]+$",
+          "description": "Rule id, e.g. `drift/description_changed`. Documented in docs/rules.md."
+        },
+        "family": {
+          "type": "string",
+          "pattern": "^[a-z]+$",
+          "description": "Check family. Known values: compliance, schema, drift, security, behavioral, errors, latency, collision. New families may be added without a schemaVersion change."
+        },
+        "status": {
+          "enum": ["pass", "fail", "warn", "skip"]
+        },
+        "severity": {
+          "enum": ["error", "warning", "info"]
+        },
+        "message": { "type": "string" },
+        "expected": {
+          "description": "Expected value, if the check compares one. Any JSON value."
+        },
+        "actual": {
+          "description": "Actual value, if the check compares one. Any JSON value."
+        },
+        "location": {
+          "type": "string",
+          "description": "Tool name, parameter path or other location the result refers to."
+        }
+      }
+    }
+  }
+}

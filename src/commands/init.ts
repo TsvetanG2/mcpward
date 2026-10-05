@@ -2,7 +2,8 @@ import { writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import pc from 'picocolors';
 
-export const DEFAULT_CONFIG = `# mcpward configuration
+export const DEFAULT_CONFIG = `# yaml-language-server: $schema=https://raw.githubusercontent.com/TsvetanG2/mcpward/main/schemas/config.v1.schema.json
+# mcpward configuration
 # See: https://github.com/TsvetanG2/mcpward
 
 server:
