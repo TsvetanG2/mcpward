@@ -4,10 +4,10 @@ mcpward is used as a CI gate, so what it outputs is a contract: pipelines parse 
 report, code scanning ingests the SARIF, and lockfiles live in your repository for months.
 This document says what is covered by that contract and how it changes.
 
-From **1.0.0**, mcpward follows [Semantic Versioning](https://semver.org): anything listed
-under *Public contract* changes incompatibly only in a new **major** version. Before 1.0.0,
-incompatible changes may happen in minor versions, and every one is called out in
-[`CHANGELOG.md`](../CHANGELOG.md).
+Since **1.0.0**, mcpward follows [Semantic Versioning](https://semver.org): anything listed
+under *Public contract* changes incompatibly only in a new **major** version. (In 0.x,
+incompatible changes could happen in minor versions; each is called out in
+[`CHANGELOG.md`](../CHANGELOG.md).)
 
 ## Public contract
 
@@ -23,7 +23,7 @@ incompatible changes may happen in minor versions, and every one is called out i
 | SARIF | Valid SARIF 2.1.0; `ruleId` is the rule id with `/` replaced by `-`; `helpUri` points into `docs/rules.md`; alerts are anchored to the config file used (`artifactLocation.uri`, repo-relative) | — |
 | JUnit | One `<testsuite>` per check family, one `<testcase>` per result with `classname` = rule id | — |
 | stdio server environment | The server inherits mcpward's environment except mcpward's own credentials (`MCPWARD_GITHUB_TOKEN`, `GITHUB_TOKEN`); `server.env` is passed explicitly. See [`SECURITY.md`](../SECURITY.md#environment-of-a-stdio-server) | — |
-| GitHub Action | Inputs and outputs (`exit-code`, `report-path`) of `action.yml` (also served at the legacy path `action/action.yml`); from 1.0.0 the major tag (`@v1`) moves only to compatible releases | [`action.yml`](../action.yml) |
+| GitHub Action | Inputs and outputs (`exit-code`, `report-path`) of `action.yml` (also served at the legacy path `action/action.yml`); the major tag (`@v1`) moves only to compatible releases | [`action.yml`](../action.yml) |
 
 ## Not part of the contract
 
@@ -38,7 +38,7 @@ incompatible changes may happen in minor versions, and every one is called out i
 
 ## What counts as a breaking change
 
-Requires a new major version (after 1.0.0) and a new schema file version:
+Requires a new major version and, for a format change, a new schema file version:
 
 - removing or renaming a report, config or lockfile field, or changing its type
 - removing a rule id, drift class or check family, or changing what it means

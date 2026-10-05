@@ -6,9 +6,10 @@
 
 | Version | Supported |
 | ------- | --------- |
-| `0.x`   | ✅ Latest minor only |
+| `1.x`   | ✅ Latest minor |
+| `0.x`   | ❌ Upgrade to 1.x |
 
-Until `1.0.0`, only the most recent released version receives security fixes. Upgrade before reporting.
+Security fixes are released for the latest `1.x` minor. Within 1.x, upgrades never break the public contract ([`docs/stability.md`](docs/stability.md)), so staying current is safe. Upgrade before reporting.
 
 ## Reporting a vulnerability
 
