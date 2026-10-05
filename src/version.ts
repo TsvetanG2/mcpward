@@ -23,6 +23,6 @@ const packageJson = JSON.parse(
 
 /**
  * mcpward version from package.json.
- * Example: "0.6.0"
+ * Example: "0.7.0"
  */
 export const MCPWARD_VERSION = packageJson.version;
