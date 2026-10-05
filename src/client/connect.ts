@@ -32,6 +32,9 @@ export interface McpConnection {
   callTool: (params: { name: string; arguments?: Record<string, unknown> }) => Promise<unknown>;
 }
 
+/** How far past call_ms the SDK's own request timeout is set, so mcpward's fires first. */
+const SDK_TIMEOUT_MARGIN_MS = 1000;
+
 /**
  * Wraps a promise with a timeout. The timer is always cleared, so a settled call never
  * keeps the event loop alive for the rest of the timeout.
@@ -125,7 +128,14 @@ async function connectTransport(
       await client.close();
     },
     callTool: async (params: { name: string; arguments?: Record<string, unknown> }) => {
-      return withTimeout(client.callTool(params), timeouts.call_ms, `tool call "${params.name}"`);
+      // The SDK has its own request timeout (60s by default). Set it past call_ms so ours
+      // always fires first: call_ms above 60s is honored, and every timeout carries our
+      // "Timeout:" message — a server cannot fake that by returning error code -32001.
+      return withTimeout(
+        client.callTool(params, undefined, { timeout: timeouts.call_ms + SDK_TIMEOUT_MARGIN_MS }),
+        timeouts.call_ms,
+        `tool call "${params.name}"`
+      );
     },
   };
 }
