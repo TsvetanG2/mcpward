@@ -4,7 +4,8 @@
  */
 
 import { writeFile } from 'node:fs/promises';
-import { relative, resolve, sep } from 'node:path';
+import { existsSync } from 'node:fs';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import pc from 'picocolors';
 import type { McpConnection } from '../client/connect.js';
 import {
@@ -34,12 +35,33 @@ export interface OutputOptions {
 export type PrContextResult = ReturnType<typeof detectPrContext>;
 
 /**
- * Repo-relative, posix-style path of the config file for SARIF `artifactLocation.uri`, so
- * code-scanning alerts point at the file that was actually used (not always mcpward.yaml).
+ * Repository root that SARIF's `%SRCROOT%` refers to: `GITHUB_WORKSPACE` in Actions, else the
+ * nearest ancestor containing `.git`, else the cwd. NOT simply the cwd — the action's
+ * `working-directory` (or a local run from a subfolder) would anchor alerts to the wrong path.
  */
-export function sarifArtifactUri(configPath: string | undefined): string {
+export function repoRoot(start: string = process.cwd(), env: NodeJS.ProcessEnv = process.env): string {
+  if (env.GITHUB_WORKSPACE) return resolve(env.GITHUB_WORKSPACE);
+  let dir = resolve(start);
+  for (;;) {
+    if (existsSync(join(dir, '.git'))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) return resolve(start);
+    dir = parent;
+  }
+}
+
+/**
+ * Repo-relative URI reference of the config file for SARIF `artifactLocation.uri`, so
+ * code-scanning alerts open the file that was actually used (not always mcpward.yaml).
+ * Each path segment is percent-encoded: `checks#prod.yaml` must not become a fragment and
+ * spaces are not valid in a URI.
+ */
+export function sarifArtifactUri(configPath: string | undefined, root: string = repoRoot()): string {
   if (!configPath) return 'mcpward.yaml';
-  return relative(process.cwd(), resolve(configPath)).split(sep).join('/');
+  return relative(root, resolve(configPath))
+    .split(sep)
+    .map((segment) => encodeURIComponent(segment))
+    .join('/');
 }
 
 /** Builds the report model from results. */
