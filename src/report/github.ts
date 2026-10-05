@@ -67,10 +67,16 @@ function truncateBody(body: string): string {
   );
 }
 
+/** Author of comments posted with the Actions GITHUB_TOKEN (which cannot call GET /user). */
+const ACTIONS_BOT_LOGIN = 'github-actions[bot]';
+
 /**
  * Creates or updates the mcpward comment on the PR.
- * Updates the most recent comment carrying the marker; if that one cannot be edited with
- * this token (someone else's comment quoting the marker), posts a new one.
+ *
+ * Only OUR comment is ever edited: it must start with the marker AND be authored by the
+ * token's own identity. A maintainer's token can edit anyone's comment, so matching on the
+ * marker alone would let a human comment that quotes it be overwritten. Anything that does
+ * not qualify gets a fresh comment instead.
  */
 export async function upsertPrComment(
   ctx: PrContext,
@@ -87,6 +93,12 @@ export async function upsertPrComment(
   };
   const base = `${ctx.apiUrl}/repos/${ctx.repo}`;
 
+  // Our identity: GET /user works for user tokens; installation tokens get 403 → Actions bot.
+  const me = await fetchImpl(`${ctx.apiUrl}/user`, { headers })
+    .then(async (r) => (r.ok ? ((await r.json()) as { login?: string }).login : undefined))
+    .catch(() => undefined);
+  const myLogin = me ?? ACTIONS_BOT_LOGIN;
+
   let existingId: number | undefined;
   for (let page = 1; page <= MAX_COMMENT_PAGES; page++) {
     const res = await fetchImpl(
@@ -96,9 +108,13 @@ export async function upsertPrComment(
       }
     );
     if (!res.ok) throw new Error(`listing PR comments failed: HTTP ${res.status}`);
-    const comments = (await res.json()) as { id: number; body?: string }[];
+    const comments = (await res.json()) as { id: number; body?: string; user?: { login?: string } }[];
     for (const c of comments) {
-      if (typeof c.body === 'string' && c.body.includes(MARKDOWN_REPORT_MARKER)) existingId = c.id;
+      const ours =
+        typeof c.body === 'string' &&
+        c.body.startsWith(MARKDOWN_REPORT_MARKER) &&
+        c.user?.login === myLogin;
+      if (ours) existingId = c.id;
     }
     if (comments.length < 100) break;
   }
