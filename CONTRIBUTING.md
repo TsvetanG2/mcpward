@@ -27,7 +27,7 @@ pnpm run lint
 pnpm run typecheck
 ```
 
-Requires **Node ≥ 20** and **pnpm**.
+Requires **Node ≥ 22** and **pnpm**.
 
 ## The testing rules (read this before writing a check)
 
@@ -113,7 +113,7 @@ Never regenerate baselines blindly to make CI green. That defeats the entire pur
 
 - Use [Conventional Commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `docs:`, `test:`, `chore:`, `refactor:`. Breaking changes get `!` or a `BREAKING CHANGE:` footer.
 - One logical change per PR.
-- CI (lint, typecheck, unit + fixture + negative + golden tests, Node 20/22 × Linux/macOS) must be green before merge.
+- CI (lint, typecheck, unit + fixture + negative + golden tests, Node 22/24 × Linux/macOS) must be green before merge.
 - Do not commit red or broken states.
 - Update `README.md` when you change user-facing behavior, and `CHANGELOG.md` under `Unreleased`.
 

@@ -14,7 +14,7 @@ Catches schema drift, silently changed tool descriptions, protocol violations, e
 
 ## Requirements
 
-- Node.js ≥ 20
+- Node.js ≥ 22
 - An MCP server to test (stdio or HTTP transport)
 
 ## Installation
