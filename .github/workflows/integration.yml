@@ -72,20 +72,18 @@ jobs:
 
       - name: Run mcpward
         id: mcpward
-        continue-on-error: true
         env:
           SERVER_NAME: ${{ matrix.server.name }}
-        run: node dist/cli.js run --config integration.yaml --reporter json --out "result-${SERVER_NAME}.json"
-
-      - name: Check for fatal error (exit 2)
-        if: steps.mcpward.outcome == 'failure'
-        env:
-          EXIT_CODE: ${{ steps.mcpward.outputs.exitcode }}
         run: |
-          # Exit 2 = config/connection error — mcpward could not run, baseline check is meaningless
-          if [ "${{ steps.mcpward.outcome }}" = "failure" ]; then
-            echo "ERROR: mcpward failed (likely exit 2 — config/connection error)"
-            echo "Baseline comparison cannot proceed. Check mcpward output above."
+          # Exit 1 (findings) is EXPECTED for reference servers — the baseline comparison below
+          # decides pass/fail. Only exit 2 (config/connection error) means nothing was tested.
+          set +e
+          node dist/cli.js run --config integration.yaml --reporter json --out "result-${SERVER_NAME}.json"
+          code=$?
+          set -e
+          echo "exitcode=${code}" >> "$GITHUB_OUTPUT"
+          if [ "${code}" -ge 2 ]; then
+            echo "::error::mcpward could not run (exit ${code}) — baseline comparison cannot proceed"
             exit 1
           fi
 
