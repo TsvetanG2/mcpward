@@ -76,7 +76,9 @@ The drift classifier, schema wrappers, JSONPath assertions, config parser, and e
 
 ### 6. Report shapes are a public contract
 
-The JSON, JUnit, SARIF and Markdown output shapes and the exit codes (`0`/`1`/`2`) are consumed by other people's CI. They are golden-snapshotted, and the JSON report, config and lockfile are validated against the published schemas in `schemas/`. Changing them is a deliberate, documented, semver-relevant decision — never an accident. See [`docs/stability.md`](docs/stability.md).
+The JSON, JUnit and SARIF output shapes and the exit codes (`0`/`1`/`2`) are consumed by other people's CI. They are golden-snapshotted, and the JSON report, config and lockfile are validated against the published schemas in `schemas/`. Changing them is a deliberate, documented, semver-relevant decision — never an accident. See [`docs/stability.md`](docs/stability.md).
+
+Human-readable output — console, Markdown and the PR comment — is golden-snapshotted too, so changes are reviewed deliberately, but its layout and wording are **not** part of the semver contract.
 
 - Every rule id a check can emit must have a heading in `docs/rules.md` — a test fails otherwise.
 - Changing the config schema in `src/config/schema.ts`: run `pnpm run schemas` and commit the regenerated `schemas/config.v1.schema.json` — a test fails if it is stale.
