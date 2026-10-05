@@ -8,6 +8,21 @@ Until `1.0.0`, minor versions may contain breaking changes to the config format.
 
 ## [Unreleased]
 
+## [0.7.1] — 2026-10-05
+
+Fixes from review of 0.7.0.
+
+### Fixed
+
+- **Security:** adding a description to a parameter that had none was not reported. A parameter description that is added, removed or changed is now `description_changed` — the easiest rug-pull is writing instructions into a field that was empty.
+- **False positive:** parameter descriptions are now compared in canonical form, so whitespace, line-ending or Unicode-normalization-only edits are not high-severity drift (zero-width characters still are).
+- **Schema drift:** a schema without `type` accepts anything, so adding a `type` (e.g. array `items: {}` → `{type: "string"}`) is now breaking, and removing one non-breaking. It was classified the other way round.
+- **Schema drift:** boolean subschemas are handled — a property changing to `false` (rejects everything) is breaking; `true` → a schema is breaking; the reverse is non-breaking.
+- **Schema drift:** `required` names that are not declared in `properties` are now compared (e.g. array items gaining `required: ["tag"]`).
+- **False positive:** removing a tuple position only relaxes the array unless `additionalItems: false`; adding one constrains it unless it was previously forbidden.
+- **Golden snapshots / drift:** keys literally named `__proto__` were dropped by canonicalization, so a golden mismatch in such a field could pass and such a schema property was invisible to drift. They are ordinary keys now.
+- **`run_ms`:** after the deadline fired, command cleanup could return before the server process was terminated, so the CLI exited and left a timed-out server running. Cleanup now waits for the same shutdown the deadline started.
+
 ## [0.7.0] — 2026-10-05
 
 This release implements **M6 — keep the promises already made**. An audit after 0.6.0 found options that the docs and config accepted but the code ignored; for a testing tool, a silently ignored assertion is the worst kind of bug. All four are fixed, each with a test that fails without the fix.
