@@ -19,17 +19,32 @@ import type { JsonSchema } from './types.js';
 const MAX_SCHEMA_DEPTH = 64;
 
 /**
+ * Version of the canonicalization rules, recorded in every lockfile. Bump whenever the rules
+ * change so `diff` can warn that a comparison crosses a rules change.
+ *
+ * v1: initial rules (M0)
+ * v2: trimming is ASCII-only — v1 used String#trim(), which also strips U+FEFF (a zero-width
+ *     character) and Unicode spaces such as U+00A0, hiding them from drift at the edges.
+ */
+export const CANONICAL_VERSION = 2;
+
+/** Trims ASCII spaces, tabs and newlines only — never Unicode whitespace or U+FEFF. */
+function trimAscii(text: string): string {
+  return text.replace(/^[ \t\n]+|[ \t\n]+$/g, '');
+}
+
+/**
  * Canonicalizes a tool description for drift detection.
  *
  * Normalizations applied:
  * - Unicode normalization to NFC
  * - Line endings normalized: \r\n and \r → \n
- * - Leading/trailing whitespace trimmed
+ * - Leading/trailing ASCII whitespace trimmed
  * - Runs of spaces/tabs within a line collapsed to single space
  * - Blank-line structure between paragraphs preserved
  *
- * DOES NOT remove zero-width, bidi, or other invisible characters.
- * NFC leaves these intact — verified by tests.
+ * DOES NOT remove zero-width, bidi, or other invisible characters — anywhere, including at
+ * the edges (String#trim would strip U+FEFF and Unicode spaces; see CANONICAL_VERSION v2).
  *
  * @param text - The description text to canonicalize
  * @returns Canonical form of the description
@@ -47,11 +62,11 @@ export function canonicalizeDescription(text: string | undefined): string {
   const lines = normalized.split('\n');
   const processedLines = lines.map((line) => {
     // Collapse runs of spaces/tabs within a line to single space
-    return line.replace(/[ \t]+/g, ' ').trim();
+    return trimAscii(line.replace(/[ \t]+/g, ' '));
   });
 
   // Join lines and trim outer whitespace
-  return processedLines.join('\n').trim();
+  return trimAscii(processedLines.join('\n'));
 }
 
 /**
