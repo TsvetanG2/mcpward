@@ -1,6 +1,5 @@
-import { writeFile } from 'node:fs/promises';
 import pc from 'picocolors';
-import { connect } from '../client/connect.js';
+import { connect, type McpConnection } from '../client/connect.js';
 import { runComplianceChecks } from '../checks/compliance.js';
 import { runSchemaChecks } from '../checks/schema.js';
 import { runDriftChecks } from '../checks/drift.js';
@@ -9,21 +8,16 @@ import { runBehavioralChecks } from '../checks/behavioral.js';
 import { runErrorContractChecks } from '../checks/errors.js';
 import { runLatencyChecks } from '../checks/latency.js';
 import { runCollisionChecks } from '../checks/collision.js';
-import {
-  type CheckResult,
-  type CheckReport,
-  summarizeResults,
-  getExitCode,
-} from '../report/model.js';
-import { renderConsoleReport } from '../report/console.js';
-import { renderJsonReport } from '../report/json.js';
-import { renderSarifReport } from '../report/sarif.js';
-import { renderJunitReport } from '../report/junit.js';
-import { renderMarkdownReport } from '../report/markdown.js';
-import { detectPrContext, upsertPrComment } from '../report/github.js';
-import { redactReport } from '../report/redact.js';
+import { type CheckResult, getExitCode } from '../report/model.js';
+import { detectPrContext } from '../report/github.js';
 import type { Config } from '../config/schema.js';
-import { MCPWARD_VERSION } from '../version.js';
+import {
+  buildReport,
+  emitReport,
+  publishPrComment,
+  withRunDeadline,
+  RunDeadlineError,
+} from './output.js';
 
 export interface RunOptions {
   config: string;
@@ -35,10 +29,69 @@ export interface RunOptions {
   prComment?: boolean;
 }
 
-export async function runCommand(
+/** Default whole-run budget when the config has no `timeouts` section. */
+export const DEFAULT_RUN_MS = 300000;
+
+/**
+ * Runs every enabled check family against an open connection.
+ */
+async function runAllChecks(
+  connection: McpConnection,
   config: Config,
-  options: RunOptions
-): Promise<number> {
+  verbose: boolean
+): Promise<CheckResult[]> {
+  const results: CheckResult[] = [];
+  const step = (label: string) => {
+    if (verbose) console.log(pc.dim(`Running ${label}...`));
+  };
+
+  if (config.checks?.compliance !== false) {
+    step('compliance checks');
+    results.push(...(await runComplianceChecks({ connection, config })));
+  }
+
+  if (config.checks?.schema !== false) {
+    step('schema checks');
+    results.push(...(await runSchemaChecks({ connection })));
+  }
+
+  if (config.checks?.drift) {
+    step('drift checks');
+    results.push(
+      ...(await runDriftChecks({ connection, fullConfig: config, config: config.checks.drift }))
+    );
+  }
+
+  if (config.checks?.security !== false) {
+    step('security checks');
+    results.push(...(await runSecurityChecks({ connection })));
+  }
+
+  // Description collision lint (M4) — on by default, needs no baseline
+  if (config.checks?.collision?.enabled !== false) {
+    step('collision lint');
+    results.push(
+      ...(await runCollisionChecks({ connection, config: config.checks?.collision }))
+    );
+  }
+
+  if (config.suites && config.suites.length > 0) {
+    step('behavioral test suites');
+    results.push(...(await runBehavioralChecks({ connection, suites: config.suites })));
+  }
+
+  step('error contract checks');
+  results.push(...(await runErrorContractChecks({ connection })));
+
+  if (config.checks?.latency) {
+    step('latency checks');
+    results.push(...(await runLatencyChecks({ connection, config: config.checks.latency })));
+  }
+
+  return results;
+}
+
+export async function runCommand(config: Config, options: RunOptions): Promise<number> {
   const verbose = options.verbose ?? false;
   const reporter = options.json ? 'json' : options.reporter;
 
@@ -50,224 +103,57 @@ export async function runCommand(
     console.log(pc.dim('Connecting to server...'));
   }
 
-  let connection;
+  let connection: McpConnection;
   try {
     connection = await connect(config);
   } catch (err) {
-    console.error(
-      pc.red('Failed to connect:'),
-      err instanceof Error ? err.message : err
-    );
+    console.error(pc.red('Failed to connect:'), err instanceof Error ? err.message : err);
     return 2;
   }
 
   // Setup signal handlers for cleanup
-  let interrupted = false;
-  const cleanup = async () => {
-    if (!interrupted) {
-      interrupted = true;
-      if (verbose) {
-        console.log(pc.dim('\nInterrupted, cleaning up...'));
-      }
-      try {
-        await connection.close();
-      } catch {
-        // Ignore close errors during signal handling
-      }
-      process.exit(130); // Standard exit code for SIGINT
+  let closed = false;
+  const close = async () => {
+    if (closed) return;
+    closed = true;
+    try {
+      await connection.close();
+    } catch {
+      // Ignore close errors
     }
   };
-  process.on('SIGINT', cleanup);
-  process.on('SIGTERM', cleanup);
+  const onSignal = async () => {
+    if (verbose) {
+      console.log(pc.dim('\nInterrupted, cleaning up...'));
+    }
+    await close();
+    process.exit(130); // Standard exit code for SIGINT
+  };
+  process.on('SIGINT', onSignal);
+  process.on('SIGTERM', onSignal);
 
   try {
-    const results: CheckResult[] = [];
+    const runMs = config.timeouts?.run_ms ?? DEFAULT_RUN_MS;
+    const results = await withRunDeadline(runAllChecks(connection, config, verbose), runMs, close);
 
-    // Run compliance checks if enabled
-    if (config.checks?.compliance !== false) {
-      if (verbose) {
-        console.log(pc.dim('Running compliance checks...'));
-      }
-      const complianceResults = await runComplianceChecks({
-        connection,
-        config,
-      });
-      results.push(...complianceResults);
-    }
-
-    // Run schema checks if enabled
-    if (config.checks?.schema !== false) {
-      if (verbose) {
-        console.log(pc.dim('Running schema checks...'));
-      }
-      const schemaResults = await runSchemaChecks({
-        connection,
-      });
-      results.push(...schemaResults);
-    }
-
-    // Run drift checks if enabled and baseline exists
-    if (config.checks?.drift) {
-      if (verbose) {
-        console.log(pc.dim('Running drift checks...'));
-      }
-      const driftResults = await runDriftChecks({
-        connection,
-        fullConfig: config,
-        config: config.checks.drift,
-      });
-      results.push(...driftResults);
-    }
-
-    // Run security checks if enabled
-    if (config.checks?.security !== false) {
-      if (verbose) {
-        console.log(pc.dim('Running security checks...'));
-      }
-      const securityResults = await runSecurityChecks({
-        connection,
-      });
-      results.push(...securityResults);
-    }
-
-    // Run description collision lint (M4) — on by default, needs no baseline
-    if (config.checks?.collision?.enabled !== false) {
-      if (verbose) {
-        console.log(pc.dim('Running collision lint...'));
-      }
-      const collisionResults = await runCollisionChecks({
-        connection,
-        config: config.checks?.collision,
-      });
-      results.push(...collisionResults);
-    }
-
-    // Run behavioral test suites if defined
-    if (config.suites && config.suites.length > 0) {
-      if (verbose) {
-        console.log(pc.dim('Running behavioral test suites...'));
-      }
-      const behavioralResults = await runBehavioralChecks({
-        connection,
-        suites: config.suites,
-      });
-      results.push(...behavioralResults);
-    }
-
-    // Run error contract checks
-    if (verbose) {
-      console.log(pc.dim('Running error contract checks...'));
-    }
-    const errorResults = await runErrorContractChecks({
-      connection,
-    });
-    results.push(...errorResults);
-
-    // Run latency checks if configured
-    if (config.checks?.latency) {
-      if (verbose) {
-        console.log(pc.dim('Running latency checks...'));
-      }
-      const latencyResults = await runLatencyChecks({
-        connection,
-        config: config.checks.latency,
-      });
-      results.push(...latencyResults);
-    }
-
-    // Build report
-    const report: CheckReport = {
-      version: MCPWARD_VERSION,
-      timestamp: new Date().toISOString(),
-      server: {
-        name: connection.serverInfo.name,
-        version: connection.serverInfo.version,
-        protocolVersion: connection.protocolVersion,
-      },
-      summary: summarizeResults(results),
-      results,
-    };
-
-    // Redact secrets before rendering (applies to all reporters)
-    redactReport(report);
-
-    // Output report
-    if (reporter === 'json') {
-      const json = renderJsonReport(report);
-      if (options.out) {
-        await writeFile(options.out, json, 'utf-8');
-        console.log(pc.dim(`Report written to ${options.out}`));
-      } else {
-        console.log(json);
-      }
-    } else if (reporter === 'sarif') {
-      const sarif = renderSarifReport(report);
-      if (options.out) {
-        await writeFile(options.out, sarif, 'utf-8');
-        console.log(pc.dim(`SARIF report written to ${options.out}`));
-      } else {
-        console.log(sarif);
-      }
-    } else if (reporter === 'markdown') {
-      const markdown = renderMarkdownReport(report);
-      if (options.out) {
-        await writeFile(options.out, markdown, 'utf-8');
-        console.log(pc.dim(`Markdown report written to ${options.out}`));
-      } else {
-        console.log(markdown);
-      }
-    } else if (reporter === 'junit') {
-      const junit = renderJunitReport(report);
-      if (options.out) {
-        await writeFile(options.out, junit, 'utf-8');
-        console.log(pc.dim(`JUnit report written to ${options.out}`));
-      } else {
-        console.log(junit);
-      }
-    } else {
-      // Console reporter
-      renderConsoleReport(report, { verbose });
-    }
+    const report = buildReport(connection, results);
+    await emitReport(report, { reporter, out: options.out, verbose });
 
     if (prContext) {
       await publishPrComment(report, prContext);
     }
 
     return getExitCode(results);
-  } finally {
-    // Remove signal handlers
-    process.off('SIGINT', cleanup);
-    process.off('SIGTERM', cleanup);
-    // Only close if not already closed by signal handler
-    if (!interrupted) {
-      try {
-        await connection.close();
-      } catch {
-        // Ignore close errors
-      }
-    }
-  }
-}
-
-/**
- * Posts the (already redacted) report as a PR comment. Never changes the exit code and never
- * writes to stdout — a machine-readable report on stdout must stay parseable.
- */
-async function publishPrComment(
-  report: CheckReport,
-  ctx: ReturnType<typeof detectPrContext>
-): Promise<void> {
-  if ('reason' in ctx) {
-    console.error(pc.dim(`PR comment skipped: ${ctx.reason}`));
-    return;
-  }
-  try {
-    const outcome = await upsertPrComment(ctx, renderMarkdownReport(report));
-    console.error(pc.dim(`PR comment ${outcome} on ${ctx.repo}#${ctx.prNumber}`));
   } catch (err) {
-    console.error(
-      pc.yellow('Warning: could not post PR comment:'),
-      err instanceof Error ? err.message : String(err)
-    );
+    if (err instanceof RunDeadlineError) {
+      // Incomplete run: nothing may claim pass or fail
+      console.error(pc.red('Error:'), err.message);
+      return 2;
+    }
+    throw err;
+  } finally {
+    process.off('SIGINT', onSignal);
+    process.off('SIGTERM', onSignal);
+    await close();
   }
 }
