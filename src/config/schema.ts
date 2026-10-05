@@ -5,13 +5,13 @@ const StdioTransportSchema = z.object({
   transport: z.literal('stdio'),
   command: z.string(),
   args: z.array(z.string()).optional().default([]),
-  env: z.record(z.string()).optional().default({}),
+  env: z.record(z.string(), z.string()).optional().default({}),
 });
 
 const HttpTransportSchema = z.object({
   transport: z.literal('http'),
-  url: z.string().url(),
-  headers: z.record(z.string()).optional().default({}),
+  url: z.url({ protocol: /^https?$/ }),
+  headers: z.record(z.string(), z.string()).optional().default({}),
 });
 
 const ServerSchema = z.discriminatedUnion('transport', [
@@ -113,14 +113,14 @@ const CaseExpectSchema = z.object({
   tool_is_error: z.boolean().optional(),
   protocol_error_code: z.number().int().optional(),
   output_matches_schema: z.boolean().optional(),
-  jsonpath: z.record(z.unknown()).optional(),
+  jsonpath: z.record(z.string(), z.unknown()).optional(),
   golden: z.string().optional(),
 });
 
 // Behavioral test case
 const TestCaseSchema = z.object({
   name: z.string(),
-  args: z.record(z.unknown()).optional().default({}),
+  args: z.record(z.string(), z.unknown()).optional().default({}),
   expect: CaseExpectSchema.optional(),
 });
 
