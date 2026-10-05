@@ -11,7 +11,8 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      # Exact versions only — the moving major tag (v1, v2, …) pushed below must not re-trigger this
+      - 'v*.*.*'
   workflow_dispatch:
 
 permissions:
@@ -70,3 +71,13 @@ jobs:
         with:
           generate_release_notes: true
           draft: false
+
+      # Consumers pin the action to a major version (uses: TsvetanG2/mcpward@v1). Move that tag
+      # to this release. Pre-1.0 versions have no stable major, so v0.x.y releases skip this.
+      - name: Move the major version tag
+        if: ${{ !startsWith(github.ref_name, 'v0.') }}
+        run: |
+          MAJOR="${GITHUB_REF_NAME%%.*}"
+          git tag -f "$MAJOR" "$GITHUB_SHA"
+          git push -f origin "refs/tags/$MAJOR"
+          echo "Moved $MAJOR to $GITHUB_REF_NAME ($GITHUB_SHA)"
