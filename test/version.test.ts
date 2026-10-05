@@ -36,8 +36,7 @@ describe('Version consistency', () => {
     const filesToCheck = [
       'src/cli.ts',
       'src/client/connect.ts',
-      'src/commands/run.ts',
-      'src/commands/diff.ts',
+      'src/commands/output.ts',
       'src/surface/capture.ts',
     ];
 
@@ -113,17 +112,15 @@ describe('Version consistency', () => {
   });
 
   test('Report model uses MCPWARD_VERSION', () => {
-    // Verify run.ts and diff.ts use MCPWARD_VERSION in report
-    const runPath = join(process.cwd(), 'src/commands/run.ts');
-    const runContent = readFileSync(runPath, 'utf-8');
+    // The report is assembled in one place (output.ts) and both commands go through it
+    const outputContent = readFileSync(join(process.cwd(), 'src/commands/output.ts'), 'utf-8');
+    expect(outputContent).toContain("from '../version.js'");
+    expect(outputContent).toContain('version: MCPWARD_VERSION');
 
-    expect(runContent).toContain("from '../version.js'");
-    expect(runContent).toContain('version: MCPWARD_VERSION');
-
-    const diffPath = join(process.cwd(), 'src/commands/diff.ts');
-    const diffContent = readFileSync(diffPath, 'utf-8');
-
-    expect(diffContent).toContain("from '../version.js'");
-    expect(diffContent).toContain('version: MCPWARD_VERSION');
+    for (const command of ['src/commands/run.ts', 'src/commands/diff.ts']) {
+      const content = readFileSync(join(process.cwd(), command), 'utf-8');
+      expect(content).toContain('buildReport(');
+      expect(content).not.toMatch(/version:\s*['"]\d/);
+    }
   });
 });
