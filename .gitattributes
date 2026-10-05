@@ -1,0 +1,4 @@
+# Always check out text files with LF, on every platform.
+# Prettier (format:check in CI) expects LF; without this, Windows checkouts with
+# core.autocrlf=true get CRLF and every file reports as unformatted.
+* text=auto eol=lf
