@@ -20,6 +20,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // Fixed test report with one result per family and status
 const FIXED_REPORT: CheckReport = {
+  schemaVersion: 1,
   version: '0.1.0',
   timestamp: '2024-01-15T10:30:00.000Z', // Fixed timestamp
   server: {
