@@ -1,6 +1,7 @@
 # mcpward — contract testing for MCP servers, in CI
 
 [![CI](https://github.com/TsvetanG2/mcpward/actions/workflows/ci.yml/badge.svg)](https://github.com/TsvetanG2/mcpward/actions/workflows/ci.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/TsvetanG2/mcpward/badge)](https://scorecard.dev/viewer/?uri=github.com/TsvetanG2/mcpward)
 [![npm version](https://img.shields.io/npm/v/mcpward)](https://www.npmjs.com/package/mcpward)
 [![npm downloads](https://img.shields.io/npm/dm/mcpward)](https://www.npmjs.com/package/mcpward)
 [![node version](https://img.shields.io/node/v/mcpward)](https://www.npmjs.com/package/mcpward)
