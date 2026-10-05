@@ -42,6 +42,10 @@ export async function runCommand(
   const verbose = options.verbose ?? false;
   const reporter = options.json ? 'json' : options.reporter;
 
+  // Detect the PR context FIRST: it registers the GitHub token as a secret, and that must
+  // happen before any server output is redacted or rendered.
+  const prContext = options.prComment ? detectPrContext() : undefined;
+
   if (verbose) {
     console.log(pc.dim('Connecting to server...'));
   }
@@ -225,8 +229,8 @@ export async function runCommand(
       renderConsoleReport(report, { verbose });
     }
 
-    if (options.prComment) {
-      await publishPrComment(report);
+    if (prContext) {
+      await publishPrComment(report, prContext);
     }
 
     return getExitCode(results);
@@ -249,8 +253,10 @@ export async function runCommand(
  * Posts the (already redacted) report as a PR comment. Never changes the exit code and never
  * writes to stdout — a machine-readable report on stdout must stay parseable.
  */
-async function publishPrComment(report: CheckReport): Promise<void> {
-  const ctx = detectPrContext();
+async function publishPrComment(
+  report: CheckReport,
+  ctx: ReturnType<typeof detectPrContext>
+): Promise<void> {
   if ('reason' in ctx) {
     console.error(pc.dim(`PR comment skipped: ${ctx.reason}`));
     return;

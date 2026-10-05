@@ -12,6 +12,7 @@
 
 import type { CheckReport, CheckResult } from './model.js';
 import { wordDiff, markInvisibleCharacters } from './text-diff.js';
+import { DRIFT_CLASSES } from '../config/schema.js';
 
 /** Hidden marker used to find and update our own comment instead of stacking new ones. */
 export const MARKDOWN_REPORT_MARKER = '<!-- mcpward-report -->';
@@ -26,12 +27,26 @@ const MAX_DESCRIPTION_CHARS = 1000;
  * (an entity renders as "@" but does not notify anyone). Newlines become spaces so a
  * value cannot break out of a table cell or list item.
  *
+ * GitHub also autolinks bare URLs, `www.` hosts and e-mail addresses, and resolves
+ * @-mentions, after escaping. Those tokens are therefore rendered as inline code, where
+ * neither autolinks nor mentions apply.
+ *
  * Order matters: Markdown punctuation is escaped BEFORE entities are introduced, otherwise
  * the `#` in `&#64;` would itself be escaped and the entity would break.
  */
 export function escapeMarkdown(text: string): string {
-  return markInvisibleCharacters(text)
-    .replace(/\r?\n|\r/g, ' ')
+  const flat = markInvisibleCharacters(text).replace(/\r?\n|\r/g, ' ');
+  return flat
+    .split(LINKISH)
+    .map((part, i) => (i % 2 === 1 ? inlineCode(part) : escapeInline(part)))
+    .join('');
+}
+
+/** Tokens GitHub would turn into links or mentions: URLs, www. hosts, anything with an "@". */
+const LINKISH = /((?:[a-z][a-z0-9+.-]*:\/\/|www\.)\S+|\S*@\S*)/gi;
+
+function escapeInline(text: string): string {
+  return text
     .replace(/[\\`*_{}[\]()#|~]/g, (c) => '\\' + c)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -95,8 +110,21 @@ function renderDescriptionChange(result: CheckResult): string | null {
   return lines.join('\n\n');
 }
 
+const DRIFT_CHANGE_IDS = new Set<string>(DRIFT_CLASSES.map((c) => `drift/${c}`));
+
+/**
+ * A drift change is worth showing in a PR even when it does not fail the run: with
+ * `fail_on: high`, a breaking schema change is reported as `pass` — the reviewer still
+ * needs to see that the contract changed.
+ */
+function isContractChange(result: CheckResult): boolean {
+  return result.family === 'drift' && DRIFT_CHANGE_IDS.has(result.id);
+}
+
+const STATUS_ORDER: Record<string, number> = { fail: 0, warn: 1, pass: 2, skip: 3 };
+
 function renderFinding(result: CheckResult): string {
-  const icon = STATUS_ICON[result.status] ?? '•';
+  const icon = result.status === 'pass' ? 'ℹ️' : (STATUS_ICON[result.status] ?? '•');
   const where = result.location ? ` — ${inlineCode(result.location)}` : '';
   const head = `- ${icon} **${result.id}**${where}: ${escapeMarkdown(result.message)}`;
   if (result.id === 'drift/description_changed') {
@@ -137,8 +165,10 @@ export function renderMarkdownReport(report: CheckReport): string {
     `| ${summary.passed} | ${summary.failed} | ${summary.warnings} | ${summary.skipped} | ${summary.total} |`
   );
 
-  // Group non-pass findings by family; failures first within each family
-  const notable = report.results.filter((r) => r.status === 'fail' || r.status === 'warn');
+  // Group failures, warnings and every contract change by family; failures first
+  const notable = report.results.filter(
+    (r) => r.status === 'fail' || r.status === 'warn' || isContractChange(r)
+  );
   const families = new Map<string, CheckResult[]>();
   for (const r of notable) {
     const list = families.get(r.family) ?? [];
@@ -147,10 +177,15 @@ export function renderMarkdownReport(report: CheckReport): string {
   }
 
   for (const [family, results] of families) {
-    results.sort((a, b) => (a.status === b.status ? 0 : a.status === 'fail' ? -1 : 1));
+    results.sort((a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9));
     const fails = results.filter((r) => r.status === 'fail').length;
-    const warns = results.length - fails;
-    const counts = [fails ? `${fails} failed` : '', warns ? `${warns} warning(s)` : '']
+    const warns = results.filter((r) => r.status === 'warn').length;
+    const changes = results.length - fails - warns;
+    const counts = [
+      fails ? `${fails} failed` : '',
+      warns ? `${warns} warning(s)` : '',
+      changes ? `${changes} change(s) reported` : '',
+    ]
       .filter(Boolean)
       .join(', ');
     const body = results.map(renderFinding).join('\n');
@@ -173,7 +208,7 @@ export function renderMarkdownReport(report: CheckReport): string {
 
   if (notable.length === 0) {
     out.push('');
-    out.push('No failures or warnings.');
+    out.push('No failures, warnings or contract changes.');
   }
 
   out.push('');
