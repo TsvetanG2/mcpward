@@ -22,7 +22,7 @@ incompatible changes may happen in minor versions, and every one is called out i
 | Drift classes and severities | The class names and their default severity (blast radius) | [`docs/rules.md`](rules.md#drift-rules) |
 | SARIF | Valid SARIF 2.1.0; `ruleId` is the rule id with `/` replaced by `-`; `helpUri` points into `docs/rules.md`; alerts are anchored to the config file used (`artifactLocation.uri`, repo-relative) | — |
 | JUnit | One `<testsuite>` per check family, one `<testcase>` per result with `classname` = rule id | — |
-| GitHub Action | Inputs and outputs (`exit-code`, `report-path`) of `action/action.yml` | — |
+| GitHub Action | Inputs and outputs (`exit-code`, `report-path`) of `action.yml` (also served at the legacy path `action/action.yml`); from 1.0.0 the major tag (`@v1`) moves only to compatible releases | [`action.yml`](../action.yml) |
 
 ## Not part of the contract
 

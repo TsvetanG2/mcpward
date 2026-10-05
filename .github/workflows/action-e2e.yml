@@ -1,0 +1,137 @@
+name: Action E2E
+
+# Exercises the GitHub Action the way users run it:
+#  - local:  this repo's action.yml + a fresh build, against fixture servers (every PR)
+#  - clean:  a directory containing ONLY mcpward.yaml, the published package via npx,
+#            and a version-pinned real MCP server (no repo code on the path)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  local:
+    name: Action (local build, fixtures)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+
+      - name: Write configs
+        run: |
+          cat > e2e-good.yaml <<'EOF'
+          server:
+            transport: stdio
+            command: npx
+            args: ['tsx', './fixtures/good-server/index.ts']
+          EOF
+          cat > e2e-poisoned.yaml <<'EOF'
+          server:
+            transport: stdio
+            command: npx
+            args: ['tsx', './fixtures/poisoned-server/index.ts']
+          EOF
+
+      - name: Run action (clean server → exit 0)
+        id: good
+        uses: ./
+        with:
+          local: 'true'
+          config: e2e-good.yaml
+          reporter: sarif
+          output: e2e-good.sarif
+
+      - name: Run action (poisoned server → exit 1)
+        id: poisoned
+        continue-on-error: true
+        uses: ./
+        with:
+          local: 'true'
+          config: e2e-poisoned.yaml
+          reporter: json
+          output: e2e-poisoned.json
+
+      - name: Assert outputs and reports
+        env:
+          GOOD_EXIT: ${{ steps.good.outputs.exit-code }}
+          GOOD_REPORT: ${{ steps.good.outputs.report-path }}
+          POISONED_EXIT: ${{ steps.poisoned.outputs.exit-code }}
+          POISONED_OUTCOME: ${{ steps.poisoned.outcome }}
+        run: |
+          set -euo pipefail
+          test "$GOOD_EXIT" = "0" || { echo "::error::expected exit-code 0, got '$GOOD_EXIT'"; exit 1; }
+          test "$GOOD_REPORT" = "e2e-good.sarif" || { echo "::error::report-path was '$GOOD_REPORT'"; exit 1; }
+          node -e "const s=require('./e2e-good.sarif'); if (s.version !== '2.1.0') process.exit(1)"
+          test "$POISONED_EXIT" = "1" || { echo "::error::expected exit-code 1, got '$POISONED_EXIT'"; exit 1; }
+          test "$POISONED_OUTCOME" = "failure" || { echo "::error::the step must fail on findings"; exit 1; }
+          node -e "
+            const r = require('./e2e-poisoned.json');
+            if (r.schemaVersion !== 1) throw new Error('schemaVersion');
+            if (!r.results.some((x) => x.id === 'security/injection-pattern' && x.status === 'fail'))
+              throw new Error('poisoned server not caught');
+          "
+          echo "Action outputs, exit codes and reports are correct."
+
+  clean:
+    name: Action (clean directory, published package)
+    runs-on: ubuntu-latest
+    steps:
+      # Only the action definition is checked out, into its own folder — the run happens
+      # in an empty directory, exactly like a consumer repository.
+      - uses: actions/checkout@v7
+        with:
+          path: mcpward-action
+          sparse-checkout: |
+            action.yml
+          sparse-checkout-cone-mode: false
+
+      - name: Create a clean project
+        run: |
+          mkdir clean
+          cat > clean/mcpward.yaml <<'EOF'
+          server:
+            transport: stdio
+            command: npx
+            args: ['-y', '@modelcontextprotocol/server-memory@2026.7.4']
+          checks:
+            compliance: true
+            schema: true
+            security: true
+          EOF
+          ls -A clean
+
+      - name: Run the action from the clean directory
+        id: run
+        continue-on-error: true
+        uses: ./mcpward-action
+        with:
+          working-directory: clean
+          version: latest
+          reporter: json
+          output: report.json
+
+      - name: Assert the published package ran to completion
+        env:
+          EXIT: ${{ steps.run.outputs.exit-code }}
+        run: |
+          set -euo pipefail
+          # 0 or 1 both mean the server was tested; 2 means nothing ran
+          case "$EXIT" in 0|1) ;; *) echo "::error::exit-code '$EXIT' — mcpward did not run"; exit 1;; esac
+          node -e "
+            const r = require('./clean/report.json');
+            if (r.schemaVersion !== 1) throw new Error('schemaVersion');
+            if (r.summary.total === 0) throw new Error('no checks ran');
+            console.log('server:', r.server.name, '| checks:', r.summary.total);
+          "
