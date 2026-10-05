@@ -1,10 +1,11 @@
+import { dirname, resolve } from 'node:path';
 import pc from 'picocolors';
 import { connect, type McpConnection } from '../client/connect.js';
 import { runComplianceChecks } from '../checks/compliance.js';
 import { runSchemaChecks } from '../checks/schema.js';
 import { runDriftChecks } from '../checks/drift.js';
 import { runSecurityChecks } from '../checks/security.js';
-import { runBehavioralChecks } from '../checks/behavioral.js';
+import { runBehavioralChecks, type GoldenOptions } from '../checks/behavioral.js';
 import { runErrorContractChecks } from '../checks/errors.js';
 import { runLatencyChecks } from '../checks/latency.js';
 import { runCollisionChecks } from '../checks/collision.js';
@@ -27,6 +28,8 @@ export interface RunOptions {
   verbose?: boolean;
   /** Post/update the report as a GitHub PR comment (M5). Opt-in. */
   prComment?: boolean;
+  /** Write golden snapshot files instead of comparing against them (M6.2). */
+  updateGolden?: boolean;
 }
 
 /** Default whole-run budget when the config has no `timeouts` section. */
@@ -38,7 +41,8 @@ export const DEFAULT_RUN_MS = 300000;
 async function runAllChecks(
   connection: McpConnection,
   config: Config,
-  verbose: boolean
+  verbose: boolean,
+  golden: GoldenOptions
 ): Promise<CheckResult[]> {
   const results: CheckResult[] = [];
   const step = (label: string) => {
@@ -77,7 +81,7 @@ async function runAllChecks(
 
   if (config.suites && config.suites.length > 0) {
     step('behavioral test suites');
-    results.push(...(await runBehavioralChecks({ connection, suites: config.suites })));
+    results.push(...(await runBehavioralChecks({ connection, suites: config.suites, golden })));
   }
 
   step('error contract checks');
@@ -134,7 +138,13 @@ export async function runCommand(config: Config, options: RunOptions): Promise<n
 
   try {
     const runMs = config.timeouts?.run_ms ?? DEFAULT_RUN_MS;
-    const results = await withRunDeadline(runAllChecks(connection, config, verbose), runMs, close);
+    // Golden paths resolve relative to the config file, not the cwd
+    const golden = { baseDir: dirname(resolve(options.config)), update: options.updateGolden ?? false };
+    const results = await withRunDeadline(
+      runAllChecks(connection, config, verbose, golden),
+      runMs,
+      close
+    );
 
     const report = buildReport(connection, results);
     await emitReport(report, { reporter, out: options.out, verbose });

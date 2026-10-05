@@ -526,6 +526,20 @@ A JSONPath assertion in a test case failed.
 **How to fix:**
 Review the JSONPath expression and expected value in your test suite.
 
+### behavioral/golden
+
+**Severity:** error
+
+A test case's output no longer matches its golden snapshot (`expect.golden`), or the golden file is missing or not valid JSON.
+
+**What it checks:**
+- The tool result's `content`, `structuredContent` and `isError`, compared with key order ignored
+- The golden path resolves relative to the config file
+- A missing golden file fails — it is never created implicitly, because a first CI run that writes its own expectation tests nothing
+
+**How to fix:**
+If the change is intended, re-run with `mcpward run --update-golden` and commit the updated file. Use golden snapshots only for deterministic tools (no timestamps or random values in the output).
+
 ### behavioral/protocol-error
 
 **Severity:** error
