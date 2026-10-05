@@ -69,6 +69,7 @@ runs:
         IN_LOCAL: ${{ inputs.local }}
         IN_PR_COMMENT: ${{ inputs.pr-comment }}
         MCPWARD_GITHUB_TOKEN: ${{ inputs.pr-comment == 'true' && inputs.github-token || '' }}
+        MCPWARD_PR_NUMBER: ${{ github.event.pull_request.number }}
       run: |
         set -uo pipefail
 

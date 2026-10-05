@@ -53,7 +53,7 @@ describe('escapeMarkdown (untrusted server text)', () => {
   });
 
   it('marks invisible characters', () => {
-    expect(escapeMarkdown('a\u200Bb')).toBe('a<U+200B>b'.replace('<', '&lt;').replace('>', '&gt;'));
+    expect(escapeMarkdown('a\u200Bb')).toBe('a&lt;U+200B&gt;b');
   });
 });
 
@@ -113,7 +113,6 @@ describe('renderMarkdownReport', () => {
 
 describe('detectPrContext', () => {
   afterEach(() => clearSecrets());
-  const event = (payload: unknown) => () => JSON.stringify(payload);
 
   it('needs a token', () => {
     expect(detectPrContext({ GITHUB_REPOSITORY: 'o/r' })).toEqual({
@@ -122,18 +121,30 @@ describe('detectPrContext', () => {
   });
 
   it('is not a PR context on push events', () => {
-    const ctx = detectPrContext(
-      { GITHUB_TOKEN: 'tok-123456', GITHUB_REPOSITORY: 'o/r', GITHUB_EVENT_PATH: '/e.json' },
-      event({ ref: 'refs/heads/main' })
-    );
+    const ctx = detectPrContext({
+      GITHUB_TOKEN: 'tok-123456',
+      GITHUB_REPOSITORY: 'o/r',
+      GITHUB_REF: 'refs/heads/main',
+    });
     expect(ctx).toEqual({ reason: 'this run is not for a pull request' });
   });
 
-  it('reads the PR number from the event and registers the token as a secret', () => {
-    const ctx = detectPrContext(
-      { GITHUB_TOKEN: 'ghs_supersecret', GITHUB_REPOSITORY: 'o/r', GITHUB_EVENT_PATH: '/e.json' },
-      event({ pull_request: { number: 42 } })
-    );
+  it('prefers MCPWARD_PR_NUMBER (set by the action; covers pull_request_target)', () => {
+    const ctx = detectPrContext({
+      GITHUB_TOKEN: 'tok-123456',
+      GITHUB_REPOSITORY: 'o/r',
+      GITHUB_REF: 'refs/heads/main',
+      MCPWARD_PR_NUMBER: '7',
+    });
+    expect(ctx).toMatchObject({ prNumber: 7 });
+  });
+
+  it('reads the PR number from GITHUB_REF and registers the token as a secret', () => {
+    const ctx = detectPrContext({
+      GITHUB_TOKEN: 'ghs_supersecret',
+      GITHUB_REPOSITORY: 'o/r',
+      GITHUB_REF: 'refs/pull/42/merge',
+    });
     expect(ctx).toEqual({
       apiUrl: 'https://api.github.com',
       repo: 'o/r',
