@@ -45,7 +45,7 @@ function interpolateObject(obj: unknown): unknown {
  * Formats Zod validation errors into a readable message.
  */
 function formatZodError(error: ZodError): string {
-  return error.errors
+  return error.issues
     .map((e) => {
       const path = e.path.join('.');
       return path ? `${path}: ${e.message}` : e.message;

@@ -235,3 +235,17 @@ suites:
     expect(config.suites[0]?.cases[0]?.expect?.tool_is_error).toBe(false);
   });
 });
+
+describe('loadConfig — zod 4 validation', () => {
+  it('rejects non-http(s) server URLs', async () => {
+    const dir = join(tmpdir(), `mcpward-url-${Date.now()}`);
+    await mkdir(dir, { recursive: true });
+    try {
+      const p = join(dir, 'mcpward.yaml');
+      await writeFile(p, 'server:\n  transport: http\n  url: file:///etc/passwd\n');
+      await expect(loadConfig(p)).rejects.toThrow(/server\.url/);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
