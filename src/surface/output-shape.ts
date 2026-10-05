@@ -127,9 +127,15 @@ export function observe(node: ShapeNode, value: unknown, depth = 0): void {
       );
     }
     node.objectCount = (node.objectCount ?? 0) + 1;
-    node.properties ??= {};
+    // Null-prototype map: keys come from the server, and "constructor"/"__proto__" must be
+    // ordinary keys, not inherited members or a prototype setter.
+    const props = (node.properties ??= Object.create(null) as Record<string, ShapeProperty>);
     for (const key of keys) {
-      const prop = (node.properties[key] ??= { seen: 0, shape: emptyShape() });
+      let prop = ownProperty(props, key);
+      if (!prop) {
+        prop = { seen: 0, shape: emptyShape() };
+        Object.defineProperty(props, key, { value: prop, enumerable: true, writable: true, configurable: true });
+      }
       prop.seen += 1;
       observe(prop.shape, obj[key], depth + 1);
     }
@@ -176,16 +182,25 @@ export function extractOutputValue(
     }
   }
 
-  // Track only the block kinds, never the text: free text is a value, not structure.
+  // Track only which block kinds are present, never the text: free text is a value, not
+  // structure. Kinds become KEYS ({ text: true }) so text → image is a removed + added field,
+  // not two identical `{ type: string }` shapes.
+  const kinds = content.map((block) => {
+    const type = (block as { type?: unknown })?.type;
+    return typeof type === 'string' ? type : 'unknown';
+  });
   return {
     source: 'content',
-    value: content.map((block) => ({
-      type:
-        typeof (block as { type?: unknown })?.type === 'string'
-          ? (block as { type: string }).type
-          : 'unknown',
-    })),
+    value: Object.fromEntries(kinds.map((kind) => [kind, true])),
   };
+}
+
+/** Own-property lookup — never returns an inherited member such as `constructor`. */
+function ownProperty(
+  map: Record<string, ShapeProperty> | undefined,
+  key: string
+): ShapeProperty | undefined {
+  return map && Object.hasOwn(map, key) ? map[key] : undefined;
 }
 
 /**
@@ -422,7 +437,7 @@ export function diffOutputShapes(
     // Recurse only where both sides observed the same container type.
     if (base.properties && curr.properties) {
       for (const [key, baseProp] of Object.entries(base.properties)) {
-        const currProp = curr.properties[key];
+        const currProp = ownProperty(curr.properties, key);
         const childPath = `${path}.${key}`;
         if (!currProp) {
           if (isRequired(baseProp, base)) {
@@ -454,8 +469,8 @@ export function diffOutputShapes(
         walk(baseProp.shape, currProp.shape, childPath);
       }
       for (const key of Object.keys(curr.properties)) {
-        if (!(key in base.properties)) {
-          push(false, `${path}.${key}`, 'was added', undefined, curr.properties[key]?.shape.types);
+        if (!ownProperty(base.properties, key)) {
+          push(false, `${path}.${key}`, 'was added', undefined, ownProperty(curr.properties, key)?.shape.types);
         }
       }
     }

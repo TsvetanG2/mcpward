@@ -90,8 +90,37 @@ describe('extractOutputValue', () => {
 
   it('falls back to block kinds for free text — never the text itself', () => {
     const r = extractOutputValue({ content: [{ type: 'text', text: 'hello 123' }] });
-    expect(r).toEqual({ source: 'content', value: [{ type: 'text' }] });
+    expect(r).toEqual({ source: 'content', value: { text: true } });
   });
+
+  it('text → image content is a breaking change, not an identical shape', () => {
+    const base = inferShape([{ content: [{ type: 'text', text: 'a' }] }]);
+    const curr = inferShape([{ content: [{ type: 'image', data: 'x', mimeType: 'image/png' }] }]);
+    if (!base || !curr) throw new Error('expected shapes');
+    const changes = diffOutputShapes('t', base, curr);
+    expect(changes.map((c) => c.class)).toContain('breaking_output_shape_change');
+    expect(changes.map((c) => c.message).join(' ')).toContain('$.text was removed');
+  });
+});
+
+describe('server-controlled keys that collide with Object.prototype', () => {
+  it.each(['constructor', '__proto__', 'toString', 'hasOwnProperty'])(
+    '"%s" is an ordinary field: inferred and diffed',
+    (key) => {
+      const value = JSON.parse(`{"${key}": 1, "a": 1}`) as Record<string, unknown>;
+      const base = infer([value]);
+      expect(Object.keys(base.shape.properties ?? {})).toEqual([key, 'a']);
+      expect(diffOutputShapes('t', base, infer([value]))).toEqual([]);
+
+      // Removing the field is detected, adding it is detected
+      expect(diffOutputShapes('t', base, infer([{ a: 1 }])).map((c) => c.class)).toEqual([
+        'breaking_output_shape_change',
+      ]);
+      expect(diffOutputShapes('t', infer([{ a: 1 }]), base).map((c) => c.class)).toEqual([
+        'nonbreaking_output_shape_change',
+      ]);
+    }
+  );
 });
 
 describe('decideSampling (side-effect policy truth table)', () => {
