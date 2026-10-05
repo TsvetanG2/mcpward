@@ -5,7 +5,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { join } from 'path';
 import { runCommand } from '../../src/commands/run.js';
-import { withRunDeadline, RunDeadlineError } from '../../src/commands/output.js';
+import { withRunDeadline, RunDeadlineError, closeOnce } from '../../src/commands/output.js';
+import type { McpConnection } from '../../src/client/connect.js';
 import { testConfig } from '../helpers/config.js';
 
 const FIXTURES = join(process.cwd(), 'fixtures');
@@ -88,5 +89,35 @@ describe('withRunDeadline', () => {
         settle('fake success after close');
       })
     ).rejects.toBeInstanceOf(RunDeadlineError);
+  });
+});
+
+describe('closeOnce', () => {
+  it('closes once and makes every caller wait for that same shutdown', async () => {
+    let calls = 0;
+    let finish: () => void = () => undefined;
+    const connection = {
+      close: () => {
+        calls += 1;
+        return new Promise<void>((r) => {
+          finish = r;
+        });
+      },
+    } as unknown as McpConnection;
+
+    const close = closeOnce(connection);
+    const first = close(); // e.g. the run deadline
+    let secondDone = false;
+    const second = close().then(() => {
+      secondDone = true; // e.g. command cleanup before process.exit
+    });
+
+    await new Promise((r) => setTimeout(r, 10));
+    expect(calls).toBe(1);
+    expect(secondDone).toBe(false); // cleanup is still waiting for the server to exit
+
+    finish();
+    await Promise.all([first, second]);
+    expect(secondDone).toBe(true);
   });
 });

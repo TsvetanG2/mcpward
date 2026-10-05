@@ -10,6 +10,7 @@ import {
   emitReport,
   publishPrComment,
   withRunDeadline,
+  closeOnce,
 } from './output.js';
 import { DEFAULT_RUN_MS } from './run.js';
 
@@ -44,15 +45,17 @@ export async function diffCommand(config: Config, options: DiffOptions): Promise
     console.log();
   }
 
-  let connection: McpConnection | undefined;
+  // One memoized close shared by the deadline and cleanup, so cleanup waits for the server
+  // to actually exit instead of returning early on a second close call
+  let close: (() => Promise<void>) | undefined;
   try {
-    connection = await connect(config);
-    const conn = connection;
+    const conn: McpConnection = await connect(config);
+    close = closeOnce(conn);
 
     const results = await withRunDeadline(
       runDriftChecks({ connection: conn, fullConfig: config, config: config.checks?.drift }),
       config.timeouts?.run_ms ?? DEFAULT_RUN_MS,
-      () => conn.close()
+      close
     );
 
     const report = buildReport(conn, results);
@@ -67,8 +70,6 @@ export async function diffCommand(config: Config, options: DiffOptions): Promise
     console.error(pc.red('Error:'), err instanceof Error ? err.message : String(err));
     return 2;
   } finally {
-    if (connection) {
-      await connection.close().catch(() => undefined);
-    }
+    await close?.();
   }
 }

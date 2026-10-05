@@ -3,7 +3,7 @@ import type { Config } from '../config/schema.js';
 import { connect } from '../client/connect.js';
 import { captureSurface, saveLockfile } from '../surface/index.js';
 import { redactString } from '../report/redact.js';
-import { withRunDeadline } from './output.js';
+import { withRunDeadline, closeOnce } from './output.js';
 import { DEFAULT_RUN_MS } from './run.js';
 
 export interface BaselineOptions {
@@ -26,10 +26,12 @@ export async function baselineCommand(
   console.log(pc.dim(`Output: ${baselinePath}`));
   console.log();
 
-  let connection;
+  // Memoized close shared by the deadline and cleanup (see closeOnce)
+  let close: (() => Promise<void>) | undefined;
   try {
     // Connect to server
-    connection = await connect(config);
+    const connection = await connect(config);
+    close = closeOnce(connection);
     console.log(pc.green('✓') + ` Connected to ${connection.serverInfo.name} v${connection.serverInfo.version}`);
 
     // Capture surface
@@ -38,7 +40,7 @@ export async function baselineCommand(
     const { surface, notes } = await withRunDeadline(
       captureSurface(conn, config),
       config.timeouts?.run_ms ?? DEFAULT_RUN_MS,
-      () => conn.close()
+      close
     );
     const toolCount = Object.keys(surface.tools).length;
     console.log(pc.green('✓') + ` Captured ${toolCount} tool(s)`);
@@ -78,8 +80,6 @@ export async function baselineCommand(
     console.error(pc.red('Error:'), err instanceof Error ? err.message : String(err));
     return 2;
   } finally {
-    if (connection) {
-      await connection.close();
-    }
+    await close?.();
   }
 }
