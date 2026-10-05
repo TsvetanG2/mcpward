@@ -8,6 +8,12 @@ Since `1.0.0`, the public contract described in [`docs/stability.md`](docs/stabi
 
 ## [Unreleased]
 
+## [1.1.1] — 2026-10-05
+
+### Changed
+
+- **License: MIT → Apache-2.0**, starting with this release. Using, modifying and redistributing mcpward — commercially too — stays allowed; redistributions and derivative works must now keep the `LICENSE` and `NOTICE` files and mark modified files, and the Apache license grants no rights to the name "mcpward". Versions up to and including 1.1.0 remain available under the MIT License. No functional changes.
+
 ## [1.1.0] — 2026-10-05
 
 **Safer tool calls.** Checks that call tools now follow one documented policy, and you can see and control exactly what they call.
