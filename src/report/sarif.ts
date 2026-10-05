@@ -123,6 +123,9 @@ function getShortDescription(ruleId: string): string {
     'drift/breaking_schema_change': 'Breaking schema change',
     'drift/nonbreaking_schema_change': 'Non-breaking schema change',
     'drift/annotation_changed': 'Annotation changed',
+    'drift/breaking_output_shape_change': 'Breaking output shape change (inferred)',
+    'drift/nonbreaking_output_shape_change': 'Non-breaking output shape change (inferred)',
+    'drift/output-sampling': 'Output sampling notice',
     'drift/auth-context-mismatch': 'Baseline captured under a different auth context',
   };
   return descriptions[ruleId] ?? ruleId;
@@ -154,6 +157,10 @@ function getFullDescription(ruleId: string): string {
       'A tool that existed in the baseline is no longer present. This is a breaking change for clients relying on this tool.',
     'drift/annotation_changed':
       'A tool annotation changed in a way that widens its authority (readOnlyHint true→false or destructiveHint false→true). Clients may now auto-approve a tool that mutates state.',
+    'drift/breaking_output_shape_change':
+      'The structure of a tool\'s output, inferred from real calls, changed in a way that breaks consumers: a field disappeared or became optional, a new type appeared, or the output format changed.',
+    'drift/nonbreaking_output_shape_change':
+      'The structure of a tool\'s output, inferred from real calls, changed compatibly: a field was added or a field stopped producing one of its types.',
     'compliance/handshake':
       'Verifies that the MCP server completes the protocol handshake successfully, returning valid server info and capabilities.',
     'schema/tool-name':

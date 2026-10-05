@@ -10,13 +10,14 @@ import type { CheckResult, Severity } from '../report/model.js';
 import type { McpConnection } from '../client/connect.js';
 import type { Config, DriftConfig } from '../config/schema.js';
 import {
-  captureServerSurface,
+  captureSurface,
   loadLockfile,
   diffSurfaces,
   filterFailingChanges,
   applySeverityOverrides,
   type DriftChange,
   type DriftSeverity,
+  type SamplingNote,
 } from '../surface/index.js';
 
 export interface DriftCheckContext {
@@ -72,6 +73,22 @@ function changeToResult(
 }
 
 /**
+ * Converts an output-sampling note (M3) to a CheckResult.
+ * Refused/skipped calls are expected policy outcomes (skip); failures are warnings.
+ */
+export function noteToResult(note: SamplingNote): CheckResult {
+  const isProblem = note.status === 'failed' || note.status === 'partial';
+  return {
+    id: 'drift/output-sampling',
+    family: 'drift',
+    status: isProblem ? 'warn' : 'skip',
+    severity: isProblem ? 'warning' : 'info',
+    message: `Output sampling ${note.status} for "${note.tool}": ${note.reason}`,
+    location: note.tool,
+  };
+}
+
+/**
  * Runs drift checks against the baseline lockfile.
  */
 export async function runDriftChecks(
@@ -84,6 +101,7 @@ export async function runDriftChecks(
     'description_changed',
     'breaking_schema_change',
     'annotation_changed',
+    'breaking_output_shape_change',
   ];
 
   // Check if baseline exists
@@ -119,8 +137,9 @@ export async function runDriftChecks(
 
   // Capture current surface
   let current;
+  let notes: SamplingNote[];
   try {
-    current = await captureServerSurface(ctx.connection, ctx.fullConfig);
+    ({ surface: current, notes } = await captureSurface(ctx.connection, ctx.fullConfig));
   } catch (err) {
     results.push({
       id: 'drift/capture-failed',
@@ -158,6 +177,9 @@ export async function runDriftChecks(
       actual: currentFingerprint,
     });
   }
+
+  // Output sampling notes (M3): refused/skipped tools are reported, never silently dropped
+  results.push(...notes.map(noteToResult));
 
   // Diff surfaces, then apply user severity overrides
   const diff = diffSurfaces(baseline, current);

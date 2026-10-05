@@ -282,3 +282,34 @@ describe('loadConfig — drift severity overrides', () => {
     expect(config.checks?.drift?.fail_on).toBe('high');
   });
 });
+
+describe('loadConfig — output shape drift (M3)', () => {
+  const SERVER = 'server:\n  transport: stdio\n  command: node\n';
+  const load = async (yaml: string) => {
+    const dir = join(tmpdir(), `mcpward-out-${Date.now()}-${Math.random()}`);
+    await mkdir(dir, { recursive: true });
+    try {
+      const p = join(dir, 'mcpward.yaml');
+      await writeFile(p, yaml);
+      return await loadConfig(p);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  };
+
+  it('applies output-drift defaults (off, 3 samples, readonly only)', async () => {
+    const config = await load(`${SERVER}checks:\n  drift:\n    output: {}\n`);
+    expect(config.checks?.drift?.output).toEqual({
+      enabled: false,
+      shape_samples: 3,
+      call_readonly: true,
+      tools: [],
+    });
+  });
+
+  it('rejects shape_samples below 1 with a path in the message', async () => {
+    await expect(
+      load(`${SERVER}checks:\n  drift:\n    output:\n      shape_samples: 0\n`)
+    ).rejects.toThrow(/checks\.drift\.output\.shape_samples/);
+  });
+});

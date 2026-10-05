@@ -285,9 +285,11 @@ Every change gets a **drift class** (what changed) and a **severity** (blast rad
 | `description_changed` | high | yes |
 | `annotation_changed` | high | yes |
 | `breaking_schema_change` | medium | yes |
+| `breaking_output_shape_change` | medium | yes (only produced when output drift is enabled) |
 | `tool_removed` | low | yes |
 | `tool_added` | low | no |
 | `nonbreaking_schema_change` | low | no |
+| `nonbreaking_output_shape_change` | low | no |
 
 `checks.drift.fail_on` takes either a list of classes (above) or a severity threshold (`high` / `medium` / `low`). `checks.drift.severity` overrides the default severity per class, e.g. `severity: { tool_removed: high }`.
 
@@ -398,6 +400,35 @@ A tool's annotations widened its authority: `readOnlyHint` true → false, or `d
 
 **How to fix:**
 Review the annotation change. If a tool is now destructive, clients may need to update their handling.
+
+### drift/breaking_output_shape_change
+
+**Severity:** medium (warning)
+
+The structure of a tool's **output**, inferred from real calls, changed in a way that breaks consumers: an always-present field disappeared or became optional, a field started returning a type the baseline never produced (e.g. `object` → `string`, or newly `null`), or the output format changed (structured content ↔ text).
+
+Output drift is opt-in (`checks.drift.output.enabled`) because it **calls tools**. It only calls tools annotated `readOnlyHint: true` that take no required arguments, or tools you list explicitly in `checks.drift.output.tools` with arguments. Shapes are merged across `shape_samples` calls; only structure is compared, never values. Each finding records the sample counts.
+
+**How to fix:**
+Restore the output field/type, or update the baseline if the change is intentional and consumers have been updated.
+
+### drift/nonbreaking_output_shape_change
+
+**Severity:** low (info)
+
+The inferred output structure changed compatibly: a field was added, an optional field was not observed, or a field stopped returning one of its types.
+
+**How to fix:**
+Usually nothing; update the baseline to record the new shape.
+
+### drift/output-sampling
+
+**Severity:** info (skipped) / warning (failed)
+
+Explains why a tool's output shape was not sampled: refused (no `readOnlyHint: true` and not allowlisted — mcpward never calls a tool that may have side effects), skipped (requires arguments), failed (every call errored or outputs were inconsistent), or partial (some samples failed).
+
+**How to fix:**
+To sample a tool, add it to `checks.drift.output.tools` with the arguments to call it with.
 
 ---
 

@@ -26,8 +26,16 @@ checks:
   drift:
     baseline: ./mcpward.lock.json
     # high = fail only on silent security changes (rug-pulls, permission widening);
-    # medium adds schema breaks; low fails on everything.
+    # medium adds schema/output breaks; low fails on everything.
     fail_on: high
+    # Output shape drift (opt-in): calls readOnlyHint tools that take no
+    # arguments, plus any tools you allowlist with arguments.
+    # output:
+    #   enabled: true
+    #   shape_samples: 3
+    #   tools:
+    #     - name: read_file
+    #       args: { path: "/tmp/sandbox/hello.txt" }
   latency:
     samples: 5
     p95_budget_ms: 1000

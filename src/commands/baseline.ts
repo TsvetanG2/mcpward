@@ -1,7 +1,7 @@
 import pc from 'picocolors';
 import type { Config } from '../config/schema.js';
 import { connect } from '../client/connect.js';
-import { captureServerSurface, saveLockfile } from '../surface/index.js';
+import { captureSurface, saveLockfile } from '../surface/index.js';
 import { redactString } from '../report/redact.js';
 
 export interface BaselineOptions {
@@ -31,9 +31,17 @@ export async function baselineCommand(
     console.log(pc.green('✓') + ` Connected to ${connection.serverInfo.name} v${connection.serverInfo.version}`);
 
     // Capture surface
-    const surface = await captureServerSurface(connection, config);
+    const { surface, notes } = await captureSurface(connection, config);
     const toolCount = Object.keys(surface.tools).length;
     console.log(pc.green('✓') + ` Captured ${toolCount} tool(s)`);
+    if (config.checks?.drift?.output?.enabled) {
+      const sampled = Object.values(surface.tools).filter((t) => t.outputShape).length;
+      console.log(pc.green('✓') + ` Inferred output shape for ${sampled} tool(s)`);
+      for (const note of notes) {
+        const icon = note.status === 'failed' || note.status === 'partial' ? pc.yellow('⚠') : pc.dim('○');
+        console.log(`  ${icon} ${pc.dim(`${note.tool}: ${note.status} — ${redactString(note.reason)}`)}`);
+      }
+    }
 
     // Save lockfile
     await saveLockfile(surface, baselinePath);
@@ -48,6 +56,7 @@ export async function baselineCommand(
       const annotations = [];
       if (tool.annotations?.readOnlyHint) annotations.push('readOnly');
       if (tool.annotations?.destructiveHint) annotations.push('destructive');
+      if (tool.outputShape) annotations.push(`output: ${tool.outputShape.samples} sample(s)`);
       const annotStr = annotations.length > 0 ? pc.dim(` [${annotations.join(', ')}]`) : '';
       console.log(`  ${pc.cyan('•')} ${toolName}${annotStr}`);
     }
