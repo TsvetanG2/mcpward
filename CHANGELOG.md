@@ -12,7 +12,7 @@ Since `1.0.0`, the public contract described in [`docs/stability.md`](docs/stabi
 
 ### Changed
 
-- **License: MIT → Apache-2.0**, starting with this release. Using, modifying and redistributing mcpward — commercially too — stays allowed; redistributions and derivative works must now keep the `LICENSE` and `NOTICE` files and mark modified files, and the Apache license grants no rights to the name "mcpward". Versions up to and including 1.1.0 remain available under the MIT License. No functional changes.
+- **License: MIT → Apache-2.0**, starting with this release. Using, modifying and redistributing mcpward — commercially too — stays allowed; redistributions and derivative works must now include the license, carry the attribution from `NOTICE` (in a NOTICE file, their documentation or a third-party-notices display) and mark modified files, and the Apache license grants no rights to the name "mcpward". Versions up to and including 1.1.0 remain available under the MIT License. No functional changes.
 
 ## [1.1.0] — 2026-10-05
 
