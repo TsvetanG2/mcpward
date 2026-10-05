@@ -149,11 +149,18 @@ const BLACK_FLAG = 0x1f3f4;
 const isTag = (cp: number) => cp >= TAG_START && cp <= TAG_END;
 
 /**
+ * A subdivision flag's tag spec is an ISO 3166-2 code: a 2-letter region plus 1–3 lowercase
+ * letters/digits (e.g. "gbsct"). Anything else between U+1F3F4 and U+E007F is not a flag —
+ * wrapping a smuggled instruction in a "flag" must not exempt it.
+ */
+const SUBDIVISION_TAG_SPEC = /^[a-z]{2}[a-z0-9]{1,3}$/;
+
+/**
  * Finds suspicious unicode characters in a string.
  *
  * Tag characters (U+E0000–E007F) are flagged as `tag-character` ("ASCII smuggling"),
- * EXCEPT inside a well-formed emoji tag sequence: U+1F3F4, tags, U+E007F. Those are
- * subdivision flags and flagging them would be a false positive.
+ * EXCEPT inside a valid subdivision flag: U+1F3F4, an ISO 3166-2 tag spec, U+E007F.
+ * Flagging real flags would be a false positive.
  */
 function findSuspiciousUnicode(text: string): { char: string; codePoint: number; type: string }[] {
   const suspicious: { char: string; codePoint: number; type: string }[] = [];
@@ -165,10 +172,11 @@ function findSuspiciousUnicode(text: string): { char: string; codePoint: number;
     const codePoint = cps[i] ?? 0;
 
     if (codePoint === BLACK_FLAG) {
-      // Skip a well-formed emoji tag sequence; a malformed one falls through and is flagged.
+      // Skip a valid subdivision flag; anything else falls through and its tags are flagged.
       let j = i + 1;
       while (j < cps.length && isTag(cps[j] ?? 0) && cps[j] !== TAG_CANCEL) j++;
-      if (j > i + 1 && cps[j] === TAG_CANCEL) {
+      const spec = String.fromCharCode(...cps.slice(i + 1, j).map((cp) => cp - TAG_START));
+      if (cps[j] === TAG_CANCEL && SUBDIVISION_TAG_SPEC.test(spec)) {
         i = j;
       }
       continue;
@@ -186,6 +194,48 @@ function findSuspiciousUnicode(text: string): { char: string; codePoint: number;
   }
 
   return suspicious;
+}
+
+/** Nesting limit for walking untrusted input schemas. */
+const MAX_PARAM_DEPTH = 32;
+
+/**
+ * Collects every parameter description in an input schema, at any depth: nested
+ * `properties`, array `items`, `additionalProperties`, and anyOf/oneOf/allOf branches.
+ * Paths read like `filter.status` or `rows[].note`. Depth-limited and cycle-safe.
+ */
+export function collectParamDescriptions(schema: unknown): { path: string; description: string }[] {
+  const found: { path: string; description: string }[] = [];
+  const seen = new WeakSet<object>();
+
+  const walk = (node: unknown, path: string, depth: number): void => {
+    if (depth > MAX_PARAM_DEPTH || node === null || typeof node !== 'object' || Array.isArray(node)) {
+      return;
+    }
+    if (seen.has(node)) return;
+    seen.add(node);
+    const s = node as Record<string, unknown>;
+
+    if (path !== '' && typeof s.description === 'string' && s.description !== '') {
+      found.push({ path, description: s.description });
+    }
+    const props = s.properties;
+    if (props && typeof props === 'object' && !Array.isArray(props)) {
+      for (const [key, child] of Object.entries(props as Record<string, unknown>)) {
+        walk(child, path === '' ? key : `${path}.${key}`, depth + 1);
+      }
+    }
+    const items = Array.isArray(s.items) ? s.items : [s.items];
+    for (const item of items) walk(item, `${path}[]`, depth + 1);
+    walk(s.additionalProperties, `${path}{}`, depth + 1);
+    for (const key of ['anyOf', 'oneOf', 'allOf'] as const) {
+      const branches = s[key];
+      if (Array.isArray(branches)) for (const b of branches) walk(b, path, depth + 1);
+    }
+  };
+
+  walk(schema, '', 0);
+  return found;
 }
 
 /**
@@ -357,37 +407,34 @@ function checkToolSecurity(tool: Tool): CheckResult[] {
     }
   }
 
-  // 5. Check for injection patterns in parameter descriptions
-  if (inputSchema?.properties) {
-    for (const [fieldName, fieldSchema] of Object.entries(inputSchema.properties)) {
-      const fieldDesc = (fieldSchema as { description?: string })?.description;
-      if (fieldDesc) {
-        // Parameter descriptions are read by the model too — same hidden-unicode rule
-        const paramUnicode = findSuspiciousUnicode(fieldDesc);
-        if (paramUnicode.length > 0) {
-          results.push({
-            id: 'security/hidden-unicode',
-            family: 'security',
-            status: 'fail',
-            severity: 'error',
-            message: `Tool "${name}" parameter "${fieldName}" description contains hidden unicode: ${describeUnicode(paramUnicode)}`,
-            actual: paramUnicode,
-            location: `${name}.${fieldName}`,
-          });
-        }
+  // 5. Check parameter descriptions at every nesting level (the model reads them all)
+  if (inputSchema) {
+    for (const { path: fieldName, description: fieldDesc } of collectParamDescriptions(inputSchema)) {
+      // Parameter descriptions are read by the model too — same hidden-unicode rule
+      const paramUnicode = findSuspiciousUnicode(fieldDesc);
+      if (paramUnicode.length > 0) {
+        results.push({
+          id: 'security/hidden-unicode',
+          family: 'security',
+          status: 'fail',
+          severity: 'error',
+          message: `Tool "${name}" parameter "${fieldName}" description contains hidden unicode: ${describeUnicode(paramUnicode)}`,
+          actual: paramUnicode,
+          location: `${name}.${fieldName}`,
+        });
+      }
 
-        const paramInjection = findInjectionPatterns(fieldDesc);
-        if (paramInjection.length > 0) {
-          results.push({
-            id: 'security/injection-pattern',
-            family: 'security',
-            status: 'fail',
-            severity: 'error',
-            message: `Tool "${name}" parameter "${fieldName}" description contains injection pattern: "${paramInjection[0]}"`,
-            actual: paramInjection,
-            location: `${name}.${fieldName}`,
-          });
-        }
+      const paramInjection = findInjectionPatterns(fieldDesc);
+      if (paramInjection.length > 0) {
+        results.push({
+          id: 'security/injection-pattern',
+          family: 'security',
+          status: 'fail',
+          severity: 'error',
+          message: `Tool "${name}" parameter "${fieldName}" description contains injection pattern: "${paramInjection[0]}"`,
+          actual: paramInjection,
+          location: `${name}.${fieldName}`,
+        });
       }
     }
   }

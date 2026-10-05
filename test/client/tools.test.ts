@@ -28,7 +28,7 @@ function fakeClient(
 ): Client {
   return {
     listTools: async (params?: { cursor?: string }) => {
-      const page = pages[params?.cursor ?? ''];
+      const page = pages[params?.cursor === undefined ? '<start>' : params.cursor];
       if (!page) throw new Error(`unexpected cursor ${params?.cursor}`);
       return page;
     },
@@ -38,7 +38,7 @@ function fakeClient(
 describe('listAllTools', () => {
   it('follows nextCursor across pages', async () => {
     const client = fakeClient({
-      '': { tools: [{ name: 'a' }], nextCursor: 'p2' },
+      '<start>': { tools: [{ name: 'a' }], nextCursor: 'p2' },
       p2: { tools: [{ name: 'b' }], nextCursor: 'p3' },
       p3: { tools: [{ name: 'c' }] },
     });
@@ -46,9 +46,18 @@ describe('listAllTools', () => {
     expect(tools.map((t) => t.name)).toEqual(['a', 'b', 'c']);
   });
 
+  it('follows an empty-string cursor (only an absent nextCursor ends pagination)', async () => {
+    const client = fakeClient({
+      '<start>': { tools: [{ name: 'a' }], nextCursor: '' },
+      '': { tools: [{ name: 'hidden' }] },
+    });
+    const tools = await listAllTools(client);
+    expect(tools.map((t) => t.name)).toEqual(['a', 'hidden']);
+  });
+
   it('rejects a cursor loop instead of hanging', async () => {
     const client = fakeClient({
-      '': { tools: [{ name: 'a' }], nextCursor: 'p2' },
+      '<start>': { tools: [{ name: 'a' }], nextCursor: 'p2' },
       p2: { tools: [{ name: 'b' }], nextCursor: 'p2' },
     });
     await expect(listAllTools(client)).rejects.toThrow(/pagination loop/);
