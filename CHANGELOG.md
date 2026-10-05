@@ -8,6 +8,31 @@ Until `1.0.0`, minor versions may contain breaking changes to the config format.
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-10-05
+
+This release implements **M8 — distribution**, the last milestone before 1.0.0.
+
+### Changed
+
+- **Node.js 22 is now the minimum** (`engines.node: >=22`). Node 20 reached end-of-life in April 2026. CI tests Node 22 and 24; the GitHub Action runs on Node 22. Stay on mcpward 0.8.x if you cannot upgrade.
+- **GitHub Action at the repository root**: use `uses: TsvetanG2/mcpward@<tag>`. The old path `TsvetanG2/mcpward/action@…` keeps working (the two definitions are kept identical by a test). Pin a release tag; from 1.0.0 a moving major tag (`@v1`) is maintained.
+- The Action runs `npx --yes mcpward@<version>`, so installing the package never waits on an interactive prompt.
+
+### Added
+
+- **Action end-to-end workflow**: the Action is exercised as a user would run it — against fixture servers with a local build (outputs, exit codes 0/1, SARIF and JSON reports), and from a clean directory containing only `mcpward.yaml`, running the published package against a version-pinned real MCP server.
+- The release workflow moves the major version tag (`v1`, …) to each 1.x+ release; its trigger is narrowed to exact versions (`v*.*.*`).
+- `pnpm run format:check` runs in CI (Prettier, code only).
+
+### Removed
+
+- The unused `execa` dependency (its v10 requires Node 22 and it was never imported).
+
+### Internal
+
+- Upgraded vitest to 5.
+- `.gitattributes` checks out text files with LF on every platform.
+
 ## [0.8.1] — 2026-10-05
 
 Fixes from review of 0.8.0.

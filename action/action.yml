@@ -21,7 +21,7 @@ inputs:
   version:
     description: 'mcpward version to use (ignored if local is true)'
     required: false
-    default: '0.8.1'
+    default: '0.9.0'
   local:
     description: 'Use a local build (node dist/cli.js, relative to working-directory) instead of npx. For testing inside the mcpward repo.'
     required: false
