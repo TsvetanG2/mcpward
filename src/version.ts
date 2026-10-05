@@ -21,6 +21,6 @@ const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8')) as { vers
 
 /**
  * mcpward version from package.json.
- * Example: "0.9.0"
+ * Example: "1.0.0"
  */
 export const MCPWARD_VERSION = packageJson.version;

@@ -8,6 +8,24 @@ Since `1.0.0`, the public contract described in [`docs/stability.md`](docs/stabi
 
 ## [Unreleased]
 
+## [1.0.0] — 2026-10-05
+
+**mcpward 1.0.0.** No functional changes from 0.9.0 — this release makes a promise: the public contract in [`docs/stability.md`](docs/stability.md) (exit codes, CLI, config, JSON report, lockfile, rule ids, drift classes, SARIF/JUnit structure, GitHub Action inputs and outputs) now changes incompatibly only in a major version.
+
+What 1.0 contains, by milestone:
+
+- **Drift & rug-pull detection** — canonicalized description hashing with word-level diffs that make invisible characters visible; tool-, schema- (recursive: enums, bounds, patterns, nested properties, array items) and annotation-level drift; parameter descriptions are rug-pull vectors too; severity by blast radius with `fail_on: high|medium|low`; opt-in output-shape drift that only calls read-only or allowlisted tools.
+- **Tool-poisoning heuristics** — injection phrasing, hidden and zero-width unicode, Unicode Tag "ASCII smuggling" (decoded), secret-soliciting schemas, `readOnlyHint` mismatches — at every nesting level; full `tools/list` pagination.
+- **Description collision lint** — near-identical descriptions over divergent input schemas, offline, no baseline needed.
+- **Protocol & contract checks** — compliance, schema validity, the two-layer error contract, behavioral suites with JSONPath and golden snapshots, latency budgets.
+- **CI surface** — console, JSON, JUnit, SARIF and Markdown reporters; PR comments; a GitHub Action (`uses: TsvetanG2/mcpward@v1`); stdio and Streamable HTTP with tested parity; published JSON Schemas for report, config and lockfile.
+
+### Changed
+
+- The GitHub Action's major tag `v1` is created by this release and moves only to compatible 1.x releases. Docs and examples use `@v1`.
+- Security fixes are provided for the latest 1.x minor ([`SECURITY.md`](SECURITY.md)).
+- Documentation brought up to date: README examples reflect current output and current action versions, CONTRIBUTING lists every fixture and the schema/rule-documentation rules, published articles are linked.
+
 ## [0.9.0] — 2026-10-05
 
 This release implements **M8 — distribution**, the last milestone before 1.0.0.
