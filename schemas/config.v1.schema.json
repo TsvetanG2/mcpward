@@ -48,7 +48,8 @@
             },
             "url": {
               "type": "string",
-              "format": "uri"
+              "pattern": "^(https?://\\S+|.*\\$\\{[^}]+\\}.*)$",
+              "description": "Streamable HTTP endpoint (http or https), or a value containing a ${ENV_VAR} placeholder resolved at load time."
             },
             "headers": {
               "default": {},

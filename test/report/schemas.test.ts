@@ -58,6 +58,19 @@ describe('config schema', () => {
     expectValid(validate, parseYaml(DEFAULT_CONFIG));
   });
 
+  it('server.url matches the parser: http(s) or an ${ENV} placeholder, nothing else', () => {
+    const validate = validator('config.v1.schema.json');
+    const http = (url: string) => ({ server: { transport: 'http', url } });
+    expect(validate(http('https://mcp.example.com/mcp'))).toBe(true);
+    expect(validate(http('http://localhost:3000/mcp'))).toBe(true);
+    // expanded by loadConfig before validation — must not be flagged in the editor
+    expect(validate(http('${MCP_URL}'))).toBe(true);
+    expect(validate(http('https://${MCP_HOST}/mcp'))).toBe(true);
+    // rejected by the parser — must be rejected by the published schema too
+    expect(validate(http('file:///etc/passwd'))).toBe(false);
+    expect(validate(http('ftp://example.com/mcp'))).toBe(false);
+  });
+
   it('NEGATIVE: rejects an unknown transport and an invalid fail_on', () => {
     const validate = validator('config.v1.schema.json');
     expect(validate({ server: { transport: 'ftp', command: 'x' } })).toBe(false);

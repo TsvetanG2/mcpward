@@ -29,7 +29,8 @@ This release implements **M7 — freeze the contract**. Everything a pipeline de
 
 ### Fixed
 
-- **SARIF alerts pointed at `mcpward.yaml` regardless of `--config`.** `artifactLocation.uri` is now the repo-relative path of the config file actually used, so code-scanning alerts open the right file.
+- **SARIF alerts pointed at `mcpward.yaml` regardless of `--config`.** `artifactLocation.uri` is now the path of the config file actually used, relative to the repository root (`GITHUB_WORKSPACE` in Actions, else the nearest `.git` ancestor) — so it is also correct with the action's `working-directory` — and percent-encoded per segment (a file named `checks#prod.yaml` is not read as a URI fragment).
+- The published config schema restricts `server.url` exactly like the parser: `http(s)` URLs, or a value with a `${ENV_VAR}` placeholder (expanded before validation, so editors no longer flag it).
 
 ### Removed
 

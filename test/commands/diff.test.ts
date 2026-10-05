@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { connect } from '../../src/client/connect.js';
 import { captureServerSurface, saveLockfile } from '../../src/surface/index.js';
 import { diffCommand } from '../../src/commands/diff.js';
+import { sarifArtifactUri, repoRoot } from '../../src/commands/output.js';
 import { testConfig } from '../helpers/config.js';
 
 const FIXTURES = join(process.cwd(), 'fixtures', 'drift');
@@ -74,6 +75,20 @@ describe('mcpward diff', () => {
     );
     expect([...uris]).toEqual(['ci/mcp-checks.yaml']);
   }, 30000);
+
+  it('SARIF URIs are relative to the repository root, not the working directory', () => {
+    // e.g. the action's working-directory: service, config at the repo root
+    const root = join(dir, 'repo');
+    expect(sarifArtifactUri(join(root, 'mcpward.yaml'), root)).toBe('mcpward.yaml');
+    expect(sarifArtifactUri(join(root, 'ci', 'mcp.yaml'), root)).toBe('ci/mcp.yaml');
+    expect(repoRoot(join(dir, 'anywhere'), { GITHUB_WORKSPACE: root })).toBe(root);
+  });
+
+  it('SARIF URIs percent-encode each path segment (# and spaces)', () => {
+    const root = join(dir, 'repo');
+    expect(sarifArtifactUri(join(root, 'ci', 'checks#prod.yaml'), root)).toBe('ci/checks%23prod.yaml');
+    expect(sarifArtifactUri(join(root, 'my checks', 'mcp.yaml'), root)).toBe('my%20checks/mcp.yaml');
+  });
 
   it('--json prints the full report and nothing else on stdout', async () => {
     const lines = captureStdout();
