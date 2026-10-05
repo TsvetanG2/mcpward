@@ -19,6 +19,10 @@ This release implements **M8 — distribution**, the last milestone before 1.0.0
 - The Action runs `npx --yes mcpward@<version>`, so installing the package never waits on an interactive prompt.
 - The Action uses `actions/setup-node@v7`; v4 ran on the deprecated Node 20 Actions runtime and printed a deprecation warning in every consumer's workflow.
 
+### Security
+
+- **The PR-comment token reached the server under test.** With `pr-comment: true` the Action exports a write-capable token as `MCPWARD_GITHUB_TOKEN`, and mcpward passed its whole environment to stdio servers — so an untrusted server could read it. mcpward's own credentials (`MCPWARD_GITHUB_TOKEN`, `GITHUB_TOKEN`) are now withheld from the server's environment; a value set explicitly in `server.env` is still passed. Tested end-to-end with a fixture server that reports what it can see.
+
 ### Fixed
 
 - **The Action reported success for an incomplete scan.** Only exit codes 1 and 2 failed the step; any other non-zero status (130 interrupted, 137 killed, 127 `npx` missing) left the step green. Every non-zero exit now fails it. A test runs the action's own shell script against a fake CLI for each exit code.
