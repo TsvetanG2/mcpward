@@ -122,7 +122,7 @@ export async function runCommand(config: Config, options: RunOptions): Promise<n
     if (verbose) {
       console.log(pc.dim('\nInterrupted, cleaning up...'));
     }
-    await close();
+    await close().catch(() => undefined);
     process.exit(130); // Standard exit code for SIGINT
   };
   process.on('SIGINT', onSignal);
@@ -156,6 +156,6 @@ export async function runCommand(config: Config, options: RunOptions): Promise<n
   } finally {
     process.off('SIGINT', onSignal);
     process.off('SIGTERM', onSignal);
-    await close();
+    await close().catch(() => undefined); // close errors do not change the run result
   }
 }
