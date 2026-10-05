@@ -14,6 +14,7 @@ import { parse as parseYaml } from 'yaml';
 import Ajv2020Module from 'ajv/dist/2020.js';
 import addFormatsModule from 'ajv-formats';
 import { configJsonSchema } from '../../src/config/json-schema.js';
+import { ConfigSchema } from '../../src/config/schema.js';
 import { DEFAULT_CONFIG } from '../../src/commands/init.js';
 import { runCommand } from '../../src/commands/run.js';
 import { connect } from '../../src/client/connect.js';
@@ -69,6 +70,27 @@ describe('config schema', () => {
     // rejected by the parser — must be rejected by the published schema too
     expect(validate(http('file:///etc/passwd'))).toBe(false);
     expect(validate(http('ftp://example.com/mcp'))).toBe(false);
+  });
+
+  it.each([
+    'https://mcp.example.com/mcp',
+    'http://localhost:3000/mcp',
+    'HTTPS://example.com/mcp', // scheme case — the parser normalizes it
+    'https://example.com:abc/mcp', // non-numeric port
+    'https://exa mple.com/mcp',
+    'http://[::1]:8080/mcp', // IPv6 literal
+    'https://user:pass@example.com/mcp', // userinfo
+    'https://example.com:65535/mcp',
+    'https://example.com:99999/mcp', // port out of range
+    'https://example.com?mode=ci',
+    'https://example.com',
+    'file:///etc/passwd',
+    'ftp://example.com/mcp',
+    'mcp.example.com/mcp',
+  ])('server.url %j: the published schema and the parser agree', (url) => {
+    const validate = validator('config.v1.schema.json');
+    const config = { server: { transport: 'http', url } };
+    expect(validate(config)).toBe(ConfigSchema.safeParse(config).success);
   });
 
   it('NEGATIVE: rejects an unknown transport and an invalid fail_on', () => {

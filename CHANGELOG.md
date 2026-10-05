@@ -16,7 +16,7 @@ Fixes from review of 0.8.0.
 
 - **SARIF location relative to the wrong directory.** 0.8.0 made `artifactLocation.uri` relative to the current directory, but code scanning resolves it against the repository root — with the action's `working-directory` (or a run from a subfolder) alerts pointed outside the checkout. It is now relative to the repository root: `GITHUB_WORKSPACE` in Actions, else the nearest `.git` ancestor.
 - **SARIF URI encoding.** Each path segment is percent-encoded, so a config named `checks#prod.yaml` is not read as a URI fragment and paths with spaces are valid URI references.
-- **Config schema `server.url`.** The published schema used `format: "uri"`, which accepted `file:` and `ftp:` URLs the parser rejects, and rejected `${ENV_VAR}` placeholders the parser expands before validating (so editors flagged a valid config). It now accepts exactly http(s) URLs or a value containing a placeholder.
+- **Config schema `server.url`.** The published schema used `format: "uri"`, which accepted `file:` and `ftp:` URLs the parser rejects, and rejected `${ENV_VAR}` placeholders the parser expands before validating (so editors flagged a valid config). It now accepts exactly what the parser accepts: a syntactically valid http(s) URL (scheme case-insensitive, numeric port 0–65535) or a value containing a placeholder. A test checks schema and parser agree on a list of edge-case URLs.
 
 ## [0.8.0] — 2026-10-05
 
