@@ -432,6 +432,39 @@ To sample a tool, add it to `checks.drift.output.tools` with the arguments to ca
 
 ---
 
+## Collision Rules
+
+The collision lint runs on a single surface — no baseline needed — so it works on first contact with a server you did not write.
+
+### collision/list-tools
+
+**Severity:** error
+
+The tool list could not be retrieved, so the collision lint could not run.
+
+### collision/summary
+
+**Severity:** info / warning
+
+Summary of the collision lint, or a notice that it was skipped because the server exposes more than `checks.collision.max_tools` tools (pairwise comparison is O(n²)).
+
+### collision/description-collision
+
+**Severity:** warning (error with `checks.collision.fail: true`)
+
+Two tools have near-identical descriptions but accept materially different payloads. An agent that selects tools by description — increasingly via retrieval or embeddings — picks one confidently and wrong, and no success/error check can see it.
+
+A pair is flagged only when **both** hold:
+1. Description similarity (character-trigram Dice, offline, no model calls) is at or above `checks.collision.threshold` (default 0.8), **and**
+2. The input schemas diverge: the *types* of required parameters differ, or the maximum nesting depth differs.
+
+Similarity alone is not enough on purpose: `list_users` / `list_projects`, or `get_user(user_id)` / `get_project(project_id)`, are legitimate tool families and stay silent.
+
+**How to fix:**
+Make each description say what distinguishes the tool — especially what it takes ("…by a structured filter object" vs "…by a single status string") — or merge the tools.
+
+---
+
 ## Behavioral Rules
 
 Behavioral rules verify that tools behave as expected when called with test inputs.

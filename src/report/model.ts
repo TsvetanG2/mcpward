@@ -12,7 +12,8 @@ export type CheckFamily =
   | 'security'
   | 'behavioral'
   | 'errors'
-  | 'latency';
+  | 'latency'
+  | 'collision';
 
 export type Severity = 'error' | 'warning' | 'info';
 
