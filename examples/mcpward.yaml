@@ -21,7 +21,7 @@ server:
 
 # Optional: expected protocol version
 expect:
-  protocol_version: '2025-06-18'
+  protocol_version: '2025-11-25'
 
 # Check configuration
 checks:
@@ -33,6 +33,10 @@ checks:
 
   # Security/tool-poisoning heuristics
   security: true
+
+  # Two-layer error contract. CALLS TOOLS: an unknown tool name, and every tool
+  # with required parameters, with empty arguments
+  errors: true
 
   # Drift detection (requires baseline)
   drift:
@@ -62,10 +66,17 @@ checks:
     max_tools: 500
     fail: false
 
-  # Latency budgets
+  # Latency budgets — CALLS TOOLS `samples` times each: only readOnlyHint tools
+  # (with generated minimal arguments), plus the allowlist below
   latency:
     samples: 5
     p95_budget_ms: 1000
+    call_readonly: true
+    tools:
+      - name: read_file
+        args:
+          path: /tmp/sandbox/hello.txt
+    # call_all: true   # measure EVERY tool, destructive ones included (test instances only)
 
 # Behavioral test suites
 suites:

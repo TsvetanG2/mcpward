@@ -6,6 +6,10 @@
 # 3. SARIF output for GitHub Security tab
 # 4. Using the mcpward action
 # 5. PR comment (updated in place)
+# 6. Drift detection against a committed baseline
+#
+# Pin the major version (mcpward@1 / TsvetanG2/mcpward@v1): 1.x never breaks the
+# public contract, but a newer version may detect more — see docs/stability.md.
 
 name: MCP Server Validation
 
@@ -28,7 +32,7 @@ jobs:
           node-version: '22'
 
       - name: Run mcpward
-        run: npx mcpward run
+        run: npx mcpward@1 run
 
   # JUnit output for GitHub Actions test summary
   junit:
@@ -42,7 +46,7 @@ jobs:
           node-version: '22'
 
       - name: Run mcpward with JUnit output
-        run: npx mcpward run --reporter junit --out mcpward-results.xml
+        run: npx mcpward@1 run --reporter junit --out mcpward-results.xml
         continue-on-error: true
 
       - name: Upload test results
@@ -73,7 +77,7 @@ jobs:
           node-version: '22'
 
       - name: Run mcpward with SARIF output
-        run: npx mcpward run --reporter sarif --out mcpward.sarif
+        run: npx mcpward@1 run --reporter sarif --out mcpward.sarif
         continue-on-error: true
 
       - name: Upload SARIF to GitHub Security
@@ -117,7 +121,11 @@ jobs:
           config: mcpward.yaml
           pr-comment: true
 
-  # Drift detection workflow
+  # Drift detection against the committed baseline.
+  #
+  # Never refresh the baseline automatically: a job that re-baselines on every push
+  # to main would silently accept a rug-pull as the new contract. Re-run
+  # `npx mcpward baseline` deliberately and commit mcpward.lock.json in a reviewed PR.
   drift:
     runs-on: ubuntu-latest
     steps:
@@ -128,18 +136,5 @@ jobs:
         with:
           node-version: '22'
 
-      # On main branch, update baseline
-      - name: Update baseline
-        if: github.ref == 'refs/heads/main'
-        run: |
-          npx mcpward baseline
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add mcpward.lock.json
-          git diff --staged --quiet || git commit -m "chore: update mcpward baseline"
-          git push
-
-      # On PRs, check for drift
       - name: Check for drift
-        if: github.event_name == 'pull_request'
-        run: npx mcpward diff
+        run: npx mcpward@1 diff

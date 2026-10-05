@@ -51,6 +51,8 @@ npx mcpward baseline
 npx mcpward diff
 ```
 
+Commit `mcpward.lock.json`. Refresh it only deliberately — re-run `mcpward baseline` and review the change in a pull request. A CI job that re-baselines automatically would accept a rug-pull as the new contract.
+
 ### Example Output
 
 **Pin the contract, then catch it changing.**
@@ -226,7 +228,7 @@ That last row is the practical reason to reach for mcpward on internal or client
 - **Detects output shape drift** — inferred from real (read-only or allowlisted) calls, structure only
 - **Validates error contracts** — verifies servers use protocol errors vs tool errors correctly (unique to mcpward)
 - **Runs behavioral test suites** — declarative cases with JSONPath assertions against tool outputs
-- **Enforces latency budgets** — fails when p95 exceeds your threshold
+- **Enforces latency budgets** — fails when p95 exceeds your threshold; measures only read-only or allowlisted tools
 - **stdio and Streamable HTTP** — identical results over both transports, tested for parity; paginated `tools/list` is read in full
 - **Outputs JUnit, SARIF, JSON and Markdown** — plus an opt-in PR comment that updates in place
 - **Works fully offline** — no accounts, no API calls, nothing leaves your machine (the PR comment talks only to your own GitHub API, and only when you enable it)
@@ -256,6 +258,7 @@ checks:
   compliance: true
   schema: true
   security: true
+  errors: true               # error contract — calls tools, see "Which checks call tools"
   drift:
     baseline: ./mcpward.lock.json
     fail_on: high            # or medium / low, or a list of drift classes (default: the classes marked "fails by default")
@@ -271,9 +274,12 @@ checks:
     threshold: 0.8           # description similarity (0–1)
     max_tools: 500           # skip with a warning above this (pairwise is O(n²))
     fail: false              # true = collisions fail the run instead of warning
-  latency:                   # opt-in — calls every tool, see "Which checks call tools"
+  latency:                   # opt-in — calls tools, see "Which checks call tools"
     samples: 5
     p95_budget_ms: 1000
+    call_readonly: true      # measure readOnlyHint tools (with generated minimal arguments)
+    tools: []                # allowlist: [{ name: read_file, args: { path: "/tmp/sandbox/hello.txt" } }]
+    call_all: false          # true = measure EVERY tool, destructive ones included
 
 suites:
   - tool: read_file
@@ -290,7 +296,7 @@ suites:
           tool_is_error: true
 ```
 
-Compliance, schema, security, collision and error-contract checks run by default (the first four can be turned off). Drift runs when `checks.drift` is present, latency when `checks.latency` is present, behavioral tests when `suites` is non-empty. `mcpward diff` runs only the drift check.
+Compliance, schema, security, error-contract and collision checks run by default; each can be turned off. Drift runs when `checks.drift` is present, latency when `checks.latency` is present, behavioral tests when `suites` is non-empty. `mcpward diff` runs only the drift check.
 
 ### Which checks call tools
 
@@ -298,12 +304,12 @@ Most checks only read `tools/list`. These actually call tools on the server:
 
 | Check | Calls | When |
 |---|---|---|
-| Error contract | A non-existent tool name, and every tool that has required parameters, with empty arguments | Every `run` |
+| Error contract | A non-existent tool name, and every tool that has required parameters, with empty arguments | Every `run`, unless `checks.errors: false` |
 | Behavioral suites | Exactly the tools and arguments you list | When `suites` is set |
 | Output drift | Only `readOnlyHint: true` tools without required arguments, plus your allowlist | When `checks.drift.output.enabled` |
-| Latency | **Every tool**, `samples` times, with minimal generated arguments — destructive tools included | When `checks.latency` is set |
+| Latency | `readOnlyHint: true` tools (not destructive), `samples` times, plus your allowlist; every tool only with `call_all: true` | When `checks.latency` is set |
 
-A server that validates its inputs rejects the empty-argument calls before doing anything. Still, run `mcpward run` against a test instance or sandbox, not production — especially with `latency` enabled.
+Tools that are not called are listed in the report with the reason. A server that validates its inputs rejects the error-contract calls before doing anything. Still, prefer a test instance or sandbox over production.
 
 ### Environment Variables
 
@@ -396,19 +402,20 @@ See [How changes are classified](#how-changes-are-classified) for the full class
 |-------|-------------|
 | `latency/summary` | Overall p50/p95 vs budget |
 | `latency/tool` | Per-tool latency measurements |
+| `latency/sampling` | Tools not measured (not read-only and not allowlisted), and allowlisted tools the server does not have |
 
 ## CI Integration
 
 ### GitHub Actions
 
 ```yaml
-# Basic usage
+# Basic usage — pin the major version (see docs/stability.md)
 - name: Run mcpward
-  run: npx mcpward run
+  run: npx mcpward@1 run
 
 # JUnit output for test results
 - name: Run with JUnit output
-  run: npx mcpward run --reporter junit --out results.xml
+  run: npx mcpward@1 run --reporter junit --out results.xml
 
 - name: Upload test results
   uses: actions/upload-artifact@v7
@@ -418,7 +425,7 @@ See [How changes are classified](#how-changes-are-classified) for the full class
 
 # SARIF output for GitHub Security tab (the job needs `permissions: security-events: write`)
 - name: Run with SARIF output
-  run: npx mcpward run --reporter sarif --out results.sarif
+  run: npx mcpward@1 run --reporter sarif --out results.sarif
 
 - name: Upload SARIF to GitHub Security
   uses: github/codeql-action/upload-sarif@v4
@@ -472,9 +479,9 @@ jobs:
           pr-comment: true
 ```
 
-Without the action: `GITHUB_TOKEN=${{ github.token }} npx mcpward run --pr-comment`. The comment is rendered from the same redacted report as every other reporter, and all server-supplied text is escaped so a malicious tool description cannot inject links, HTML, or @-mentions into your PR.
+Without the action: `GITHUB_TOKEN=${{ github.token }} npx mcpward@1 run --pr-comment`. The comment is rendered from the same redacted report as every other reporter, and all server-supplied text is escaped so a malicious tool description cannot inject links, HTML, or @-mentions into your PR.
 
-The same Markdown works as a job summary: `npx mcpward run --reporter markdown --out "$GITHUB_STEP_SUMMARY"`.
+The same Markdown works as a job summary: `npx mcpward@1 run --reporter markdown --out "$GITHUB_STEP_SUMMARY"`.
 
 ## Exit Codes
 
