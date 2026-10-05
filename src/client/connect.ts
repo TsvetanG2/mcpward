@@ -45,15 +45,24 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
 }
 
 /**
- * Merges environment variables, filtering out undefined values.
+ * mcpward's own credentials. The server under test is UNTRUSTED, so these are never
+ * inherited by it — a stdio server could otherwise read the write-capable PR-comment token.
+ * A user can still pass one deliberately through `server.env` in the config.
  */
-function mergeEnv(
+export const WITHHELD_FROM_SERVER = ['MCPWARD_GITHUB_TOKEN', 'GITHUB_TOKEN'] as const;
+
+/**
+ * Builds the stdio server's environment: the inherited environment minus mcpward's own
+ * credentials, then the config's explicit `server.env` (which always wins).
+ */
+export function serverEnv(
   base: NodeJS.ProcessEnv,
   overrides: Record<string, string>
 ): Record<string, string> {
+  const withheld = new Set<string>(WITHHELD_FROM_SERVER);
   const result: Record<string, string> = {};
   for (const [key, value] of Object.entries(base)) {
-    if (value !== undefined) {
+    if (value !== undefined && !withheld.has(key.toUpperCase())) {
       result[key] = value;
     }
   }
@@ -131,7 +140,7 @@ function connectStdio(
   const transport = new StdioClientTransport({
     command: config.command,
     args: config.args,
-    env: mergeEnv(process.env, config.env),
+    env: serverEnv(process.env, config.env),
   });
   return connectTransport(transport, timeouts);
 }
