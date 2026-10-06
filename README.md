@@ -519,6 +519,10 @@ The JSON report, the config file and the baseline lockfile each have a published
 - [MCP servers are becoming infrastructure](https://mcpward.hashnode.dev/mcp-servers-are-becoming-infrastructure-how-do-we-know-that-the-contract-an-ai-agent-trusts-today-is-the-same-contract-it-will-receive-tomorrow) — Hashnode
 - [MCP servers are becoming infrastructure](https://medium.com/@t.gerginov/mcp-servers-are-becoming-infrastructure-c64ed86241fb) — Medium
 - [I kept worrying about MCP servers silently changing…](https://www.reddit.com/r/mcp/comments/1v7kbyx/i_kept_worrying_about_mcp_servers_silently/) — discussion on r/mcp
+- [Show HN: Mcpward – contract and security testing for MCP servers in CI](https://news.ycombinator.com/item?id=49976078) - Show HN
+- [Mcpward – black-box contract and security testing for MCP servers](https://hackerfeeds.com/news/show-hn-mcpward-black-box-contract-and-security-testing-for-mcp--7yxryb) - HackerFeeds
+- [black-box contract and security testing for MCP servers](https://markethunt.app/product/mcpward) - MarketHunt
+- [Lock MCP server contracts with lockfiles, intercepting schema drift, description toxicity, and...](https://aiproducthub.cn/launch/p/65116.html) - AirProductHub
 
 ## Development
 
