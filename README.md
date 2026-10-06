@@ -523,6 +523,7 @@ The JSON report, the config file and the baseline lockfile each have a published
 - [Mcpward – black-box contract and security testing for MCP servers](https://hackerfeeds.com/news/show-hn-mcpward-black-box-contract-and-security-testing-for-mcp--7yxryb) - HackerFeeds
 - [black-box contract and security testing for MCP servers](https://markethunt.app/product/mcpward) - MarketHunt
 - [Lock MCP server contracts with lockfiles, intercepting schema drift, description toxicity, and...](https://aiproducthub.cn/launch/p/65116.html) - AirProductHub
+- [MCP dependencies are not locked](https://paotong.dev/a/f513b842c8de34fd) - Paotong
 
 ## Development
 
