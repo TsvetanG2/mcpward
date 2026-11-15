@@ -160,9 +160,6 @@ export function findSuspiciousUnicode(
   return suspicious;
 }
 
-/** Nesting limit for walking untrusted input schemas. */
-const MAX_PARAM_DEPTH = 32;
-
 /** One schema node reached by {@link walkParams}. */
 export interface ParamNode {
   /** `filter.status`, `rows[]`, `meta{}` — the same path style as the drift diff. */
@@ -173,55 +170,76 @@ export interface ParamNode {
   schema: Record<string, unknown> | undefined;
 }
 
+/** A pending step of {@link walkParams}. */
+interface Visit {
+  node: unknown;
+  path: string;
+  name: string | undefined;
+  isRoot: boolean;
+}
+
 /**
  * Visits every parameter in an input schema, at any depth: nested `properties`, array
- * `items`, `additionalProperties`, and anyOf/oneOf/allOf branches (which keep their parent's
- * path). The root itself is not a parameter and is not visited; a property named `""` is.
- * A local `$ref` (`#/$defs/Auth`) is followed into `refRoot` — the document the schema
- * came from, which defaults to the schema itself — and its target keeps the referring path.
+ * `items`/`prefixItems`/`additionalItems`/`contains`, `additionalProperties`/
+ * `patternProperties`, and the in-place applicators (anyOf/oneOf/allOf, not, if/then/else,
+ * dependentSchemas), which keep their parent's path. The root itself is not a parameter and is
+ * not visited; a property named `""` is. A local `$ref` (`#/$defs/Auth`) is followed into
+ * `refRoot` — the document the schema came from, which defaults to the schema itself — and its
+ * target keeps the referring path.
  *
  * Every named property is reported, even a boolean schema or an object already seen under
- * another name — the NAME is what solicits a secret. Only the descent into an object happens
- * once, which keeps the walk cycle-safe; it is also depth-limited.
+ * another name — the NAME is what solicits a secret. Each object is descended into once, so the
+ * walk is linear in the size of the document and cycle-safe. It is iterative, with no depth
+ * limit: a limit would silently drop whatever lies past it, and a server could hide a field
+ * behind a long `$ref` chain.
  */
 export function walkParams(schema: unknown, refRoot: unknown = schema): ParamNode[] {
   const found: ParamNode[] = [];
   const seen = new WeakSet<object>();
+  const stack: Visit[] = [{ node: schema, path: '', name: undefined, isRoot: true }];
 
-  const walk = (
-    node: unknown,
-    path: string,
-    name: string | undefined,
-    depth: number,
-    isRoot: boolean
-  ): void => {
-    if (depth > MAX_PARAM_DEPTH || node === undefined) return;
+  while (stack.length > 0) {
+    const { node, path, name, isRoot } = stack.pop() as Visit;
+    if (node === undefined) continue;
     const s =
       node !== null && typeof node === 'object' && !Array.isArray(node)
         ? (node as Record<string, unknown>)
         : undefined;
     if (!isRoot && (s !== undefined || name !== undefined)) found.push({ path, name, schema: s });
-    if (s === undefined || seen.has(s)) return;
+    if (s === undefined || seen.has(s)) continue;
     seen.add(s);
+
+    const children: Visit[] = [];
+    const add = (child: unknown, childPath: string, childName?: string) =>
+      children.push({ node: child, path: childPath, name: childName, isRoot: false });
+    // In-place applicators describe this same value: same path, name and root-ness
+    const same = (child: unknown) => children.push({ node: child, path, name, isRoot });
+    const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
+    const values = (v: unknown): unknown[] =>
+      v && typeof v === 'object' && !Array.isArray(v) ? Object.values(v) : [];
 
     const props = s.properties;
     if (props && typeof props === 'object' && !Array.isArray(props)) {
       for (const [key, child] of Object.entries(props as Record<string, unknown>)) {
-        walk(child, isRoot ? key : `${path}.${key}`, key, depth + 1, false);
+        add(child, isRoot ? key : `${path}.${key}`, key);
       }
     }
-    const items = Array.isArray(s.items) ? s.items : [s.items];
-    for (const item of items) walk(item, `${path}[]`, undefined, depth + 1, false);
-    walk(s.additionalProperties, `${path}{}`, undefined, depth + 1, false);
-    for (const key of ['anyOf', 'oneOf', 'allOf'] as const) {
-      const branches = s[key];
-      if (Array.isArray(branches)) for (const b of branches) walk(b, path, name, depth + 1, isRoot);
-    }
-    if (typeof s.$ref === 'string')
-      walk(resolveLocalRef(refRoot, s.$ref), path, name, depth + 1, isRoot);
-  };
+    for (const item of Array.isArray(s.items) ? s.items : [s.items]) add(item, `${path}[]`);
+    for (const item of list(s.prefixItems)) add(item, `${path}[]`);
+    add(s.additionalItems, `${path}[]`);
+    add(s.contains, `${path}[]`);
+    add(s.unevaluatedItems, `${path}[]`);
+    add(s.additionalProperties, `${path}{}`);
+    for (const child of values(s.patternProperties)) add(child, `${path}{}`);
+    add(s.unevaluatedProperties, `${path}{}`);
+    for (const key of ['anyOf', 'oneOf', 'allOf'] as const) for (const b of list(s[key])) same(b);
+    for (const key of ['not', 'if', 'then', 'else'] as const) same(s[key]);
+    for (const child of values(s.dependentSchemas)) same(child);
+    if (typeof s.$ref === 'string') same(resolveLocalRef(refRoot, s.$ref));
 
-  walk(schema, '', undefined, 0, true);
+    // Reverse so the stack pops them in document order (pre-order, like a recursive walk)
+    for (let k = children.length - 1; k >= 0; k--) stack.push(children[k] as Visit);
+  }
   return found;
 }
 

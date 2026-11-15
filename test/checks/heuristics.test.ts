@@ -167,6 +167,61 @@ describe('local $ref', () => {
   });
 });
 
+describe('applicators and long chains', () => {
+  it('visits additionalItems, prefixItems, patternProperties and in-place applicators', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        rows: {
+          type: 'array',
+          items: [{}],
+          additionalItems: { properties: { password: { type: 'string' } } },
+        },
+        tuple: { type: 'array', prefixItems: [{ properties: { token: {} } }] },
+        map: { type: 'object', patternProperties: { '^x': { properties: { secret: {} } } } },
+        mode: {
+          if: { properties: { a: {} } },
+          then: { properties: { api_key: {} } },
+          not: { properties: { credentials: {} } },
+        },
+      },
+    };
+    expect(collectSecretFields(schema)).toEqual([
+      'rows[].password',
+      'tuple[].token',
+      'map{}.secret',
+      'mode.credentials', // not, if, then, else: applicator order
+      'mode.api_key',
+    ]);
+  });
+
+  it('finds a field at the end of a long $ref chain', () => {
+    const $defs: Record<string, unknown> = {};
+    for (let i = 0; i < 100; i++) $defs[`D${i}`] = { $ref: `#/$defs/D${i + 1}` };
+    $defs.D100 = { type: 'object', properties: { password: { type: 'string' } } };
+    const schema = { type: 'object', properties: { auth: { $ref: '#/$defs/D0' } }, $defs };
+    expect(collectSecretFields(schema)).toEqual(['auth.password']);
+  });
+
+  it('finds a field in a definition first reached through a deep path', () => {
+    let deep: Record<string, unknown> = { $ref: '#/$defs/Auth' };
+    for (let i = 0; i < 60; i++) deep = { type: 'object', properties: { n: deep } };
+    const schema = {
+      type: 'object',
+      properties: { deep, auth: { $ref: '#/$defs/Auth' } },
+      $defs: { Auth: { type: 'object', properties: { password: { type: 'string' } } } },
+    };
+    expect(collectSecretFields(schema)).toHaveLength(1);
+    expect(collectSecretFields(schema)[0]).toMatch(/.password$/);
+  });
+
+  it('handles very deep nesting without a stack overflow', () => {
+    let node: Record<string, unknown> = { type: 'object', properties: { password: {} } };
+    for (let i = 0; i < 20_000; i++) node = { type: 'object', properties: { n: node } };
+    expect(collectSecretFields({ type: 'object', properties: { root: node } })).toHaveLength(1);
+  });
+});
+
 describe('security/secret-in-schema (recursive)', () => {
   function connectionWith(tools: unknown[]): McpConnection {
     return { client: { listTools: async () => ({ tools }) } } as unknown as McpConnection;
