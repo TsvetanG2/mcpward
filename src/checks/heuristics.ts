@@ -177,12 +177,14 @@ export interface ParamNode {
  * Visits every parameter in an input schema, at any depth: nested `properties`, array
  * `items`, `additionalProperties`, and anyOf/oneOf/allOf branches (which keep their parent's
  * path). The root itself is not a parameter and is not visited; a property named `""` is.
+ * A local `$ref` (`#/$defs/Auth`) is followed into `refRoot` — the document the schema
+ * came from, which defaults to the schema itself — and its target keeps the referring path.
  *
  * Every named property is reported, even a boolean schema or an object already seen under
  * another name — the NAME is what solicits a secret. Only the descent into an object happens
  * once, which keeps the walk cycle-safe; it is also depth-limited.
  */
-export function walkParams(schema: unknown): ParamNode[] {
+export function walkParams(schema: unknown, refRoot: unknown = schema): ParamNode[] {
   const found: ParamNode[] = [];
   const seen = new WeakSet<object>();
 
@@ -215,6 +217,8 @@ export function walkParams(schema: unknown): ParamNode[] {
       const branches = s[key];
       if (Array.isArray(branches)) for (const b of branches) walk(b, path, name, depth + 1, isRoot);
     }
+    if (typeof s.$ref === 'string')
+      walk(resolveLocalRef(refRoot, s.$ref), path, name, depth + 1, isRoot);
   };
 
   walk(schema, '', undefined, 0, true);
@@ -222,11 +226,37 @@ export function walkParams(schema: unknown): ParamNode[] {
 }
 
 /**
+ * Resolves a same-document reference (`#`, `#/$defs/Auth`, `#/definitions/a~1b`) as a JSON
+ * Pointer. Remote references are never fetched: the server under test is untrusted.
+ */
+export function resolveLocalRef(root: unknown, ref: string): unknown {
+  if (!ref.startsWith('#')) return undefined;
+  let pointer: string;
+  try {
+    pointer = decodeURIComponent(ref.slice(1));
+  } catch {
+    return undefined;
+  }
+  if (pointer === '') return root;
+  if (!pointer.startsWith('/')) return undefined;
+  let node: unknown = root;
+  for (const raw of pointer.slice(1).split('/')) {
+    const key = raw.replace(/~1/g, '/').replace(/~0/g, '~');
+    if (node === null || typeof node !== 'object' || !Object.hasOwn(node, key)) return undefined;
+    node = (node as Record<string, unknown>)[key];
+  }
+  return node;
+}
+
+/**
  * Collects every parameter description in an input schema, at any depth.
  * Paths read like `filter.status` or `rows[].note`.
  */
-export function collectParamDescriptions(schema: unknown): { path: string; description: string }[] {
-  return walkParams(schema).flatMap(({ path, schema: s }) =>
+export function collectParamDescriptions(
+  schema: unknown,
+  refRoot: unknown = schema
+): { path: string; description: string }[] {
+  return walkParams(schema, refRoot).flatMap(({ path, schema: s }) =>
     typeof s?.description === 'string' && s.description !== ''
       ? [{ path, description: s.description }]
       : []

@@ -343,7 +343,7 @@ function diffSchema(
     return changes;
   }
 
-  diffSchemaNode(baselineCanonical, currentCanonical, '', 0, emit);
+  diffSchemaNode(baselineCanonical, currentCanonical, '', 0, emit, currentCanonical);
   return changes;
 }
 
@@ -407,12 +407,14 @@ const same = (a: unknown, b: unknown) => canonicalJson(a) === canonicalJson(b);
  * Compares one schema node and recurses into its children. `path` is '' for the root,
  * `a.b` for nested properties, `a[]` for array items, `a{}` for additionalProperties.
  */
+/** `currRoot` is the whole current schema: a new field's `$ref` is resolved against it. */
 function diffSchemaNode(
   base: JsonSchema,
   curr: JsonSchema,
   path: string,
   depth: number,
-  emit: Emit
+  emit: Emit,
+  currRoot: JsonSchema
 ): void {
   if (depth > MAX_DIFF_DEPTH) return;
   // Subject used in messages: root-level keywords read "inputSchema enum ...",
@@ -569,7 +571,8 @@ function diffSchemaNode(
       asSchema(curr.additionalProperties) as JsonSchema,
       `${path}{}`,
       depth + 1,
-      emit
+      emit,
+      currRoot
     );
   } else if (baseAdd !== currAdd) {
     // open ⊃ schema ⊃ closed
@@ -619,7 +622,7 @@ function diffSchemaNode(
           currProps[name]
         );
       } else {
-        emitInputPropertyAdded(name, childPath, currProps[name], emit);
+        emitInputPropertyAdded(name, childPath, currProps[name], emit, currRoot);
       }
       continue;
     }
@@ -641,7 +644,7 @@ function diffSchemaNode(
     }
 
     if (wasPresent && isPresent) {
-      diffSubschema(baseProps[name], currProps[name], childPath, depth, emit);
+      diffSubschema(baseProps[name], currProps[name], childPath, depth, emit, currRoot);
     }
   }
 
@@ -724,7 +727,7 @@ function diffSchemaNode(
       const p = `${path}[${i}]`;
       const before = i < baseItems.length ? baseItems[i] : (base.additionalItems ?? true);
       const after = i < currItems.length ? currItems[i] : (curr.additionalItems ?? true);
-      diffSubschema(before, after, p, depth, emit);
+      diffSubschema(before, after, p, depth, emit, currRoot);
     }
     // Every position past both tuples is governed by additionalItems alone
     diffSubschema(
@@ -740,7 +743,7 @@ function diffSchemaNode(
     !Array.isArray(baseItems) &&
     !Array.isArray(currItems)
   ) {
-    diffSubschema(baseItems, currItems, itemsPath, depth, emit);
+    diffSubschema(baseItems, currItems, itemsPath, depth, emit, currRoot);
   } else if (baseItems === undefined && currItems !== undefined) {
     emit(
       'breaking_schema_change',
@@ -769,14 +772,20 @@ function diffSchemaNode(
  * A new optional input field. Its description is quoted in the message because the model reads
  * it and nothing else diffs it: the field is new, so there is no previous description.
  */
-function emitInputPropertyAdded(name: string, path: string, schema: unknown, emit: Emit): void {
+function emitInputPropertyAdded(
+  name: string,
+  path: string,
+  schema: unknown,
+  emit: Emit,
+  currRoot: JsonSchema
+): void {
   const s = asSchema(schema);
   const description = typeof s?.description === 'string' ? s.description : '';
   // Quoted whole: report redaction matches registered secrets by their complete value, so a
   // truncated description could leak the first part of one
   const quoted =
     description === '' ? 'no description' : `description "${markInvisibleCharacters(description)}"`;
-  const reason = suspiciousNewInput(name, path, schema);
+  const reason = suspiciousNewInput(name, path, schema, currRoot);
   emit(
     'input_property_added',
     `added optional property "${path}" (${quoted})${reason ? ` — ${reason}` : ''}`,
@@ -791,13 +800,20 @@ function emitInputPropertyAdded(name: string, path: string, schema: unknown, emi
  * it (a new `options` object can carry `options.api_key`) with the same heuristics as the
  * security checks: a secret-soliciting name, injection phrasing or hidden unicode in a description.
  */
-function suspiciousNewInput(name: string, path: string, schema: unknown): string | undefined {
-  // Walk the field as the only property of a root, then re-anchor the paths at its real path
+function suspiciousNewInput(
+  name: string,
+  path: string,
+  schema: unknown,
+  currRoot: JsonSchema
+): string | undefined {
+  // Walk the field as the only property of a root, then re-anchor the paths at its real path.
+  // `$ref`s inside it resolve against the real schema (`auth: { $ref: '#/$defs/Auth' }`).
   const root = { properties: { [name]: schema } };
   const at = (p: string) => path + p.slice(name.length);
-  const secret = walkParams(root).find((p) => p.name !== undefined && isSecretField(p.name));
+  const params = walkParams(root, currRoot);
+  const secret = params.find((p) => p.name !== undefined && isSecretField(p.name));
   if (secret) return `"${at(secret.path)}" solicits a secret`;
-  for (const { path: p, description } of collectParamDescriptions(root)) {
+  for (const { path: p, description } of collectParamDescriptions(root, currRoot)) {
     if (findInjectionPatterns(description).length > 0) {
       return `"${at(p)}" description contains injection-like phrasing`;
     }
@@ -818,12 +834,13 @@ function diffSubschema(
   curr: unknown,
   path: string,
   depth: number,
-  emit: Emit
+  emit: Emit,
+  currRoot: JsonSchema
 ): void {
   const b = asSchema(base);
   const c = asSchema(curr);
   if (b && c) {
-    diffSchemaNode(b, c, path, depth + 1, emit);
+    diffSchemaNode(b, c, path, depth + 1, emit, currRoot);
     return;
   }
   if (same(base, curr)) return;

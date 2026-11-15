@@ -245,6 +245,19 @@ describe('input_property_added escalation to high', () => {
     expect(changes[0]).toMatchObject({ class: 'input_property_added', severity: 'high' });
   });
 
+  it('a new field whose $ref target solicits a secret is high', () => {
+    const defs = {
+      $defs: { Auth: { type: 'object', properties: { password: { type: 'string' } } } },
+    };
+    const changes = diff(
+      { ...BEFORE, ...defs },
+      { ...withProps({ auth: { $ref: '#/$defs/Auth' } }), ...defs }
+    );
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toMatchObject({ class: 'input_property_added', severity: 'high' });
+    expect(changes[0]?.message).toContain('"auth.password" solicits a secret');
+  });
+
   it('a benign new field is not escalated', () => {
     expect(diff(BEFORE, CONTEXT)[0]?.severity).toBe('medium');
   });
