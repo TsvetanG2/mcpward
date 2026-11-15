@@ -7,56 +7,79 @@ import { execFile } from 'node:child_process';
  * wrapper (`npx`, `tsx`, `uvx`, `sh -c`, `cmd /c` on Windows) is a grandchild: when it
  * ignores stdin EOF and SIGTERM, killing the wrapper leaves it running after mcpward exits.
  *
- * So the tree is snapshotted BEFORE the transport closes (once a parent dies, its children
- * are reparented and can no longer be traced), and survivors are killed after.
+ * So the tree is tracked from BEFORE the transport closes (once a parent dies on POSIX, its
+ * children are reparented and can no longer be traced) until every tracked process is gone,
+ * and processes that appear while the server shuts down are picked up on the way.
+ *
+ * Killing an unrelated process is worse than leaving one behind. A process is identified by
+ * its pid AND its start time, and that identity is re-checked before every signal: a pid can
+ * be reused as soon as its process exits. When the process table cannot be read, nothing is
+ * signalled and cleanup is what the SDK does on its own.
  */
 
 export interface ProcessEntry {
   pid: number;
   ppid: number;
-  /** Creation time (Windows only), to reject a stale parent id that was reused. */
+  /** Start time in ms; with the pid, this identifies the process. */
   started?: number;
 }
+
+export type TableFormat = 'posix' | 'windows';
 
 /** How long a listing may take before cleanup goes ahead without it. */
 const LIST_TIMEOUT_MS = 5000;
 
+/** How often the tree is re-read while the transport is closing. */
+const TRACK_INTERVAL_MS = 250;
+
 /** How long survivors get after SIGTERM before SIGKILL. */
 const KILL_GRACE_MS = 2000;
 
+/** Bounds the kill loop: each round catches processes started by the previous survivors. */
+const MAX_KILL_ROUNDS = 3;
+
 /**
- * Parses `pid ppid [started]` lines. Pure; malformed lines are skipped.
+ * Parses a process listing. Pure; malformed lines are skipped.
+ *
+ * - posix: `pid ppid lstart` (`ps -o pid=,ppid=,lstart=`, lstart like `Sun Nov  5 03:55:53 2026`)
+ * - windows: `pid ppid filetime` (100 ns ticks since 1601, UTC)
  */
-export function parseProcessTable(text: string): ProcessEntry[] {
+export function parseProcessTable(text: string, format: TableFormat): ProcessEntry[] {
   const entries: ProcessEntry[] = [];
   for (const line of text.split(/\r?\n/)) {
-    const [pid, ppid, started] = line.trim().split(/\s+/).map(Number);
-    if (pid === undefined || ppid === undefined) continue;
-    if (!Number.isInteger(pid) || !Number.isInteger(ppid)) continue;
-    entries.push(
-      started !== undefined && Number.isFinite(started) ? { pid, ppid, started } : { pid, ppid }
-    );
+    const [pidText, ppidText, ...rest] = line.trim().split(/\s+/);
+    const pid = Number(pidText);
+    const ppid = Number(ppidText);
+    if (!pidText || !ppidText || !Number.isInteger(pid) || !Number.isInteger(ppid)) continue;
+    const started =
+      format === 'windows' ? Math.floor(Number(rest[0]) / 10_000) : Date.parse(rest.join(' '));
+    entries.push(Number.isFinite(started) ? { pid, ppid, started } : { pid, ppid });
   }
   return entries;
 }
 
+/** True when `entry` is the same process as `known`: same pid, same start time. Pure. */
+export function sameProcess(known: ProcessEntry, entry: ProcessEntry | undefined): boolean {
+  return entry !== undefined && entry.pid === known.pid && entry.started === known.started;
+}
+
 /**
- * Every descendant of `root` in the table, parents before children. Pure.
+ * Every descendant of the `roots` in the table, parents before children. Pure.
  *
- * On POSIX a parent id is always current (orphans are reparented). On Windows it is not: a
- * process keeps the id of a parent that has exited, and that id can be reused. A "child"
- * created before its supposed parent is such a stale link and is never followed — following
- * it could kill an unrelated process.
+ * On Windows a parent id is not kept current: a process keeps the id of a parent that has
+ * exited, and that id can be reused. A "child" that started before its supposed parent is
+ * such a stale link and is never followed.
  */
-export function descendantsOf(root: number, table: ProcessEntry[]): number[] {
+export function descendantsOf(roots: number[], table: ProcessEntry[]): ProcessEntry[] {
   const byPid = new Map(table.map((entry) => [entry.pid, entry]));
-  const result: number[] = [];
-  const seen = new Set<number>([root]);
-  const queue = [root];
+  const result: ProcessEntry[] = [];
+  const seen = new Set<number>(roots);
+  const queue = [...roots];
   while (queue.length > 0) {
     const parent = byPid.get(queue.shift() as number);
+    if (parent === undefined) continue;
     for (const entry of table) {
-      if (seen.has(entry.pid) || entry.ppid !== parent?.pid) continue;
+      if (seen.has(entry.pid) || entry.ppid !== parent.pid) continue;
       if (
         parent.started !== undefined &&
         entry.started !== undefined &&
@@ -65,98 +88,162 @@ export function descendantsOf(root: number, table: ProcessEntry[]): number[] {
         continue;
       }
       seen.add(entry.pid);
-      result.push(entry.pid);
+      result.push(entry);
       queue.push(entry.pid);
     }
   }
   return result;
 }
 
-function run(command: string, args: string[]): Promise<string> {
+/**
+ * The tracked processes that are still running, plus anything they have started since. Pure.
+ */
+export function survivorsOf(tracked: ProcessEntry[], table: ProcessEntry[]): ProcessEntry[] {
+  const byPid = new Map(table.map((entry) => [entry.pid, entry]));
+  const alive = tracked.filter((known) => sameProcess(known, byPid.get(known.pid)));
+  const known = new Set(alive.map((entry) => entry.pid));
+  const spawned = descendantsOf(
+    alive.map((entry) => entry.pid),
+    table
+  ).filter((entry) => !known.has(entry.pid));
+  return [...alive, ...spawned];
+}
+
+function run(command: string, args: string[], env?: NodeJS.ProcessEnv): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile(
       command,
       args,
-      { timeout: LIST_TIMEOUT_MS, windowsHide: true, maxBuffer: 16 * 1024 * 1024 },
+      { timeout: LIST_TIMEOUT_MS, windowsHide: true, maxBuffer: 16 * 1024 * 1024, env },
       (err, stdout) => (err ? reject(err) : resolve(stdout))
     );
   });
 }
 
 /**
- * Lists all processes. Best effort: an empty list means "unknown", and cleanup then falls back
- * to what the SDK does on its own.
+ * Lists all processes. Best effort: an empty list means "unknown" (a real table always
+ * contains mcpward itself).
  */
 export async function listProcesses(): Promise<ProcessEntry[]> {
   try {
-    const text =
-      process.platform === 'win32'
-        ? await run('powershell.exe', [
-            '-NoProfile',
-            '-NonInteractive',
-            '-Command',
-            "Get-CimInstance Win32_Process | ForEach-Object { '{0} {1} {2}' -f $_.ProcessId, $_.ParentProcessId, $_.CreationDate.ToFileTimeUtc() }",
-          ])
-        : await run('ps', ['-A', '-o', 'pid=,ppid=']);
-    return parseProcessTable(text);
+    if (process.platform === 'win32') {
+      const text = await run('powershell.exe', [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        "Get-CimInstance Win32_Process | ForEach-Object { '{0} {1} {2}' -f $_.ProcessId, $_.ParentProcessId, $_.CreationDate.ToFileTimeUtc() }",
+      ]);
+      return parseProcessTable(text, 'windows');
+    }
+    // LC_ALL=C: lstart must use English day and month names to be parsed
+    const text = await run('ps', ['-A', '-o', 'pid=,ppid=,lstart='], {
+      ...process.env,
+      LC_ALL: 'C',
+    });
+    return parseProcessTable(text, 'posix');
   } catch {
     return [];
   }
 }
 
-function isAlive(pid: number): boolean {
+function signal(pids: number[], sig: NodeJS.Signals): void {
+  for (const pid of pids) {
+    try {
+      process.kill(pid, sig);
+    } catch {
+      // already gone, or not ours
+    }
+  }
+}
+
+function exists(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;
   } catch (err) {
-    // EPERM: it exists but belongs to someone else — not ours to kill either way
     return (err as NodeJS.ErrnoException).code === 'EPERM';
   }
 }
 
-function signal(pid: number, sig: NodeJS.Signals): void {
-  try {
-    process.kill(pid, sig);
-  } catch {
-    // already gone
-  }
-}
-
-async function waitUntilGone(pids: number[], ms: number): Promise<number[]> {
+/** Waits until none of `pids` exists, or `ms` passes. Existence only: nothing is signalled. */
+async function waitUntilGone(pids: number[], ms: number): Promise<void> {
   const end = Date.now() + ms;
-  let alive = pids.filter(isAlive);
-  while (alive.length > 0 && Date.now() < end) {
+  while (pids.some(exists) && Date.now() < end) {
     await new Promise((resolve) => setTimeout(resolve, 100));
-    alive = alive.filter(isAlive);
   }
-  return alive;
 }
 
 /**
- * Stops processes from a snapshot that outlived the transport: SIGTERM, then SIGKILL after a
- * grace period. On Windows both are TerminateProcess.
+ * Stops tracked processes that outlived the transport, and whatever they start meanwhile:
+ * SIGTERM, then SIGKILL after a grace period (both TerminateProcess on Windows). The table is
+ * re-read before each signal, so only processes whose identity still matches are signalled.
  */
-export async function killSurvivors(pids: number[]): Promise<void> {
-  const alive = pids.filter(isAlive);
-  if (alive.length === 0) return;
-  for (const pid of alive) signal(pid, 'SIGTERM');
-  for (const pid of await waitUntilGone(alive, KILL_GRACE_MS)) signal(pid, 'SIGKILL');
+async function killSurvivors(tracked: ProcessEntry[]): Promise<void> {
+  let current = tracked;
+  for (let round = 0; round < MAX_KILL_ROUNDS && current.length > 0; round++) {
+    if (!current.some((entry) => exists(entry.pid))) return;
+    const table = await listProcesses();
+    if (table.length === 0) return;
+    const survivors = survivorsOf(current, table);
+    if (survivors.length === 0) return;
+    signal(
+      survivors.map((entry) => entry.pid),
+      'SIGTERM'
+    );
+    await waitUntilGone(
+      survivors.map((entry) => entry.pid),
+      KILL_GRACE_MS
+    );
+    const after = await listProcesses();
+    if (after.length === 0) return;
+    const stubborn = survivorsOf(survivors, after);
+    signal(
+      stubborn.map((entry) => entry.pid),
+      'SIGKILL'
+    );
+    current = stubborn;
+  }
 }
 
 /**
  * Closes a stdio transport and everything its process started.
  *
- * Order: snapshot the tree, let the transport close normally (stdin EOF, then SIGTERM, then
- * SIGKILL on its own child), then stop any descendant still running.
+ * Order: read the tree, let the transport close normally (stdin EOF, then SIGTERM, then
+ * SIGKILL on its own child) while re-reading the tree to pick up late children, then stop
+ * any tracked process still running.
  */
 export async function closeProcessTree(
   pid: number | null,
   closeTransport: () => Promise<void>
 ): Promise<void> {
-  const descendants = pid === null ? [] : descendantsOf(pid, await listProcesses());
-  try {
-    await closeTransport();
-  } finally {
-    await killSurvivors(descendants);
+  const initial = pid === null ? [] : await listProcesses();
+  const root = initial.find((entry) => entry.pid === pid);
+  const tracked = new Map<number, ProcessEntry>();
+  // Follows only processes whose identity still matches: the root's pid, too, can be reused
+  // once the SDK has stopped it
+  const track = (table: ProcessEntry[]): void => {
+    if (root === undefined) return;
+    for (const entry of survivorsOf([root, ...tracked.values()], table)) {
+      if (entry.pid !== root.pid && !tracked.has(entry.pid)) tracked.set(entry.pid, entry);
+    }
+  };
+  track(initial);
+
+  let closed = false;
+  const closing = closeTransport().finally(() => {
+    closed = true;
+  });
+  while (root !== undefined && !closed) {
+    await Promise.race([closing.catch(() => undefined), delay(TRACK_INTERVAL_MS)]);
+    if (!closed) track(await listProcesses());
   }
+  try {
+    await closing;
+  } finally {
+    await killSurvivors([...tracked.values()]);
+  }
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

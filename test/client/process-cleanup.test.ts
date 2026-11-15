@@ -42,20 +42,28 @@ describe('stdio server process cleanup (#71)', () => {
     for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
   });
 
-  function stubbornConfig(mode: 'silent' | 'normal', connectMs: number) {
+  function stubbornConfig(
+    mode: 'silent' | 'reject' | 'spawn-on-eof' | 'normal',
+    connectMs: number
+  ) {
     const dir = mkdtempSync(join(tmpdir(), 'mcpward-stubborn-'));
     dirs.push(dir);
     const pidFile = join(dir, 'pid');
+    const workerPidFile = join(dir, 'worker-pid');
     const config = testConfig({
       server: {
         transport: 'stdio',
         command: 'npx',
         args: ['tsx', STUBBORN],
-        env: { STUBBORN_PID_FILE: pidFile, STUBBORN_MODE: mode },
+        env: {
+          STUBBORN_PID_FILE: pidFile,
+          STUBBORN_WORKER_PID_FILE: workerPidFile,
+          STUBBORN_MODE: mode,
+        },
       },
       timeouts: { connect_ms: connectMs, call_ms: 2000, run_ms: 30000 },
     });
-    return { config, pidFile };
+    return { config, pidFile, workerPidFile };
   }
 
   async function serverPid(pidFile: string): Promise<number> {
@@ -80,5 +88,24 @@ describe('stdio server process cleanup (#71)', () => {
     expect(isAlive(pid)).toBe(true);
     await connection.close();
     expect(await waitFor(() => !isAlive(pid), 2000)).toBe(true);
+  }, 40000);
+
+  it('kills the server when the SDK closes the transport itself (initialize error)', async () => {
+    // The SDK closes the transport BEFORE connect() rejects, which clears transport.pid:
+    // cleanup must run on that close, not only on mcpward's own
+    const { config, pidFile } = stubbornConfig('reject', 20000);
+    const connecting = connect(config);
+    const pid = await serverPid(pidFile);
+    await expect(connecting).rejects.toThrow(/initialize rejected by fixture/);
+    expect(await waitFor(() => !isAlive(pid), 2000)).toBe(true);
+  }, 40000);
+
+  it('kills a child the server starts while it is being closed', async () => {
+    const { config, pidFile, workerPidFile } = stubbornConfig('spawn-on-eof', 20000);
+    const connection = await connect(config);
+    const pid = await serverPid(pidFile);
+    await connection.close();
+    const workerPid = await serverPid(workerPidFile);
+    expect(await waitFor(() => !isAlive(pid) && !isAlive(workerPid), 2000)).toBe(true);
   }, 40000);
 });
