@@ -348,7 +348,7 @@ describe('Golden Snapshot Tests', () => {
                 family: 'drift',
                 status: 'fail',
                 severity: 'error',
-                message: 'added optional property "note" (description "a\u202Eb")',
+                message: 'added optional property "note" (description "a\u202Eb\u001b[2J\rc")',
               },
             ],
           },
@@ -359,8 +359,8 @@ describe('Golden Snapshot Tests', () => {
       }
 
       const output = lines.join('\n');
-      expect(output).toContain('description "a<U+202E>b"');
-      expect(output).not.toContain('\u202E');
+      expect(output).toContain('description "a<U+202E>b<U+001B>[2J<U+000D>c"');
+      for (const raw of ['\u202E', '\u001b', '\r']) expect(output).not.toContain(raw);
     });
   });
 });

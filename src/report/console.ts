@@ -116,13 +116,24 @@ function renderFamily(family: string, results: CheckResult[], verbose: boolean):
   console.log('');
 }
 
+/** Marks C0/C1 control characters (except tab) as `<U+001B>`, so they cannot act on the terminal. */
+function markControlCharacters(text: string): string {
+  return text.replace(
+    // eslint-disable-next-line no-control-regex
+    /[\u0000-\u0008\u000A-\u001F\u007F-\u009F]/g,
+    (ch) => `<U+${(ch.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, '0')}>`
+  );
+}
+
 function renderResult(result: CheckResult, verbose: boolean): void {
   const icon = STATUS_ICONS[result.status] ?? '?';
   const colorFn = SEVERITY_COLORS[result.severity] ?? ((s: string) => s);
 
   // Main line. Messages can quote server text (a new field's description): show hidden
-  // characters instead of letting them hide or reorder what the reviewer reads.
-  console.log(`  ${icon} ${colorFn(markInvisibleCharacters(result.message))}`);
+  // characters, and neutralize terminal control characters (an ESC sequence, `\r`) that could
+  // clear or overwrite what the reviewer reads.
+  const message = markControlCharacters(markInvisibleCharacters(result.message));
+  console.log(`  ${icon} ${colorFn(message)}`);
 
   // Location
   if (result.location) {
