@@ -159,7 +159,7 @@ describe('Drift Detection Integration', () => {
       expect(classes).toContain('tool_added'); // added_tool
       expect(classes).toContain('description_changed'); // echo description changed
       expect(classes).toContain('breaking_schema_change'); // compute got new required field
-      expect(classes).toContain('nonbreaking_schema_change'); // query got new optional field
+      expect(classes).toContain('input_property_added'); // query got new optional field
       expect(classes).toContain('annotation_changed'); // read_data readOnlyHint flipped
 
       // Verify specific tools
@@ -209,10 +209,10 @@ describe('Drift Detection Integration', () => {
         expect(failingIds).toContain('drift/breaking_schema_change');
         expect(failingIds).toContain('drift/annotation_changed');
 
-        // tool_added and nonbreaking_schema_change should NOT be in failures
-        // (they're not in fail_on)
+        // tool_added and input_property_added should NOT be in failures
+        // (they're not in the default fail_on)
         expect(failingIds).not.toContain('drift/tool_added');
-        expect(failingIds).not.toContain('drift/nonbreaking_schema_change');
+        expect(failingIds).not.toContain('drift/input_property_added');
       } finally {
         await v2Connection.close();
       }

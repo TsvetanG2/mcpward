@@ -9,7 +9,7 @@
  * - removed_tool: will be absent in v2 → tool_removed
  * - echo: description will change in v2 → description_changed
  * - compute: will gain a required field in v2 → breaking_schema_change
- * - query: will gain an optional field in v2 → nonbreaking_schema_change
+ * - query: will gain an optional field in v2 → input_property_added
  * - read_data: readOnlyHint=true, will flip to false in v2 → annotation_changed
  * - stable_tool: unchanged between versions → no drift
  */
@@ -76,7 +76,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['value'],
         },
       },
-      // Will gain an optional field in v2 → nonbreaking_schema_change
+      // Will gain an optional field in v2 → input_property_added
       {
         name: 'query',
         description: 'Queries data from the system.',

@@ -153,6 +153,7 @@ export type DriftClass =
   | 'description_changed'
   | 'breaking_schema_change'
   | 'nonbreaking_schema_change'
+  | 'input_property_added'
   | 'annotation_changed'
   | 'breaking_output_shape_change'
   | 'nonbreaking_output_shape_change';
@@ -165,8 +166,10 @@ export type DriftClass =
  *
  * - high: Changes that affect client security or auto-approval behavior (permission expansion,
  *   rug-pull descriptions, readOnlyHint flips)
- * - medium: Changes that break loudly at the call site (schema breaks, output shape changes)
- * - low: Changes that are visible and expected (tool added/removed, optional params)
+ * - medium: Changes that break loudly at the call site (schema breaks, output shape changes),
+ *   and new optional input fields on an existing tool (input_property_added; high when the
+ *   field solicits a secret or its description looks like injection)
+ * - low: Changes that are visible and expected (tool added/removed, widened types)
  */
 export type DriftSeverity = 'high' | 'medium' | 'low';
 

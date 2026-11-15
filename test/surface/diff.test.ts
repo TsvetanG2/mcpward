@@ -297,7 +297,7 @@ describe('diffSurfaces classifier', () => {
   });
 
   describe('nonbreaking_schema_change', () => {
-    it('detects when an optional field is added', () => {
+    it('classifies an added optional input field as input_property_added (non-breaking)', () => {
       const baseline = createSurface({
         query: createTool({
           inputSchema: {
@@ -326,10 +326,11 @@ describe('diffSurfaces classifier', () => {
       const result = diffSurfaces(baseline, current);
 
       expect(result.unchanged).toBe(false);
-      const nonBreakingChange = result.changes.find((c) => c.class === 'nonbreaking_schema_change');
-      expect(nonBreakingChange).toBeDefined();
-      expect(nonBreakingChange?.message).toContain('optional');
-      expect(nonBreakingChange?.message).toContain('limit');
+      const added = result.changes.find((c) => c.class === 'input_property_added');
+      expect(added).toBeDefined();
+      expect(added?.message).toContain('optional');
+      expect(added?.message).toContain('limit');
+      expect(result.changes.some((c) => c.class === 'breaking_schema_change')).toBe(false);
     });
 
     it('detects when schema is added (was null)', () => {
@@ -678,7 +679,7 @@ describe('M2: Severity levels', () => {
     });
   });
 
-  it('assigns low severity to nonbreaking_schema_change', () => {
+  it('assigns medium severity to input_property_added', () => {
     const baseline = createSurface({
       test_tool: createTool({
         inputSchema: {
@@ -699,8 +700,8 @@ describe('M2: Severity levels', () => {
 
     const result = diffSurfaces(baseline, current);
     expect(result.changes[0]).toMatchObject({
-      class: 'nonbreaking_schema_change',
-      severity: 'low',
+      class: 'input_property_added',
+      severity: 'medium',
     });
   });
 });
