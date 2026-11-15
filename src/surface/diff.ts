@@ -858,11 +858,15 @@ function hostileFindings(
 ): Set<string> {
   const found = new Set<string>();
   if (value === undefined) return found;
-  const root = { [key]: value };
-  const at = (p: string) => (path === '' ? p : p === '' ? path : `${path}.${p}`);
+  // Below the root, walk the keyword as part of the field it belongs to, so an in-place branch
+  // (`allOf: [{description}]`) is read as that field. A placeholder name keeps paths re-anchorable.
+  const FIELD = '\u0000';
+  const root = path === '' ? { [key]: value } : { properties: { [FIELD]: { [key]: value } } };
+  const at = (p: string) => (path === '' ? p : path + p.slice(FIELD.length));
   for (const p of walkParams(root, currRoot)) {
-    if (p.name !== undefined && isSecretField(p.name))
+    if (p.name !== undefined && p.name !== FIELD && isSecretField(p.name)) {
       found.add(`"${at(p.path)}" solicits a secret`);
+    }
   }
   for (const { path: p, description } of collectParamDescriptions(root, currRoot)) {
     if (findInjectionPatterns(description).length > 0) {
