@@ -258,6 +258,30 @@ describe('input_property_added escalation to high', () => {
     expect(changes[0]?.message).toContain('"auth.password" solicits a secret');
   });
 
+  it('a new object that requires an undeclared secret name is high', () => {
+    const changes = diff(BEFORE, withProps({ auth: { type: 'object', required: ['password'] } }));
+    expect(changes[0]).toMatchObject({ class: 'input_property_added', severity: 'high' });
+    expect(changes[0]?.message).toContain('"auth.password" solicits a secret');
+  });
+
+  it('a new field inside an $id resource resolves its $ref against that resource', () => {
+    const options = (props: Record<string, JsonSchema>): JsonSchema => ({
+      type: 'object',
+      properties: {
+        options: {
+          $id: 'https://example.com/options',
+          type: 'object',
+          properties: props,
+          definitions: { Creds: { type: 'object', properties: { password: { type: 'string' } } } },
+        },
+      },
+    });
+    const changes = diff(options({}), options({ auth: { $ref: '#/definitions/Creds' } }));
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toMatchObject({ class: 'input_property_added', severity: 'high' });
+    expect(changes[0]?.message).toContain('"options.auth.password" solicits a secret');
+  });
+
   it('a benign new field is not escalated', () => {
     expect(diff(BEFORE, CONTEXT)[0]?.severity).toBe('medium');
   });
