@@ -184,6 +184,21 @@ describe('input_property_added classification', () => {
     ]);
   });
 
+  it('a field added to an inverted outputSchema definition is breaking but not escalated', () => {
+    const out = (props: Record<string, JsonSchema>): JsonSchema => ({
+      type: 'object',
+      properties: { r: { not: { $ref: '#/$defs/Blocked' } } },
+      $defs: { Blocked: { type: 'object', properties: props } },
+    });
+    const changes = diffSurfaces(
+      surface({ ask: tool(BEFORE, out({})) }),
+      surface({ ask: tool(BEFORE, out({ api_key: { type: 'string' } })) })
+    ).changes;
+    expect(changes).toEqual([
+      expect.objectContaining({ class: 'breaking_schema_change', severity: 'medium' }),
+    ]);
+  });
+
   it('an added required property stays breaking_schema_change', () => {
     const changes = diff(BEFORE, withProps({ multiplier: { type: 'number' } }, ['multiplier']));
     expect(changes).toEqual([

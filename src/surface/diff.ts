@@ -312,9 +312,10 @@ function diffSchema(
   const currentCanonical = canonicalizeSchema(current);
 
   const emit: Emit = (driftClass, message, previous, curr, severity) => {
-    // A field the server adds to its OUTPUT is not something the model fills in
-    if (driftClass === 'input_property_added' && schemaType === 'outputSchema') {
-      driftClass = 'nonbreaking_schema_change';
+    // A field the server adds to its OUTPUT is not something the model fills in: no
+    // input_property_added, and no escalation, whatever class the change ended up in
+    if (schemaType === 'outputSchema') {
+      if (driftClass === 'input_property_added') driftClass = 'nonbreaking_schema_change';
       severity = undefined;
     }
     changes.push({
