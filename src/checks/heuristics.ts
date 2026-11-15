@@ -266,6 +266,9 @@ export function isSchemaResource(schema: Record<string, unknown>): boolean {
   return typeof schema.$id === 'string' && !schema.$id.startsWith('#');
 }
 
+/** Keywords whose values are instance data, never subschemas. */
+const DATA_KEYWORDS = new Set(['const', 'default', 'enum', 'examples']);
+
 /** Anchors of each resource, built once per resource. */
 const anchorCache = new WeakMap<object, Map<string, unknown>>();
 
@@ -293,8 +296,11 @@ function anchorsOf(root: object): Map<string, unknown> {
             ? s.$id.slice(1)
             : undefined;
       if (name !== undefined && !anchors.has(name)) anchors.set(name, s);
+      // Instance data is not schema: an `$id` inside a default or an enum value is no anchor
+      for (const [key, child] of Object.entries(s)) if (!DATA_KEYWORDS.has(key)) stack.push(child);
+    } else {
+      stack.push(...node);
     }
-    stack.push(...Object.values(node));
   }
   anchorCache.set(root, anchors);
   return anchors;

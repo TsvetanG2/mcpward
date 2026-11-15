@@ -253,6 +253,15 @@ describe('applicators and long chains', () => {
     expect(collectSecretFields(schema)).toEqual(['a.password', 'b.api_key']);
   });
 
+  it('ignores $id inside instance data such as a default', () => {
+    const schema = {
+      type: 'object',
+      properties: { auth: { $ref: '#Auth', default: { $id: '#Auth' } } },
+      definitions: { Auth: { $id: '#Auth', properties: { password: {} } } },
+    };
+    expect(collectSecretFields(schema)).toEqual(['auth.password']);
+  });
+
   it('does not resolve an anchor that belongs to a nested resource', () => {
     const schema = {
       type: 'object',
