@@ -169,48 +169,55 @@ export interface ParamNode {
   path: string;
   /** The `properties` key that led here; undefined for array items and additionalProperties. */
   name: string | undefined;
-  schema: Record<string, unknown>;
+  /** The node's schema; undefined for a boolean schema (`password: true` is still a field). */
+  schema: Record<string, unknown> | undefined;
 }
 
 /**
  * Visits every parameter in an input schema, at any depth: nested `properties`, array
  * `items`, `additionalProperties`, and anyOf/oneOf/allOf branches (which keep their parent's
- * path). The root itself is not a parameter and is not visited. Depth-limited and cycle-safe.
+ * path). The root itself is not a parameter and is not visited; a property named `""` is.
+ *
+ * Every named property is reported, even a boolean schema or an object already seen under
+ * another name — the NAME is what solicits a secret. Only the descent into an object happens
+ * once, which keeps the walk cycle-safe; it is also depth-limited.
  */
 export function walkParams(schema: unknown): ParamNode[] {
   const found: ParamNode[] = [];
   const seen = new WeakSet<object>();
 
-  const walk = (node: unknown, path: string, name: string | undefined, depth: number): void => {
-    if (
-      depth > MAX_PARAM_DEPTH ||
-      node === null ||
-      typeof node !== 'object' ||
-      Array.isArray(node)
-    ) {
-      return;
-    }
-    if (seen.has(node)) return;
-    seen.add(node);
-    const s = node as Record<string, unknown>;
+  const walk = (
+    node: unknown,
+    path: string,
+    name: string | undefined,
+    depth: number,
+    isRoot: boolean
+  ): void => {
+    if (depth > MAX_PARAM_DEPTH || node === undefined) return;
+    const s =
+      node !== null && typeof node === 'object' && !Array.isArray(node)
+        ? (node as Record<string, unknown>)
+        : undefined;
+    if (!isRoot && (s !== undefined || name !== undefined)) found.push({ path, name, schema: s });
+    if (s === undefined || seen.has(s)) return;
+    seen.add(s);
 
-    if (path !== '') found.push({ path, name, schema: s });
     const props = s.properties;
     if (props && typeof props === 'object' && !Array.isArray(props)) {
       for (const [key, child] of Object.entries(props as Record<string, unknown>)) {
-        walk(child, path === '' ? key : `${path}.${key}`, key, depth + 1);
+        walk(child, isRoot ? key : `${path}.${key}`, key, depth + 1, false);
       }
     }
     const items = Array.isArray(s.items) ? s.items : [s.items];
-    for (const item of items) walk(item, `${path}[]`, undefined, depth + 1);
-    walk(s.additionalProperties, `${path}{}`, undefined, depth + 1);
+    for (const item of items) walk(item, `${path}[]`, undefined, depth + 1, false);
+    walk(s.additionalProperties, `${path}{}`, undefined, depth + 1, false);
     for (const key of ['anyOf', 'oneOf', 'allOf'] as const) {
       const branches = s[key];
-      if (Array.isArray(branches)) for (const b of branches) walk(b, path, name, depth + 1);
+      if (Array.isArray(branches)) for (const b of branches) walk(b, path, name, depth + 1, isRoot);
     }
   };
 
-  walk(schema, '', undefined, 0);
+  walk(schema, '', undefined, 0, true);
   return found;
 }
 
@@ -220,7 +227,7 @@ export function walkParams(schema: unknown): ParamNode[] {
  */
 export function collectParamDescriptions(schema: unknown): { path: string; description: string }[] {
   return walkParams(schema).flatMap(({ path, schema: s }) =>
-    typeof s.description === 'string' && s.description !== ''
+    typeof s?.description === 'string' && s.description !== ''
       ? [{ path, description: s.description }]
       : []
   );

@@ -765,9 +765,6 @@ function diffSchemaNode(
   }
 }
 
-/** Longest description quoted in an `input_property_added` message. */
-const MAX_QUOTED_DESCRIPTION = 300;
-
 /**
  * A new optional input field. Its description is quoted in the message because the model reads
  * it and nothing else diffs it: the field is new, so there is no previous description.
@@ -775,12 +772,10 @@ const MAX_QUOTED_DESCRIPTION = 300;
 function emitInputPropertyAdded(name: string, path: string, schema: unknown, emit: Emit): void {
   const s = asSchema(schema);
   const description = typeof s?.description === 'string' ? s.description : '';
-  const shown =
-    description.length > MAX_QUOTED_DESCRIPTION
-      ? `${description.slice(0, MAX_QUOTED_DESCRIPTION)}…`
-      : description;
+  // Quoted whole: report redaction matches registered secrets by their complete value, so a
+  // truncated description could leak the first part of one
   const quoted =
-    description === '' ? 'no description' : `description "${markInvisibleCharacters(shown)}"`;
+    description === '' ? 'no description' : `description "${markInvisibleCharacters(description)}"`;
   const reason = suspiciousNewInput(name, path, schema);
   emit(
     'input_property_added',

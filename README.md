@@ -116,7 +116,7 @@ checks:
   drift:
     baseline: ./mcpward.lock.json
     fail_on: high # only silent security changes fail; schema breaks and removals report
-    # fail_on: medium      # high + schema/output breaks
+    # fail_on: medium      # high + schema/output breaks + new optional input fields
     # fail_on: [tool_removed, description_changed, breaking_schema_change, annotation_changed]
     severity: # optional per-class overrides
       tool_removed: high
