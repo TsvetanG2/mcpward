@@ -348,10 +348,6 @@ const OPAQUE_CONSTRAINTS = ['pattern', 'format', 'const', 'multipleOf'] as const
 const COMBINATORS = ['anyOf', 'oneOf', 'allOf'] as const;
 /** Named subschemas, compared name by name (a `$ref` target changes there, not at the `$ref`). */
 const DEFINITION_KEYWORDS = ['$defs', 'definitions'] as const;
-/** References: removing one does not prove the schema got looser (it may be inlined). */
-const REFERENCE_KEYWORDS = new Set(['$ref', '$dynamicRef', '$recursiveRef', '$id', '$anchor']);
-/** Keywords that only name the dialect and never change what is accepted. */
-const DIALECT_KEYWORDS = new Set(['$schema', '$vocabulary']);
 /** Keywords diffSchemaNode compares itself; every other constraint goes to the catch-all. */
 const MODELLED_KEYWORDS = new Set<string>([
   'type',
@@ -625,6 +621,21 @@ function diffSchemaNode(
   }
 
   // --- $defs / definitions: compared by name, so a change in a `$ref` target is seen ---
+  // A definition used under `not`/`if` flips meaning: accepting more there rejects more
+  let negated: Set<string> | undefined;
+  const defEmit = (def: string): Emit => {
+    negated ??= new Set([...negatedDefinitions(base), ...negatedDefinitions(curr)]);
+    if (!negated.has(def)) return emit;
+    return (cls, message, previous, current) =>
+      cls === 'nonbreaking_schema_change'
+        ? emit(
+            'breaking_schema_change',
+            `${message} (the definition is used under not/if, where accepting more can reject more; classified as breaking)`,
+            previous,
+            current
+          )
+        : emit(cls, message, previous, current);
+  };
   for (const key of DEFINITION_KEYWORDS) {
     const baseDefs = (asSchema(base[key]) ?? {}) as Record<string, unknown>;
     const currDefs = (asSchema(curr[key]) ?? {}) as Record<string, unknown>;
@@ -645,19 +656,19 @@ function diffSchemaNode(
           undefined
         );
       } else {
-        diffSubschema(baseDefs[name], currDefs[name], defPath, depth, emit);
+        diffSubschema(baseDefs[name], currDefs[name], defPath, depth, defEmit(`${key}/${name}`));
       }
     }
   }
 
-  // --- every other constraint keyword (prefixItems, contains, not, if/then/else,
-  // dependentRequired, $ref, …): not modelled, so a change cannot be classified. Like anyOf,
-  // it is breaking; only removing a plain constraint is known to widen what is accepted. ---
+  // --- every other keyword (prefixItems, contains, not, if/then/else, dependentRequired,
+  // $ref, $schema, …): not modelled, so a change cannot be classified. Like anyOf, it is
+  // breaking — even a removal (dropping `prefixItems` next to `items: false` rejects more, and
+  // a new `$schema` dialect can switch keywords on). ---
   for (const key of new Set([...Object.keys(base), ...Object.keys(curr)])) {
     if (
       MODELLED_KEYWORDS.has(key) ||
       ANNOTATION_KEYWORDS.has(key) ||
-      DIALECT_KEYWORDS.has(key) ||
       key.startsWith('x-') // vendor extensions annotate, they do not constrain
     ) {
       continue;
@@ -665,17 +676,13 @@ function diffSchemaNode(
     const b = base[key];
     const c = curr[key];
     if (same(b, c)) continue;
-    if (c === undefined && !REFERENCE_KEYWORDS.has(key)) {
-      emit('nonbreaking_schema_change', `${subject}${key} removed`, b, undefined);
-    } else {
-      const verb = b === undefined ? 'added' : c === undefined ? 'removed' : 'changed';
-      emit(
-        'breaking_schema_change',
-        `${subject}${key} ${verb} (compatibility cannot be determined; classified as breaking)`,
-        b,
-        c
-      );
-    }
+    const verb = b === undefined ? 'added' : c === undefined ? 'removed' : 'changed';
+    emit(
+      'breaking_schema_change',
+      `${subject}${key} ${verb} (compatibility cannot be determined; classified as breaking)`,
+      b,
+      c
+    );
   }
 
   // --- items ---
@@ -694,6 +701,14 @@ function diffSchemaNode(
       const after = i < currItems.length ? currItems[i] : (curr.additionalItems ?? true);
       diffSubschema(before, after, p, depth, emit);
     }
+    // Every position past both tuples is governed by additionalItems alone
+    diffSubschema(
+      base.additionalItems ?? true,
+      curr.additionalItems ?? true,
+      `${path}[${n}+]`,
+      depth,
+      emit
+    );
   } else if (
     baseItems !== undefined &&
     currItems !== undefined &&
@@ -763,6 +778,68 @@ function diffSubschema(
     base,
     curr
   );
+}
+
+/** `$defs/Name` or `definitions/Name` for a same-document reference to a definition. */
+function definitionOf(ref: unknown): string | undefined {
+  if (typeof ref !== 'string') return undefined;
+  const m = /^#\/(\$defs|definitions)\/([^/]+)$/.exec(ref);
+  if (!m) return undefined;
+  try {
+    return `${m[1]}/${decodeURIComponent(m[2] ?? '')
+      .replace(/~1/g, '/')
+      .replace(/~0/g, '~')}`;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Every `$ref` string anywhere inside `node`. */
+function refsIn(node: unknown): string[] {
+  const refs: string[] = [];
+  const stack: unknown[] = [node];
+  while (stack.length > 0) {
+    const n = stack.pop();
+    if (n === null || typeof n !== 'object') continue;
+    if (!Array.isArray(n) && typeof (n as JsonSchema).$ref === 'string') {
+      refs.push((n as JsonSchema).$ref as string);
+    }
+    stack.push(...Object.values(n));
+  }
+  return refs;
+}
+
+/**
+ * Definitions of `schema` reached from inside a `not` or `if` subschema, directly or through
+ * other definitions. There, a looser definition rejects more values, so a "widening" inside
+ * it cannot be trusted.
+ */
+function negatedDefinitions(schema: JsonSchema): Set<string> {
+  const negated = new Set<string>();
+  const queue: string[] = [];
+  const mark = (ref: string) => {
+    const def = definitionOf(ref);
+    if (def !== undefined && !negated.has(def)) {
+      negated.add(def);
+      queue.push(def);
+    }
+  };
+  const stack: unknown[] = [schema];
+  while (stack.length > 0) {
+    const n = stack.pop();
+    if (n === null || typeof n !== 'object') continue;
+    if (!Array.isArray(n)) {
+      const s = n as JsonSchema;
+      for (const key of ['not', 'if'] as const) refsIn(s[key]).forEach(mark);
+    }
+    stack.push(...Object.values(n));
+  }
+  while (queue.length > 0) {
+    const [key, name] = (queue.pop() as string).split(/\/(.*)/s) as [string, string];
+    const defs = asSchema(schema[key]);
+    if (defs && Object.hasOwn(defs, name)) refsIn(defs[name]).forEach(mark);
+  }
+  return negated;
 }
 
 /** Keywords that annotate a schema without constraining which values it accepts. */

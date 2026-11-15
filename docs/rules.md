@@ -389,8 +389,9 @@ A tool's input or output schema changed in a way that can reject previously vali
 - `pattern`, `format`, `const` or `multipleOf` added or changed (a changed pattern cannot be proven compatible, so it is classified as breaking and the message says so)
 - `uniqueItems` turned on, `additionalProperties` closed, an `items` constraint added
 - `anyOf`/`oneOf`/`allOf` changed (cannot be classified structurally — conservative)
-- any other constraint keyword added or changed — `prefixItems`, `contains`, `not`, `if`/`then`/`else`, `dependentRequired`, `propertyNames`, `unevaluatedProperties`, `$ref` and the like. These are not modelled, so compatibility cannot be determined and the message says so. Removing one (other than a reference) is non-breaking. `$schema`, annotations (`title`, `default`, `examples`, …) and `x-` vendor extensions are not compared.
-- a definition in `$defs`/`definitions` removed, or changed in any of the ways above (paths like `$defs/Item.x`) — a `$ref` target changes there, not at the `$ref`
+- any other keyword added, changed or removed — `prefixItems`, `contains`, `not`, `if`/`then`/`else`, `dependentRequired`, `propertyNames`, `unevaluatedProperties`, `$ref`, `$schema` and the like. These are not modelled, so compatibility cannot be determined and the message says so (even a removal can reject more: dropping `prefixItems` next to `items: false`). Annotations (`title`, `default`, `examples`, …) and `x-` vendor extensions are not compared.
+- `additionalItems` tightened behind a tuple (path `t[1+]`)
+- a definition in `$defs`/`definitions` removed, or changed in any of the ways above (paths like `$defs/Item.x`) — a `$ref` target changes there, not at the `$ref`. A definition reached from a `not` or `if` is inverted (accepting more there rejects more), so any change inside it is breaking.
 - a declared schema removed
 
 **How to fix:**
@@ -400,7 +401,7 @@ Breaking schema changes require client updates. Review carefully and update the 
 
 **Severity:** low (info)
 
-A tool's schema changed compatibly, at any nesting depth: optional property added, type widened, required → optional, `enum` value added or `enum` removed, bounds relaxed or removed, `pattern`/`format`/`const`/`multipleOf` removed, `uniqueItems` turned off, `additionalProperties` opened, `items` constraint removed, an unmodelled constraint keyword removed, a `$defs`/`definitions` entry added, or a declared schema added.
+A tool's schema changed compatibly, at any nesting depth: optional property added, type widened, required → optional, `enum` value added or `enum` removed, bounds relaxed or removed, `pattern`/`format`/`const`/`multipleOf` removed, `uniqueItems` turned off, `additionalProperties` opened, `items` constraint removed, a `$defs`/`definitions` entry added, or a declared schema added.
 
 **How to fix:**
 Review the change and update the baseline if appropriate.
