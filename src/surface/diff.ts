@@ -658,8 +658,9 @@ function diffSchemaNode(
   const defEmit = (def: string): Emit => {
     negated ??= new Set([...invertedDefinitions(base), ...invertedDefinitions(curr)]);
     if (!negated.has(def)) return emit;
+    // An optional field added there can reject more too (`additionalProperties: false`)
     return (cls, message, previous, current, severity) =>
-      cls === 'nonbreaking_schema_change'
+      cls === 'nonbreaking_schema_change' || cls === 'input_property_added'
         ? emit(
             'breaking_schema_change',
             `${message} (the definition is used under not/if/oneOf, where accepting more can reject more; classified as breaking)`,
