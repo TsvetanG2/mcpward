@@ -558,11 +558,13 @@ function diffSchemaNode(
   // --- anyOf / oneOf / allOf: cannot classify structurally — conservative ---
   for (const key of COMBINATORS) {
     if (!same(base[key], curr[key])) {
+      const reason = newHostility(key, base[key], curr[key], path, currRoot);
       emit(
         'breaking_schema_change',
-        `${subject}${key} changed (compatibility cannot be determined; classified as breaking)`,
+        `${subject}${key} changed (compatibility cannot be determined; classified as breaking)${reason ? ` — ${reason}` : ''}`,
         base[key],
-        curr[key]
+        curr[key],
+        reason ? 'high' : undefined
       );
     }
   }
@@ -720,11 +722,13 @@ function diffSchemaNode(
     const c = curr[key];
     if (same(b, c)) continue;
     const verb = b === undefined ? 'added' : c === undefined ? 'removed' : 'changed';
+    const reason = newHostility(key, b, c, path, currRoot);
     emit(
       'breaking_schema_change',
-      `${subject}${key} ${verb} (compatibility cannot be determined; classified as breaking)`,
+      `${subject}${key} ${verb} (compatibility cannot be determined; classified as breaking)${reason ? ` — ${reason}` : ''}`,
       b,
-      c
+      c,
+      reason ? 'high' : undefined
     );
   }
 
@@ -841,6 +845,51 @@ function suspiciousNewInput(
     if (findSuspiciousUnicode(description).length > 0) {
       return `"${at(p)}" description contains hidden unicode`;
     }
+  }
+  return undefined;
+}
+
+/** Every hostile-looking parameter reached through `{ [key]: value }`, as reasons. */
+function hostileFindings(
+  key: string,
+  value: unknown,
+  path: string,
+  currRoot: JsonSchema
+): Set<string> {
+  const found = new Set<string>();
+  if (value === undefined) return found;
+  const root = { [key]: value };
+  const at = (p: string) => (path === '' ? p : p === '' ? path : `${path}.${p}`);
+  for (const p of walkParams(root, currRoot)) {
+    if (p.name !== undefined && isSecretField(p.name))
+      found.add(`"${at(p.path)}" solicits a secret`);
+  }
+  for (const { path: p, description } of collectParamDescriptions(root, currRoot)) {
+    if (findInjectionPatterns(description).length > 0) {
+      found.add(`"${at(p)}" description contains injection-like phrasing`);
+    }
+    if (findSuspiciousUnicode(description).length > 0) {
+      found.add(`"${at(p)}" description contains hidden unicode`);
+    }
+  }
+  return found;
+}
+
+/**
+ * Why a changed keyword the walk cannot classify (`allOf`, `if`, `$ref`, …) brings in a
+ * hostile-looking input — a secret-soliciting name or a poisoned description that was not there
+ * before — or undefined. Such a change is escalated to high like a hostile new field.
+ */
+function newHostility(
+  key: string,
+  before: unknown,
+  after: unknown,
+  path: string,
+  currRoot: JsonSchema
+): string | undefined {
+  const old = hostileFindings(key, before, path, currRoot);
+  for (const reason of hostileFindings(key, after, path, currRoot)) {
+    if (!old.has(reason)) return reason;
   }
   return undefined;
 }

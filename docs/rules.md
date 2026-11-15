@@ -399,7 +399,7 @@ Review the description change carefully. If the change is legitimate, update the
 
 ### drift/breaking_schema_change
 
-**Severity:** medium (warning)
+**Severity:** medium (warning); high (error) when a change the walk cannot classify (`allOf`, `if`/`then`, `$ref`, …) brings in an input field that looks hostile — the same test as [`input_property_added`](#driftinput_property_added)
 
 A tool's input or output schema changed in a way that can reject previously valid calls, at any nesting depth (paths like `filter.status`, `rows[].id`):
 
