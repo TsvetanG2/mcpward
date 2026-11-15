@@ -330,5 +330,37 @@ describe('Golden Snapshot Tests', () => {
       expect(output).toContain('3 passed');
       expect(output).toContain('2 failed');
     });
+
+    it('marks hidden characters in a message that quotes server text', () => {
+      const lines: string[] = [];
+      const originalLog = console.log;
+      console.log = (...args: unknown[]) => {
+        lines.push(args.map(String).join(' '));
+      };
+
+      try {
+        renderConsoleReport(
+          {
+            ...FIXED_REPORT,
+            results: [
+              {
+                id: 'drift/input_property_added',
+                family: 'drift',
+                status: 'fail',
+                severity: 'error',
+                message: 'added optional property "note" (description "a\u202Eb")',
+              },
+            ],
+          },
+          { verbose: false }
+        );
+      } finally {
+        console.log = originalLog;
+      }
+
+      const output = lines.join('\n');
+      expect(output).toContain('description "a<U+202E>b"');
+      expect(output).not.toContain('\u202E');
+    });
   });
 });
