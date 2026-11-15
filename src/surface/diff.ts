@@ -931,11 +931,15 @@ function diffSubschema(
       : acceptsAnything(v)
         ? 'accept-anything'
         : 'a schema';
+  // `auth: true` → `auth: {properties: {password}}` brings in new fields: same hostility test
+  // (an in-place `allOf` of one schema is that schema)
+  const reason = newHostility('allOf', [base], [curr], path, currRoot);
   emit(
     rank(curr) < rank(base) ? 'breaking_schema_change' : 'nonbreaking_schema_change',
-    `property "${path}" changed from ${label(base)} to ${label(curr)}`,
+    `property "${path}" changed from ${label(base)} to ${label(curr)}${reason ? ` — ${reason}` : ''}`,
     base,
-    curr
+    curr,
+    reason ? 'high' : undefined
   );
 }
 
