@@ -226,6 +226,56 @@ describe('applicators and long chains', () => {
     expect(collectSecretFields(schema)).toEqual(['auth.data.password']);
   });
 
+  it('keeps the document base for a fragment-only $id (a draft-07 anchor)', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        auth: {
+          $id: '#auth',
+          type: 'object',
+          properties: { data: { $ref: '#/definitions/Creds' } },
+        },
+      },
+      definitions: { Creds: { type: 'object', properties: { password: { type: 'string' } } } },
+    };
+    expect(collectSecretFields(schema)).toEqual(['auth.data.password']);
+  });
+
+  it('resolves plain-name anchors: draft-07 $id "#Name" and $anchor', () => {
+    const schema = {
+      type: 'object',
+      properties: { a: { $ref: '#Auth' }, b: { $ref: '#Keys' }, c: { $ref: '#Missing' } },
+      definitions: {
+        Auth: { $id: '#Auth', type: 'object', properties: { password: { type: 'string' } } },
+      },
+      $defs: { Keys: { $anchor: 'Keys', type: 'object', properties: { api_key: {} } } },
+    };
+    expect(collectSecretFields(schema)).toEqual(['a.password', 'b.api_key']);
+  });
+
+  it('does not resolve an anchor that belongs to a nested resource', () => {
+    const schema = {
+      type: 'object',
+      properties: { a: { $ref: '#Auth' } },
+      $defs: {
+        Other: {
+          $id: 'https://example.com/other',
+          $defs: { Auth: { $anchor: 'Auth', properties: { password: {} } } },
+        },
+      },
+    };
+    expect(walkParams(schema).map((p) => p.path)).toEqual(['a']);
+  });
+
+  it('reports names listed in required but never declared', () => {
+    const schema = {
+      type: 'object',
+      properties: { auth: { type: 'object', required: ['password'] } },
+      required: ['token', 'auth'],
+    };
+    expect(collectSecretFields(schema)).toEqual(['auth.password', 'token']);
+  });
+
   it('finds a field at the end of a long $ref chain', () => {
     const $defs: Record<string, unknown> = {};
     for (let i = 0; i < 100; i++) $defs[`D${i}`] = { $ref: `#/$defs/D${i + 1}` };

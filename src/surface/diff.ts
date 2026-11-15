@@ -31,6 +31,7 @@ import {
   collectParamDescriptions,
   findInjectionPatterns,
   findSuspiciousUnicode,
+  isSchemaResource,
   isSecretField,
   walkParams,
 } from '../checks/heuristics.js';
@@ -407,7 +408,10 @@ const same = (a: unknown, b: unknown) => canonicalJson(a) === canonicalJson(b);
  * Compares one schema node and recurses into its children. `path` is '' for the root,
  * `a.b` for nested properties, `a[]` for array items, `a{}` for additionalProperties.
  */
-/** `currRoot` is the whole current schema: a new field's `$ref` is resolved against it. */
+/**
+ * `currRoot` is the schema resource `curr` belongs to — the whole current schema, or the nearest
+ * enclosing subschema with its own `$id`: a new field's `$ref` is resolved against it.
+ */
 function diffSchemaNode(
   base: JsonSchema,
   curr: JsonSchema,
@@ -417,6 +421,7 @@ function diffSchemaNode(
   currRoot: JsonSchema
 ): void {
   if (depth > MAX_DIFF_DEPTH) return;
+  if (isSchemaResource(curr)) currRoot = curr;
   // Subject used in messages: root-level keywords read "inputSchema enum ...",
   // nested ones read `inputSchema property "a.b" ...` (matching the established wording).
   const subject = path === '' ? '' : `property "${path}" `;

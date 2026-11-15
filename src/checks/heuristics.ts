@@ -184,11 +184,12 @@ interface Visit {
  * Visits every parameter in an input schema, at any depth: nested `properties`, array
  * `items`/`prefixItems`/`additionalItems`/`contains`, `additionalProperties`/
  * `patternProperties`, and the in-place applicators (anyOf/oneOf/allOf, not, if/then/else,
- * dependentSchemas, draft-07 `dependencies`), which keep their parent's path. The root itself is not a parameter and is
- * not visited; a property named `""` is. A local `$ref` (`#/$defs/Auth`) is followed into
- * `refRoot` — the document the schema came from, which defaults to the schema itself — and its
- * target keeps the referring path. Inside a subschema with its own `$id`, references resolve
- * against that subschema.
+ * dependentSchemas, draft-07 `dependencies`), which keep their parent's path. A name listed in
+ * `required` but never declared is reported too. The root itself is not a parameter and is
+ * not visited; a property named `""` is. A local `$ref` (`#/$defs/Auth`, or an anchor like
+ * `#Auth`) is followed into `refRoot` — the document the schema came from, which defaults to the
+ * schema itself — and its target keeps the referring path. Inside a subschema with its own
+ * (non-fragment) `$id`, references resolve against that subschema.
  *
  * Every named property is reported, even a boolean schema or an object already seen under
  * another name — the NAME is what solicits a secret. Each object is descended into once, so the
@@ -213,7 +214,7 @@ export function walkParams(schema: unknown, refRoot: unknown = schema): ParamNod
     seen.add(s);
     // A subschema with its own `$id` is a separate schema resource: fragments inside it are
     // relative to it, not to the document
-    const base = typeof s.$id === 'string' ? s : outerBase;
+    const base = isSchemaResource(s) ? s : outerBase;
 
     const children: Visit[] = [];
     const add = (child: unknown, childPath: string, childName?: string) =>
@@ -229,6 +230,12 @@ export function walkParams(schema: unknown, refRoot: unknown = schema): ParamNod
       for (const [key, child] of Object.entries(props as Record<string, unknown>)) {
         add(child, isRoot ? key : `${path}.${key}`, key);
       }
+    }
+    // `required` may name a property that `properties` never declares — it is still requested
+    for (const key of list(s.required)) {
+      if (typeof key !== 'string') continue;
+      if (props && typeof props === 'object' && Object.hasOwn(props, key)) continue;
+      add(true, isRoot ? key : `${path}.${key}`, key);
     }
     for (const item of Array.isArray(s.items) ? s.items : [s.items]) add(item, `${path}[]`);
     for (const item of list(s.prefixItems)) add(item, `${path}[]`);
@@ -252,8 +259,51 @@ export function walkParams(schema: unknown, refRoot: unknown = schema): ParamNod
 }
 
 /**
- * Resolves a same-document reference (`#`, `#/$defs/Auth`, `#/definitions/a~1b`) as a JSON
- * Pointer. Remote references are never fetched: the server under test is untrusted.
+ * True for a schema that starts its own resource: its `$id` is a URI, not a draft-07
+ * fragment-only anchor such as `"#auth"` (which names a place in the enclosing resource).
+ */
+export function isSchemaResource(schema: Record<string, unknown>): boolean {
+  return typeof schema.$id === 'string' && !schema.$id.startsWith('#');
+}
+
+/** Anchors of each resource, built once per resource. */
+const anchorCache = new WeakMap<object, Map<string, unknown>>();
+
+/**
+ * The plain-name anchors in a schema resource: `$anchor: "Auth"` (2019-09+) and the draft-07
+ * `$id: "#Auth"`. Nested resources keep their own anchors and are not entered.
+ */
+function anchorsOf(root: object): Map<string, unknown> {
+  const cached = anchorCache.get(root);
+  if (cached) return cached;
+  const anchors = new Map<string, unknown>();
+  const seen = new WeakSet<object>();
+  const stack: unknown[] = [root];
+  while (stack.length > 0) {
+    const node = stack.pop();
+    if (node === null || typeof node !== 'object' || seen.has(node)) continue;
+    seen.add(node);
+    if (!Array.isArray(node)) {
+      const s = node as Record<string, unknown>;
+      if (node !== root && isSchemaResource(s)) continue;
+      const name =
+        typeof s.$anchor === 'string'
+          ? s.$anchor
+          : typeof s.$id === 'string' && s.$id.startsWith('#')
+            ? s.$id.slice(1)
+            : undefined;
+      if (name !== undefined && !anchors.has(name)) anchors.set(name, s);
+    }
+    stack.push(...Object.values(node));
+  }
+  anchorCache.set(root, anchors);
+  return anchors;
+}
+
+/**
+ * Resolves a same-document reference — `#`, a JSON Pointer (`#/$defs/Auth`,
+ * `#/definitions/a~1b`) or a plain-name anchor (`#Auth`). Remote references are never fetched:
+ * the server under test is untrusted.
  */
 export function resolveLocalRef(root: unknown, ref: string): unknown {
   if (!ref.startsWith('#')) return undefined;
@@ -264,7 +314,9 @@ export function resolveLocalRef(root: unknown, ref: string): unknown {
     return undefined;
   }
   if (pointer === '') return root;
-  if (!pointer.startsWith('/')) return undefined;
+  if (!pointer.startsWith('/')) {
+    return root !== null && typeof root === 'object' ? anchorsOf(root).get(pointer) : undefined;
+  }
   let node: unknown = root;
   for (const raw of pointer.slice(1).split('/')) {
     const key = raw.replace(/~1/g, '/').replace(/~0/g, '~');
