@@ -37,7 +37,7 @@ describe('stdio server process cleanup (#71)', () => {
   afterEach(() => {
     // Never leak a stubborn process from a failing test
     for (const pid of pids.splice(0)) {
-      if (isAlive(pid)) process.kill(pid, 'SIGKILL');
+      if (pid > 0 && isAlive(pid)) process.kill(pid, 'SIGKILL');
     }
     for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
   });
@@ -66,9 +66,17 @@ describe('stdio server process cleanup (#71)', () => {
     return { config, pidFile, workerPidFile };
   }
 
-  async function serverPid(pidFile: string): Promise<number> {
-    expect(await waitFor(() => existsSync(pidFile), 20000)).toBe(true);
+  /** Reads a pid file once it holds a whole pid (writeFileSync creates it empty first). */
+  function readPid(pidFile: string): number | undefined {
+    if (!existsSync(pidFile)) return undefined;
     const pid = Number(readFileSync(pidFile, 'utf8'));
+    return Number.isInteger(pid) && pid > 0 ? pid : undefined;
+  }
+
+  async function serverPid(pidFile: string): Promise<number> {
+    expect(await waitFor(() => readPid(pidFile) !== undefined, 20000)).toBe(true);
+    const pid = readPid(pidFile) ?? 0;
+    expect(pid).toBeGreaterThan(0); // kill(0) would signal the whole process group
     pids.push(pid);
     return pid;
   }

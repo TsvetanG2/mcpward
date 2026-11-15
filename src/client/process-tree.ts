@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { readdir, readFile } from 'node:fs/promises';
 
 /**
  * Process-tree cleanup for stdio servers (#71).
@@ -38,11 +39,14 @@ const KILL_GRACE_MS = 2000;
 /** Bounds the kill loop: each round catches processes started by the previous survivors. */
 const MAX_KILL_ROUNDS = 3;
 
+/** Milliseconds from the FILETIME epoch (1601-01-01) to the Unix epoch, to compare with Date.now(). */
+const FILETIME_UNIX_EPOCH_MS = 11_644_473_600_000;
+
 /**
  * Parses a process listing. Pure; malformed lines are skipped.
  *
  * - posix: `pid ppid lstart` (`ps -o pid=,ppid=,lstart=`, lstart like `Sun Nov  5 03:55:53 2026`)
- * - windows: `pid ppid filetime` (100 ns ticks since 1601, UTC)
+ * - windows: `pid ppid filetime` (100 ns ticks since 1601, UTC; converted to Unix ms)
  */
 export function parseProcessTable(text: string, format: TableFormat): ProcessEntry[] {
   const entries: ProcessEntry[] = [];
@@ -52,7 +56,9 @@ export function parseProcessTable(text: string, format: TableFormat): ProcessEnt
     const ppid = Number(ppidText);
     if (!pidText || !ppidText || !Number.isInteger(pid) || !Number.isInteger(ppid)) continue;
     const started =
-      format === 'windows' ? Math.floor(Number(rest[0]) / 10_000) : Date.parse(rest.join(' '));
+      format === 'windows'
+        ? Math.floor(Number(rest[0]) / 10_000) - FILETIME_UNIX_EPOCH_MS
+        : Date.parse(rest.join(' '));
     entries.push(Number.isFinite(started) ? { pid, ppid, started } : { pid, ppid });
   }
   return entries;
@@ -60,7 +66,63 @@ export function parseProcessTable(text: string, format: TableFormat): ProcessEnt
 
 /** True when `entry` is the same process as `known`: same pid, same start time. Pure. */
 export function sameProcess(known: ProcessEntry, entry: ProcessEntry | undefined): boolean {
-  return entry !== undefined && entry.pid === known.pid && entry.started === known.started;
+  // Without a start time there is no identity: such a process is never signalled
+  return (
+    entry !== undefined &&
+    known.started !== undefined &&
+    entry.pid === known.pid &&
+    entry.started === known.started
+  );
+}
+
+/** How far a start time may lie outside the spawn window (ps lstart has 1 s resolution). */
+const SPAWN_SLACK_MS = 1500;
+
+/**
+ * True when `entry` is the process the transport spawned: it started while mcpward was
+ * spawning it. Pure.
+ *
+ * The SDK keeps the child's pid until its `close` event, which a descendant holding stdout
+ * open can delay long after the child exited; by then the pid may belong to an unrelated
+ * process — one that necessarily started later.
+ */
+export function isSpawnedRoot(
+  entry: ProcessEntry | undefined,
+  window: { from: number; to: number }
+): boolean {
+  return (
+    entry?.started !== undefined &&
+    entry.started >= window.from - SPAWN_SLACK_MS &&
+    entry.started <= window.to + SPAWN_SLACK_MS
+  );
+}
+
+/**
+ * Parses one `/proc/<pid>/stat` line into an entry, with the start time in ms. Pure.
+ *
+ * `comm` (field 2) may contain spaces and parentheses, so fields are counted from the LAST
+ * `)`. After it: state (field 3), ppid (field 4) ... starttime (field 22, clock ticks since
+ * boot).
+ */
+export function parseProcStat(
+  text: string,
+  bootMs: number,
+  ticksPerSecond: number
+): ProcessEntry | undefined {
+  const close = text.lastIndexOf(')');
+  const open = text.indexOf('(');
+  if (open < 0 || close < open) return undefined;
+  const pid = Number(text.slice(0, open).trim());
+  const fields = text
+    .slice(close + 1)
+    .trim()
+    .split(/\s+/);
+  const ppid = Number(fields[1]);
+  const ticks = Number(fields[19]);
+  if (!Number.isInteger(pid) || !Number.isInteger(ppid) || !Number.isFinite(ticks)) {
+    return undefined;
+  }
+  return { pid, ppid, started: bootMs + Math.round((ticks * 1000) / ticksPerSecond) };
 }
 
 /**
@@ -126,6 +188,9 @@ function run(command: string, args: string[], env?: NodeJS.ProcessEnv): Promise<
  */
 export async function listProcesses(): Promise<ProcessEntry[]> {
   try {
+    if (process.platform === 'linux') {
+      return await listLinuxProcesses();
+    }
     if (process.platform === 'win32') {
       const text = await run('powershell.exe', [
         '-NoProfile',
@@ -144,6 +209,28 @@ export async function listProcesses(): Promise<ProcessEntry[]> {
   } catch {
     return [];
   }
+}
+
+/**
+ * Linux: /proc gives start times in clock ticks (10 ms), where ps lstart has 1 s resolution,
+ * and works where ps is missing or limited (busybox). USER_HZ is 100 on every mainstream
+ * Linux architecture.
+ */
+async function listLinuxProcesses(): Promise<ProcessEntry[]> {
+  const btime = /^btime\s+(\d+)$/m.exec(await readFile('/proc/stat', 'utf8'))?.[1];
+  if (btime === undefined) return [];
+  const bootMs = Number(btime) * 1000;
+  const entries: ProcessEntry[] = [];
+  for (const name of await readdir('/proc')) {
+    if (!/^\d+$/.test(name)) continue;
+    try {
+      const entry = parseProcStat(await readFile(`/proc/${name}/stat`, 'utf8'), bootMs, 100);
+      if (entry) entries.push(entry);
+    } catch {
+      // exited while listing
+    }
+  }
+  return entries;
 }
 
 function signal(pids: number[], sig: NodeJS.Signals): void {
@@ -214,10 +301,12 @@ async function killSurvivors(tracked: ProcessEntry[]): Promise<void> {
  */
 export async function closeProcessTree(
   pid: number | null,
+  spawnWindow: { from: number; to: number } | undefined,
   closeTransport: () => Promise<void>
 ): Promise<void> {
-  const initial = pid === null ? [] : await listProcesses();
-  const root = initial.find((entry) => entry.pid === pid);
+  const initial = pid === null || spawnWindow === undefined ? [] : await listProcesses();
+  const candidate = initial.find((entry) => entry.pid === pid);
+  const root = spawnWindow && isSpawnedRoot(candidate, spawnWindow) ? candidate : undefined;
   const tracked = new Map<number, ProcessEntry>();
   // Follows only processes whose identity still matches: the root's pid, too, can be reused
   // once the SDK has stopped it

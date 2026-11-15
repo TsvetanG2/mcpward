@@ -164,9 +164,18 @@ function connectStdio(
   // EVERY close goes through tree cleanup, including the SDK's own (it closes the transport
   // when initialize fails, before connect() rejects): the raw close clears transport.pid, so
   // the tree must be read first. Memoized, so mcpward's later close awaits the same cleanup.
+  // The spawn window lets cleanup tell the child it spawned from a later process that reused
+  // its pid.
+  const rawStart = transport.start.bind(transport);
+  let spawnWindow: { from: number; to: number } | undefined;
+  transport.start = async () => {
+    const from = Date.now();
+    await rawStart();
+    spawnWindow = { from, to: Date.now() };
+  };
   const rawClose = transport.close.bind(transport);
   let closing: Promise<void> | undefined;
-  transport.close = () => (closing ??= closeProcessTree(transport.pid, rawClose));
+  transport.close = () => (closing ??= closeProcessTree(transport.pid, spawnWindow, rawClose));
   return connectTransport(transport, timeouts, () => transport.close());
 }
 
