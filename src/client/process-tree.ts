@@ -172,6 +172,28 @@ export function survivorsOf(tracked: ProcessEntry[], table: ProcessEntry[]): Pro
   return [...alive, ...spawned];
 }
 
+/**
+ * Adds to `tracked` every live descendant of the root and of tracked processes not yet
+ * tracked. Pure.
+ *
+ * Keyed by identity, not pid: a tracked child can exit and the root can start another child
+ * that gets the same pid — a new process to track. Only processes whose identity still
+ * matches are followed, the root included (its pid can be reused once the SDK stopped it).
+ */
+export function trackDescendants(
+  root: ProcessEntry,
+  tracked: ProcessEntry[],
+  table: ProcessEntry[]
+): ProcessEntry[] {
+  const result = [...tracked];
+  for (const entry of survivorsOf([root, ...tracked], table)) {
+    if (sameProcess(root, entry)) continue;
+    if (result.some((known) => sameProcess(known, entry))) continue;
+    result.push(entry);
+  }
+  return result;
+}
+
 function run(command: string, args: string[], env?: NodeJS.ProcessEnv): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile(
@@ -316,14 +338,9 @@ export async function closeProcessTree(
   const initial = pid === null || spawnWindow === undefined ? [] : await listProcesses();
   const candidate = initial.find((entry) => entry.pid === pid);
   const root = spawnWindow && isSpawnedRoot(candidate, spawnWindow) ? candidate : undefined;
-  const tracked = new Map<number, ProcessEntry>();
-  // Follows only processes whose identity still matches: the root's pid, too, can be reused
-  // once the SDK has stopped it
+  let tracked: ProcessEntry[] = [];
   const track = (table: ProcessEntry[]): void => {
-    if (root === undefined) return;
-    for (const entry of survivorsOf([root, ...tracked.values()], table)) {
-      if (entry.pid !== root.pid && !tracked.has(entry.pid)) tracked.set(entry.pid, entry);
-    }
+    if (root !== undefined) tracked = trackDescendants(root, tracked, table);
   };
   track(initial);
 
@@ -338,7 +355,7 @@ export async function closeProcessTree(
   try {
     await closing;
   } finally {
-    await killSurvivors([...tracked.values()]);
+    await killSurvivors(tracked);
   }
 }
 
