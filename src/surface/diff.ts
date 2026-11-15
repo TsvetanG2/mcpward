@@ -35,7 +35,6 @@ import {
   isSecretField,
   walkParams,
 } from '../checks/heuristics.js';
-import { markInvisibleCharacters } from '../report/text-diff.js';
 
 /**
  * Maps drift classes to default severity levels based on blast radius (M2).
@@ -786,10 +785,9 @@ function emitInputPropertyAdded(
 ): void {
   const s = asSchema(schema);
   const description = typeof s?.description === 'string' ? s.description : '';
-  // Quoted whole: report redaction matches registered secrets by their complete value, so a
-  // truncated description could leak the first part of one
-  const quoted =
-    description === '' ? 'no description' : `description "${markInvisibleCharacters(description)}"`;
+  // Quoted whole and raw: report redaction matches registered secrets by their exact value, so a
+  // truncated or rewritten description could leak one. Reporters mark hidden characters later.
+  const quoted = description === '' ? 'no description' : `description "${description}"`;
   const reason = suspiciousNewInput(name, path, schema, currRoot);
   emit(
     'input_property_added',

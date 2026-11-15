@@ -102,9 +102,10 @@ describe('input_property_added classification', () => {
     expect(changes[0]?.message).toContain(long);
   });
 
-  it('shows hidden characters in the quoted description', () => {
-    const changes = diff(BEFORE, withProps({ note: { type: 'string', description: 'a​b' } }));
-    expect(changes[0]?.message).toContain('a<U+200B>b');
+  it('quotes a description with hidden characters raw, so redaction can still match it', () => {
+    const changes = diff(BEFORE, withProps({ note: { type: 'string', description: 'a‍b' } }));
+    expect(changes[0]?.message).toContain('"a‍b"');
+    expect(changes[0]?.message).toContain('hidden unicode');
   });
 
   it('an added optional property nested in an object is input_property_added', () => {
