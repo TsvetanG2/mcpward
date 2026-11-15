@@ -195,7 +195,7 @@ describe('applicators and long chains', () => {
     ]);
   });
 
-  it('visits schema-valued draft-07 dependencies, not property-list ones', () => {
+  it('visits schema-valued draft-07 dependencies and reports names a list value requires', () => {
     const schema = {
       type: 'object',
       properties: {
@@ -203,12 +203,12 @@ describe('applicators and long chains', () => {
           type: 'object',
           dependencies: {
             enabled: { properties: { password: { type: 'string' } } },
-            user: ['token'], // a list of property NAMES, not a schema
+            user: ['token'], // a list of property NAMES: `token` becomes required
           },
         },
       },
     };
-    expect(collectSecretFields(schema)).toEqual(['auth.password']);
+    expect(collectSecretFields(schema)).toEqual(['auth.token', 'auth.password']);
   });
 
   it('resolves a fragment inside a subschema with its own $id against that subschema', () => {
@@ -262,6 +262,15 @@ describe('applicators and long chains', () => {
     expect(collectSecretFields(schema)).toEqual(['auth.password']);
   });
 
+  it('resolves an anchor in a definition named like a data keyword', () => {
+    const schema = {
+      type: 'object',
+      properties: { auth: { $ref: '#Auth' } },
+      $defs: { default: { $anchor: 'Auth', properties: { password: {} } } },
+    };
+    expect(collectSecretFields(schema)).toEqual(['auth.password']);
+  });
+
   it('does not resolve an anchor that belongs to a nested resource', () => {
     const schema = {
       type: 'object',
@@ -274,6 +283,17 @@ describe('applicators and long chains', () => {
       },
     };
     expect(walkParams(schema).map((p) => p.path)).toEqual(['a']);
+  });
+
+  it('reports names that dependencies or dependentRequired require', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        auth: { type: 'object', properties: { user: {} }, dependencies: { user: ['password'] } },
+        keys: { type: 'object', dependentRequired: { id: ['api_key'] } },
+      },
+    };
+    expect(collectSecretFields(schema)).toEqual(['auth.password', 'keys.api_key']);
   });
 
   it('reports names listed in required but never declared', () => {

@@ -120,8 +120,9 @@ function renderResult(result: CheckResult, verbose: boolean): void {
   const icon = STATUS_ICONS[result.status] ?? '?';
   const colorFn = SEVERITY_COLORS[result.severity] ?? ((s: string) => s);
 
-  // Main line
-  console.log(`  ${icon} ${colorFn(result.message)}`);
+  // Main line. Messages can quote server text (a new field's description): show hidden
+  // characters instead of letting them hide or reorder what the reviewer reads.
+  console.log(`  ${icon} ${colorFn(markInvisibleCharacters(result.message))}`);
 
   // Location
   if (result.location) {

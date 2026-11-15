@@ -231,8 +231,14 @@ export function walkParams(schema: unknown, refRoot: unknown = schema): ParamNod
         add(child, isRoot ? key : `${path}.${key}`, key);
       }
     }
-    // `required` may name a property that `properties` never declares — it is still requested
-    for (const key of list(s.required)) {
+    // `required`, `dependentRequired` and array-valued draft-07 `dependencies` may name a
+    // property that `properties` never declares — it is still requested
+    const requested = [
+      ...list(s.required),
+      ...values(s.dependentRequired).flatMap(list),
+      ...values(s.dependencies).flatMap(list),
+    ];
+    for (const key of new Set(requested)) {
       if (typeof key !== 'string') continue;
       if (props && typeof props === 'object' && Object.hasOwn(props, key)) continue;
       add(true, isRoot ? key : `${path}.${key}`, key);
@@ -269,6 +275,16 @@ export function isSchemaResource(schema: Record<string, unknown>): boolean {
 /** Keywords whose values are instance data, never subschemas. */
 const DATA_KEYWORDS = new Set(['const', 'default', 'enum', 'examples']);
 
+/** Keywords whose values map names to subschemas. */
+const MAP_KEYWORDS = new Set([
+  '$defs',
+  'definitions',
+  'properties',
+  'patternProperties',
+  'dependentSchemas',
+  'dependencies',
+]);
+
 /** Anchors of each resource, built once per resource. */
 const anchorCache = new WeakMap<object, Map<string, unknown>>();
 
@@ -281,12 +297,17 @@ function anchorsOf(root: object): Map<string, unknown> {
   if (cached) return cached;
   const anchors = new Map<string, unknown>();
   const seen = new WeakSet<object>();
-  const stack: unknown[] = [root];
+  // `map`: the node is a name → subschema map (`$defs`, `properties`, …), not a schema
+  const stack: { node: unknown; map: boolean }[] = [{ node: root, map: false }];
   while (stack.length > 0) {
-    const node = stack.pop();
+    const { node, map } = stack.pop() as { node: unknown; map: boolean };
     if (node === null || typeof node !== 'object' || seen.has(node)) continue;
     seen.add(node);
-    if (!Array.isArray(node)) {
+    if (Array.isArray(node)) {
+      for (const child of node) stack.push({ node: child, map: false });
+    } else if (map) {
+      for (const child of Object.values(node)) stack.push({ node: child, map: false });
+    } else {
       const s = node as Record<string, unknown>;
       if (node !== root && isSchemaResource(s)) continue;
       const name =
@@ -296,10 +317,11 @@ function anchorsOf(root: object): Map<string, unknown> {
             ? s.$id.slice(1)
             : undefined;
       if (name !== undefined && !anchors.has(name)) anchors.set(name, s);
-      // Instance data is not schema: an `$id` inside a default or an enum value is no anchor
-      for (const [key, child] of Object.entries(s)) if (!DATA_KEYWORDS.has(key)) stack.push(child);
-    } else {
-      stack.push(...node);
+      // Instance data is not schema: an `$id` inside a default or an enum value is no anchor.
+      // Only a schema's own keywords are data — a definition may be NAMED `default`.
+      for (const [key, child] of Object.entries(s)) {
+        if (!DATA_KEYWORDS.has(key)) stack.push({ node: child, map: MAP_KEYWORDS.has(key) });
+      }
     }
   }
   anchorCache.set(root, anchors);
