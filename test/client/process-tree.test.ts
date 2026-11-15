@@ -181,6 +181,15 @@ describe('survivorsOf', () => {
     expect(pids(survivorsOf([server], table))).toEqual([12, 40, 41]);
   });
 
+  it('never adds a new process whose start time is unknown', () => {
+    const table = [
+      { pid: 12, ppid: 1, started: 500 },
+      { pid: 40, ppid: 12 }, // no identity to re-check before signalling
+      { pid: 41, ppid: 12, started: 800 },
+    ];
+    expect(pids(survivorsOf([server], table))).toEqual([12, 41]);
+  });
+
   it('never adds children of a reused pid', () => {
     const table = [
       { pid: 12, ppid: 1, started: 900 }, // not our server

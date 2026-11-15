@@ -167,7 +167,8 @@ export function survivorsOf(tracked: ProcessEntry[], table: ProcessEntry[]): Pro
   const spawned = descendantsOf(
     alive.map((entry) => entry.pid),
     table
-  ).filter((entry) => !known.has(entry.pid));
+  ).filter((entry) => !known.has(entry.pid) && entry.started !== undefined);
+  // A new process without a start time has no identity to re-check before signalling
   return [...alive, ...spawned];
 }
 
@@ -215,11 +216,19 @@ export async function listProcesses(): Promise<ProcessEntry[]> {
  * Linux: /proc gives start times in clock ticks (10 ms), where ps lstart has 1 s resolution,
  * and works where ps is missing or limited (busybox). USER_HZ is 100 on every mainstream
  * Linux architecture.
+ *
+ * `btime` follows wall-clock corrections, so it is read ONCE per mcpward process: every
+ * listing then converts the same ticks to the same start time, and identities stay stable.
  */
+let linuxBootMs: number | undefined;
+
 async function listLinuxProcesses(): Promise<ProcessEntry[]> {
-  const btime = /^btime\s+(\d+)$/m.exec(await readFile('/proc/stat', 'utf8'))?.[1];
-  if (btime === undefined) return [];
-  const bootMs = Number(btime) * 1000;
+  if (linuxBootMs === undefined) {
+    const btime = /^btime\s+(\d+)$/m.exec(await readFile('/proc/stat', 'utf8'))?.[1];
+    if (btime === undefined) return [];
+    linuxBootMs = Number(btime) * 1000;
+  }
+  const bootMs = linuxBootMs;
   const entries: ProcessEntry[] = [];
   for (const name of await readdir('/proc')) {
     if (!/^\d+$/.test(name)) continue;
