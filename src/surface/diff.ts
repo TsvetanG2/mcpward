@@ -34,6 +34,7 @@ import {
   isSchemaResource,
   isSecretField,
   walkParams,
+  resolveLocalRef,
 } from '../checks/heuristics.js';
 
 /**
@@ -794,7 +795,13 @@ function emitInputPropertyAdded(
   emit: Emit,
   currRoot: JsonSchema
 ): void {
-  const s = asSchema(schema);
+  // The model reads the description of a `$ref` target too: follow local references to it
+  let s = asSchema(schema);
+  const seen = new Set<unknown>();
+  while (s && typeof s.description !== 'string' && typeof s.$ref === 'string' && !seen.has(s)) {
+    seen.add(s);
+    s = asSchema(resolveLocalRef(currRoot, s.$ref));
+  }
   const description = typeof s?.description === 'string' ? s.description : '';
   // Quoted whole and raw: report redaction matches registered secrets by their exact value, so a
   // truncated or rewritten description could leak one. Reporters mark hidden characters later.
