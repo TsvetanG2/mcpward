@@ -283,6 +283,18 @@ describe('applicators and long chains', () => {
     expect(collectSecretFields(schema)).toEqual(['a.password', 'b.api_key']);
   });
 
+  it('follows $dynamicRef and $recursiveRef within the document', () => {
+    const schema = {
+      type: 'object',
+      properties: { a: { $dynamicRef: '#Auth' }, b: { $recursiveRef: '#/$defs/Keys' } },
+      $defs: {
+        Auth: { $dynamicAnchor: 'Auth', properties: { password: {} } },
+        Keys: { properties: { api_key: {} } },
+      },
+    };
+    expect(collectSecretFields(schema)).toEqual(['a.password', 'b.api_key']);
+  });
+
   it('reads descriptions in propertyNames', () => {
     const schema = {
       type: 'object',

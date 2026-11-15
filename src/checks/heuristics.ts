@@ -257,7 +257,11 @@ export function walkParams(schema: unknown, refRoot: unknown = schema): ParamNod
     for (const child of values(s.dependentSchemas)) same(child);
     // draft-07 `dependencies`: a schema value applies in place (an array value lists names)
     for (const child of values(s.dependencies)) if (!Array.isArray(child)) same(child);
-    if (typeof s.$ref === 'string') same(resolveLocalRef(base, s.$ref));
+    // `$dynamicRef`/`$recursiveRef` resolve like `$ref` within one document (no dynamic scope
+    // across documents to follow — remote references are never fetched)
+    for (const key of ['$ref', '$dynamicRef', '$recursiveRef'] as const) {
+      if (typeof s[key] === 'string') same(resolveLocalRef(base, s[key]));
+    }
 
     // Reverse so the stack pops them in document order (pre-order, like a recursive walk)
     for (let k = children.length - 1; k >= 0; k--) stack.push(children[k] as Visit);
