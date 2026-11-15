@@ -621,16 +621,16 @@ function diffSchemaNode(
   }
 
   // --- $defs / definitions: compared by name, so a change in a `$ref` target is seen ---
-  // A definition used under `not`/`if` flips meaning: accepting more there rejects more
+  // A definition used under `not`/`if`/`oneOf`: accepting more there can reject more
   let negated: Set<string> | undefined;
   const defEmit = (def: string): Emit => {
-    negated ??= new Set([...negatedDefinitions(base), ...negatedDefinitions(curr)]);
+    negated ??= new Set([...invertedDefinitions(base), ...invertedDefinitions(curr)]);
     if (!negated.has(def)) return emit;
     return (cls, message, previous, current) =>
       cls === 'nonbreaking_schema_change'
         ? emit(
             'breaking_schema_change',
-            `${message} (the definition is used under not/if, where accepting more can reject more; classified as breaking)`,
+            `${message} (the definition is used under not/if/oneOf, where accepting more can reject more; classified as breaking)`,
             previous,
             current
           )
@@ -780,10 +780,13 @@ function diffSubschema(
   );
 }
 
-/** `$defs/Name` or `definitions/Name` for a same-document reference to a definition. */
+/**
+ * `$defs/Name` or `definitions/Name` for a same-document reference into a definition —
+ * `#/$defs/A` or a pointer inside it such as `#/$defs/A/properties/x`.
+ */
 function definitionOf(ref: unknown): string | undefined {
   if (typeof ref !== 'string') return undefined;
-  const m = /^#\/(\$defs|definitions)\/([^/]+)$/.exec(ref);
+  const m = /^#\/(\$defs|definitions)\/([^/]+)(?:\/.*)?$/s.exec(ref);
   if (!m) return undefined;
   try {
     return `${m[1]}/${decodeURIComponent(m[2] ?? '')
@@ -794,52 +797,70 @@ function definitionOf(ref: unknown): string | undefined {
   }
 }
 
-/** Every `$ref` string anywhere inside `node`. */
-function refsIn(node: unknown): string[] {
-  const refs: string[] = [];
-  const stack: unknown[] = [node];
-  while (stack.length > 0) {
-    const n = stack.pop();
-    if (n === null || typeof n !== 'object') continue;
-    if (!Array.isArray(n) && typeof (n as JsonSchema).$ref === 'string') {
-      refs.push((n as JsonSchema).$ref as string);
-    }
-    stack.push(...Object.values(n));
-  }
-  return refs;
-}
+/** Keywords whose value maps names to subschemas. */
+const SCHEMA_MAP_KEYWORDS = [
+  'properties',
+  'patternProperties',
+  'dependentSchemas',
+  'dependencies',
+  '$defs',
+  'definitions',
+] as const;
+/** Keywords whose value is a subschema or a list of subschemas, applied with the same polarity. */
+const SAME_POLARITY_KEYWORDS = [
+  'items',
+  'prefixItems',
+  'additionalItems',
+  'contains',
+  'additionalProperties',
+  'unevaluatedItems',
+  'unevaluatedProperties',
+  'propertyNames',
+  'then',
+  'else',
+  'allOf',
+  'anyOf',
+] as const;
+/**
+ * Keywords where accepting more can reject more: `not` inverts, `if` selects a branch, and
+ * `oneOf` fails when a widened branch starts to overlap another.
+ */
+const INVERTING_KEYWORDS = ['not', 'if', 'oneOf'] as const;
 
 /**
- * Definitions of `schema` reached from inside a `not` or `if` subschema, directly or through
- * other definitions. There, a looser definition rejects more values, so a "widening" inside
- * it cannot be trusted.
+ * Definitions of `schema` used, directly or through other definitions, under `not`, `if` or
+ * `oneOf`. A "widening" inside such a definition cannot be trusted. The walk follows schema
+ * keywords only, so a parameter NAMED `not` is not mistaken for the keyword.
  */
-function negatedDefinitions(schema: JsonSchema): Set<string> {
-  const negated = new Set<string>();
-  const queue: string[] = [];
-  const mark = (ref: string) => {
-    const def = definitionOf(ref);
-    if (def !== undefined && !negated.has(def)) {
-      negated.add(def);
-      queue.push(def);
-    }
+function invertedDefinitions(schema: JsonSchema): Set<string> {
+  const inverted = new Set<string>();
+  const stack: { node: unknown; inverting: boolean }[] = [{ node: schema, inverting: false }];
+  const push = (value: unknown, inverting: boolean) => {
+    for (const node of Array.isArray(value) ? value : [value]) stack.push({ node, inverting });
   };
-  const stack: unknown[] = [schema];
   while (stack.length > 0) {
-    const n = stack.pop();
-    if (n === null || typeof n !== 'object') continue;
-    if (!Array.isArray(n)) {
-      const s = n as JsonSchema;
-      for (const key of ['not', 'if'] as const) refsIn(s[key]).forEach(mark);
+    const { node, inverting } = stack.pop() as { node: unknown; inverting: boolean };
+    const s = asSchema(node);
+    if (!s) continue;
+    if (inverting) {
+      const def = definitionOf(s.$ref);
+      if (def !== undefined && !inverted.has(def)) {
+        inverted.add(def);
+        // Everything the definition uses is inverted too
+        const [key, name] = def.split(/\/(.*)/s) as [string, string];
+        const defs = asSchema(schema[key]);
+        if (defs && Object.hasOwn(defs, name)) push(defs[name], true);
+      }
     }
-    stack.push(...Object.values(n));
+    for (const key of SCHEMA_MAP_KEYWORDS) {
+      // Definitions are walked where declared too: one may use another under `not`
+      const map = asSchema(s[key]);
+      if (map) for (const child of Object.values(map)) push(child, inverting);
+    }
+    for (const key of SAME_POLARITY_KEYWORDS) push(s[key], inverting);
+    for (const key of INVERTING_KEYWORDS) push(s[key], true);
   }
-  while (queue.length > 0) {
-    const [key, name] = (queue.pop() as string).split(/\/(.*)/s) as [string, string];
-    const defs = asSchema(schema[key]);
-    if (defs && Object.hasOwn(defs, name)) refsIn(defs[name]).forEach(mark);
-  }
-  return negated;
+  return inverted;
 }
 
 /** Keywords that annotate a schema without constraining which values it accepts. */
