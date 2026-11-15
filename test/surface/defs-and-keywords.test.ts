@@ -130,6 +130,32 @@ describe('drift inside $defs', () => {
     ]);
   });
 
+  it('a widened definition used under not is breaking (accepting more there rejects more)', () => {
+    const v = (blocked: string[]): JsonSchema => ({
+      type: 'object',
+      properties: { name: { type: 'string', not: { $ref: '#/$defs/Blocked' } } },
+      $defs: { Blocked: { $ref: '#/$defs/Words' }, Words: { enum: blocked } },
+    });
+    // Words is reached from `not` only through Blocked
+    expect(classify(v(['a']), v(['a', 'b']))).toEqual([
+      expect.objectContaining({
+        class: BREAKING,
+        message: expect.stringContaining('used under not/if'),
+      }),
+    ]);
+  });
+
+  it('a widened definition used only positively stays non-breaking', () => {
+    const v = (allowed: string[]): JsonSchema => ({
+      type: 'object',
+      properties: { name: { $ref: '#/$defs/Allowed' } },
+      $defs: { Allowed: { enum: allowed } },
+    });
+    expect(classify(v(['a']), v(['a', 'b']))).toEqual([
+      expect.objectContaining({ class: NONBREAKING }),
+    ]);
+  });
+
   it('an unchanged schema with $defs has no drift', () => {
     expect(classify(withItem(ITEM), withItem(ITEM))).toEqual([]);
   });
@@ -164,14 +190,52 @@ describe('keywords the walk does not model', () => {
     expect(changes[0]?.message).toContain(`${key} added`);
   });
 
-  it('removing a plain constraint keyword is non-breaking', () => {
-    const before: JsonSchema = { type: 'object', not: { required: ['a'] } };
-    expect(classify(before, { type: 'object' })).toEqual([
+  it('removing an unmodelled keyword is breaking too: it can reject more', () => {
+    // Without prefixItems, `items: false` rejects every element — ["x"] was valid before
+    const before: JsonSchema = {
+      type: 'object',
+      properties: { p: { type: 'array', prefixItems: [{ type: 'string' }], items: false } },
+    };
+    const after: JsonSchema = {
+      type: 'object',
+      properties: { p: { type: 'array', items: false } },
+    };
+    expect(classify(before, after)).toEqual([
       expect.objectContaining({
-        class: NONBREAKING,
-        message: expect.stringContaining('not removed'),
+        class: BREAKING,
+        message: expect.stringContaining('prefixItems removed'),
       }),
     ]);
+  });
+
+  it('a changed $schema dialect is breaking: it can switch keywords on', () => {
+    const v = (dialect: string): JsonSchema => ({
+      $schema: dialect,
+      type: 'object',
+      properties: { p: { type: 'array', prefixItems: [{ type: 'string' }] } },
+    });
+    expect(
+      classify(
+        v('http://json-schema.org/draft-07/schema#'),
+        v('https://json-schema.org/draft/2020-12/schema')
+      )
+    ).toEqual([
+      expect.objectContaining({
+        class: BREAKING,
+        message: expect.stringContaining('$schema changed'),
+      }),
+    ]);
+  });
+
+  it('additionalItems tightened behind an unchanged tuple is breaking', () => {
+    const v = (additionalItems: boolean): JsonSchema => ({
+      type: 'object',
+      properties: { t: { type: 'array', items: [{ type: 'string' }], additionalItems } },
+    });
+    expect(classify(v(true), v(false))).toEqual([
+      expect.objectContaining({ class: BREAKING, message: expect.stringContaining('t[1+]') }),
+    ]);
+    expect(classify(v(false), v(true))).toEqual([expect.objectContaining({ class: NONBREAKING })]);
   });
 
   it('removing a $ref is breaking (the target may have been inlined differently)', () => {
@@ -191,11 +255,6 @@ describe('keywords the walk does not model', () => {
   });
 
   it.each([
-    [
-      '$schema',
-      'http://json-schema.org/draft-07/schema#',
-      'https://json-schema.org/draft/2020-12/schema',
-    ],
     ['x-mcp-header', 'X-A', 'X-B'],
     ['title', 'A', 'B'],
   ])('a change to %s alone is not drift', (key, a, b) => {
