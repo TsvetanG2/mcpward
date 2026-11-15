@@ -8,6 +8,7 @@ import {
   walkParams,
   collectParamDescriptions,
   collectSecretFields,
+  resolveLocalRef,
 } from '../../src/checks/heuristics.js';
 import { runSecurityChecks } from '../../src/checks/security.js';
 import type { McpConnection } from '../../src/client/connect.js';
@@ -119,6 +120,50 @@ describe('collectSecretFields', () => {
     expect(
       collectSecretFields({ type: 'object', properties: { query: {}, filter: { type: 'object' } } })
     ).toEqual([]);
+  });
+});
+
+describe('local $ref', () => {
+  const AUTH = {
+    type: 'object',
+    properties: { auth: { $ref: '#/$defs/Auth' }, legacy: { $ref: '#/definitions/a~1b' } },
+    $defs: { Auth: { type: 'object', properties: { password: { type: 'string' } } } },
+    definitions: { 'a/b': { type: 'object', properties: { api_key: {} } } },
+  };
+
+  it('resolves JSON pointers, including ~1 / ~0 escapes and percent-encoding', () => {
+    expect(resolveLocalRef(AUTH, '#/$defs/Auth')).toBe(AUTH.$defs.Auth);
+    expect(resolveLocalRef(AUTH, '#/definitions/a~1b')).toBe(AUTH.definitions['a/b']);
+    expect(resolveLocalRef(AUTH, '#/definitions/a~1b'.replace('~1', '%7E1'))).toBe(
+      AUTH.definitions['a/b']
+    );
+    expect(resolveLocalRef(AUTH, '#')).toBe(AUTH);
+  });
+
+  it('never resolves remote, malformed or missing references', () => {
+    expect(resolveLocalRef(AUTH, 'https://evil.example/schema.json')).toBeUndefined();
+    expect(resolveLocalRef(AUTH, '#/$defs/Missing')).toBeUndefined();
+    expect(resolveLocalRef(AUTH, '#$defs')).toBeUndefined();
+    expect(resolveLocalRef(AUTH, '#/%E0%A4%A')).toBeUndefined();
+    expect(resolveLocalRef(AUTH, '#/$defs/Auth/type/length')).toBeUndefined();
+  });
+
+  it('follows references into definitions, keeping the referring path', () => {
+    expect(collectSecretFields(AUTH)).toEqual(['auth.password', 'legacy.api_key']);
+  });
+
+  it('survives a self-referencing schema', () => {
+    const tree = {
+      type: 'object',
+      properties: { node: { $ref: '#/$defs/Node' } },
+      $defs: { Node: { type: 'object', properties: { child: { $ref: '#/$defs/Node' } } } },
+    };
+    expect(walkParams(tree).map((p) => p.path)).toEqual([
+      'node',
+      'node',
+      'node.child',
+      'node.child',
+    ]);
   });
 });
 
