@@ -11,19 +11,7 @@
 import type { CheckResult } from '../report/model.js';
 import type { McpConnection } from '../client/connect.js';
 import { listAllTools } from '../client/tools.js';
-
-// Dynamic import for CJS modules - using any for complex module interop
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let AjvClass: any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let addFormats: any;
-
-async function loadAjv() {
-  const ajvModule = await import('ajv');
-  const formatsModule = await import('ajv-formats');
-  AjvClass = ajvModule.default;
-  addFormats = formatsModule.default;
-}
+import { loadAjv, newAjvFor } from '../assert/ajv.js';
 
 // Tool name pattern from MCP spec
 const TOOL_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
@@ -274,8 +262,7 @@ function checkToolInputSchema(tool: Tool): CheckResult {
   }
 
   // Validate that the schema itself is valid JSON Schema
-  const ajv = new AjvClass({ allErrors: true, strict: false });
-  addFormats(ajv);
+  const ajv = newAjvFor(inputSchema);
 
   try {
     // Try to compile the schema - this validates its structure

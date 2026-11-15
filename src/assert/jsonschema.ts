@@ -4,21 +4,7 @@
  * Validates tool outputs against JSON schemas using ajv.
  */
 
-// Dynamic import for CJS modules - using any for complex module interop
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let AjvClass: any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let addFormats: any;
-let ajvLoaded = false;
-
-async function loadAjv() {
-  if (ajvLoaded) return;
-  const ajvModule = await import('ajv');
-  const formatsModule = await import('ajv-formats');
-  AjvClass = ajvModule.default;
-  addFormats = formatsModule.default;
-  ajvLoaded = true;
-}
+import { loadAjv, newAjvFor } from './ajv.js';
 
 export interface JsonSchema {
   type?: string;
@@ -46,8 +32,7 @@ export async function validateSchema(
 ): Promise<ValidationError[]> {
   await loadAjv();
 
-  const ajv = new AjvClass({ allErrors: true, strict: false });
-  addFormats(ajv);
+  const ajv = newAjvFor(schema);
 
   try {
     const validate = ajv.compile(schema);
