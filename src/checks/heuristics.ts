@@ -251,6 +251,7 @@ export function walkParams(schema: unknown, refRoot: unknown = schema): ParamNod
     add(s.additionalProperties, `${path}{}`);
     for (const child of values(s.patternProperties)) add(child, `${path}{}`);
     add(s.unevaluatedProperties, `${path}{}`);
+    add(s.propertyNames, `${path}{}`);
     for (const key of ['anyOf', 'oneOf', 'allOf'] as const) for (const b of list(s[key])) same(b);
     for (const key of ['not', 'if', 'then', 'else'] as const) same(s[key]);
     for (const child of values(s.dependentSchemas)) same(child);
@@ -289,7 +290,7 @@ const MAP_KEYWORDS = new Set([
 const anchorCache = new WeakMap<object, Map<string, unknown>>();
 
 /**
- * The plain-name anchors in a schema resource: `$anchor: "Auth"` (2019-09+) and the draft-07
+ * The plain-name anchors in a schema resource: `$anchor`/`$dynamicAnchor` (2019-09+) and the draft-07
  * `$id: "#Auth"`. Nested resources keep their own anchors and are not entered.
  */
 function anchorsOf(root: object): Map<string, unknown> {
@@ -310,13 +311,15 @@ function anchorsOf(root: object): Map<string, unknown> {
     } else {
       const s = node as Record<string, unknown>;
       if (node !== root && isSchemaResource(s)) continue;
-      const name =
-        typeof s.$anchor === 'string'
-          ? s.$anchor
-          : typeof s.$id === 'string' && s.$id.startsWith('#')
-            ? s.$id.slice(1)
-            : undefined;
-      if (name !== undefined && !anchors.has(name)) anchors.set(name, s);
+      // `$anchor` and `$dynamicAnchor` (2019-09+) and a draft-07 `$id: "#Name"` all name it
+      const names = [
+        s.$anchor,
+        s.$dynamicAnchor,
+        typeof s.$id === 'string' && s.$id.startsWith('#') ? s.$id.slice(1) : undefined,
+      ];
+      for (const name of names) {
+        if (typeof name === 'string' && !anchors.has(name)) anchors.set(name, s);
+      }
       // Instance data is not schema: an `$id` inside a default or an enum value is no anchor.
       // Only a schema's own keywords are data — a definition may be NAMED `default`.
       for (const [key, child] of Object.entries(s)) {

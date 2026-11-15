@@ -154,6 +154,24 @@ describe('input_property_added classification', () => {
     expect(changes[0]?.message).toContain('"$defs/Auth.api_key"');
   });
 
+  it('an optional property added to a definition used under not stays breaking', () => {
+    // {note: 'x'} was valid (Blocked rejected it), now Blocked accepts it and `not` rejects it
+    const v = (props: Record<string, JsonSchema>): JsonSchema => ({
+      type: 'object',
+      properties: { opts: { type: 'object', not: { $ref: '#/definitions/Blocked' } } },
+      definitions: {
+        Blocked: { type: 'object', properties: props, additionalProperties: false },
+      },
+    });
+    const changes = diff(v({}), v({ note: { type: 'string' } }));
+    expect(changes).toEqual([
+      expect.objectContaining({
+        class: 'breaking_schema_change',
+        message: expect.stringContaining('used under not/if/oneOf'),
+      }),
+    ]);
+  });
+
   it('an added required property stays breaking_schema_change', () => {
     const changes = diff(BEFORE, withProps({ multiplier: { type: 'number' } }, ['multiplier']));
     expect(changes).toEqual([
