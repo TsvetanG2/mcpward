@@ -297,9 +297,16 @@ export async function loadLockfile(path: string): Promise<ServerSurface> {
   const content = await readFile(path, 'utf-8');
   const parsed = JSON.parse(content) as Partial<ServerSurface>;
 
-  // Detect v1 lockfile (no schemaVersion or schemaVersion !== 2)
-  const schemaVersion = parsed.meta?.schemaVersion;
-  const isV1 = !schemaVersion || schemaVersion !== 2;
+  // A v1 lockfile has no schemaVersion. Any other version than 2 comes from a newer mcpward
+  // (or is corrupt): migrating it as v1 would silently mangle it, so refuse instead.
+  const schemaVersion: unknown = parsed.meta?.schemaVersion;
+  const isV1 = schemaVersion === undefined;
+  if (!isV1 && schemaVersion !== 2) {
+    throw new Error(
+      `Unsupported lockfile schemaVersion ${JSON.stringify(schemaVersion)}: this mcpward reads ` +
+        'versions 1 and 2. Upgrade mcpward, or re-run "mcpward baseline" to rewrite it.'
+    );
+  }
 
   if (isV1) {
     // V1 lockfile detected - migrate to v2 format with defaults
