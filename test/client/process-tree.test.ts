@@ -7,6 +7,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   descendantsOf,
+  isSpawnedRoot,
+  parseProcStat,
   parseProcessTable,
   sameProcess,
   survivorsOf,
@@ -23,10 +25,14 @@ describe('parseProcessTable', () => {
     ]);
   });
 
-  it('parses Windows output (filetime ticks → ms) and CRLF', () => {
-    expect(parseProcessTable('4 0 1000000\r\n812 4 2000000\r\n', 'windows')).toEqual([
-      { pid: 4, ppid: 0, started: 100 },
-      { pid: 812, ppid: 4, started: 200 },
+  it('parses Windows output (filetime → Unix ms, comparable with Date.now) and CRLF', () => {
+    // 2026-11-15T00:00:00Z as a FILETIME, and 100 ms later
+    const at = Date.UTC(2026, 10, 15);
+    const filetime = (ms: number) => String((ms + 11_644_473_600_000) * 10_000);
+    const text = `4 0 ${filetime(at)}\r\n812 4 ${filetime(at + 100)}\r\n`;
+    expect(parseProcessTable(text, 'windows')).toEqual([
+      { pid: 4, ppid: 0, started: at },
+      { pid: 812, ppid: 4, started: at + 100 },
     ]);
   });
 
@@ -51,6 +57,57 @@ describe('sameProcess', () => {
     ['gone', undefined, false],
   ])('%s → %s', (_name, entry, expected) => {
     expect(sameProcess(known, entry)).toBe(expected);
+  });
+
+  it('never matches when the start time was never known, even against itself', () => {
+    // undefined === undefined must not count as identity
+    expect(sameProcess({ pid: 10, ppid: 1 }, { pid: 10, ppid: 1 })).toBe(false);
+  });
+});
+
+describe('isSpawnedRoot', () => {
+  const window = { from: 10_000, to: 10_200 };
+
+  it.each([
+    ['started inside the spawn window', 10_100, true],
+    ['started up to the slack before it (lstart rounds down to the second)', 8_600, true],
+    ['started just after it', 11_000, true],
+    ['started long after: a later process reused the pid', 60_000, false],
+    ['started long before', 1_000, false],
+  ])('%s → %s', (_name, started, expected) => {
+    expect(isSpawnedRoot({ pid: 10, ppid: 1, started }, window)).toBe(expected);
+  });
+
+  it('rejects a root without a start time or not found', () => {
+    expect(isSpawnedRoot({ pid: 10, ppid: 1 }, window)).toBe(false);
+    expect(isSpawnedRoot(undefined, window)).toBe(false);
+  });
+});
+
+describe('parseProcStat', () => {
+  // Fields after comm: state ppid pgrp session tty_nr tpgid flags minflt cminflt majflt
+  // cmajflt utime stime cutime cstime priority nice num_threads itrealvalue starttime ...
+  const rest = 'S 4321 1 1 0 -1 4194560 1 0 0 0 0 0 0 0 20 0 1 0 12345 1000 10';
+
+  it('reads pid, ppid and the start time (ticks → ms since boot time)', () => {
+    expect(parseProcStat(`420 (node) ${rest}`, 1_000_000, 100)).toEqual({
+      pid: 420,
+      ppid: 4321,
+      started: 1_000_000 + 123_450,
+    });
+  });
+
+  it('handles a comm with spaces and parentheses', () => {
+    expect(parseProcStat(`420 (my (odd) name) ${rest}`, 0, 100)).toEqual({
+      pid: 420,
+      ppid: 4321,
+      started: 123_450,
+    });
+  });
+
+  it('rejects malformed lines', () => {
+    expect(parseProcStat('garbage', 0, 100)).toBeUndefined();
+    expect(parseProcStat('420 (node) S', 0, 100)).toBeUndefined();
   });
 });
 
