@@ -10,6 +10,7 @@ import type {
   ResolvedTimeoutConfig,
 } from '../config/schema.js';
 import { MCPWARD_VERSION } from '../version.js';
+import { closeProcessTree } from './process-tree.js';
 
 /** Default timeout values in milliseconds */
 const DEFAULT_TIMEOUTS = {
@@ -83,7 +84,8 @@ export function serverEnv(
  */
 async function connectTransport(
   transport: Transport,
-  timeouts: ResolvedTimeoutConfig
+  timeouts: ResolvedTimeoutConfig,
+  shutdown: () => Promise<void>
 ): Promise<McpConnection> {
   // Record the protocol version the server actually negotiated. The SDK hands it to the
   // transport via setProtocolVersion after initialize; we read it from there rather than
@@ -105,13 +107,22 @@ async function connectTransport(
     }
   );
 
-  await withTimeout(client.connect(transport), timeouts.connect_ms, 'connection to server');
+  // A failed or timed-out handshake must still stop the server: the CLI exits with code 2
+  // right after, and an unclosed stdio server would outlive it (#71).
+  const connecting = client.connect(transport);
+  try {
+    await withTimeout(connecting, timeouts.connect_ms, 'connection to server');
+  } catch (err) {
+    connecting.catch(() => undefined); // shutting down makes the abandoned handshake reject
+    await shutdown().catch(() => undefined);
+    throw err;
+  }
 
   const serverInfo = client.getServerVersion();
   const capabilities = client.getServerCapabilities();
 
   if (!serverInfo) {
-    await client.close();
+    await shutdown();
     throw new Error('Server did not provide version information');
   }
 
@@ -124,9 +135,7 @@ async function connectTransport(
     },
     capabilities: capabilities ?? {},
     timeouts,
-    close: async () => {
-      await client.close();
-    },
+    close: shutdown,
     callTool: async (params: { name: string; arguments?: Record<string, unknown> }) => {
       // The SDK has its own request timeout (60s by default). Set it past call_ms so ours
       // always fires first: call_ms above 60s is honored, and every timeout carries our
@@ -152,7 +161,10 @@ function connectStdio(
     args: config.args,
     env: serverEnv(process.env, config.env),
   });
-  return connectTransport(transport, timeouts);
+  // transport.pid is read at close time: it exists only once the transport has started
+  return connectTransport(transport, timeouts, () =>
+    closeProcessTree(transport.pid, () => transport.close())
+  );
 }
 
 /**
@@ -167,7 +179,7 @@ function connectHttp(
       headers: { ...config.headers },
     },
   });
-  return connectTransport(transport, timeouts);
+  return connectTransport(transport, timeouts, () => transport.close());
 }
 
 /**

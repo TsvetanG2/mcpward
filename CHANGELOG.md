@@ -8,6 +8,10 @@ Since `1.0.0`, the public contract described in [`docs/stability.md`](docs/stabi
 
 ## [Unreleased]
 
+### Fixed
+
+- **A stdio server no longer outlives mcpward** ([#71](https://github.com/TsvetanG2/mcpward/issues/71), reported by a community member). Two cases left a server that ignores stdin EOF and SIGTERM running after mcpward exited: a `timeouts.connect_ms` timeout did not close the transport at all, and closing stopped only the process mcpward spawned — a server started through a wrapper (`npx`, `tsx`, `uvx`, `sh -c`, `cmd /c` on Windows) is a grandchild of mcpward and kept running. A failed or timed-out handshake now closes the transport, and on close mcpward stops every process the server command started that is still running (SIGTERM, then SIGKILL after 2 s). The process tree is read with `ps` (Linux, macOS) or `Get-CimInstance` (Windows); if it cannot be read, cleanup falls back to the previous behavior.
+
 ## [1.1.1] — 2026-10-05
 
 ### Changed
