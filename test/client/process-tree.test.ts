@@ -114,26 +114,26 @@ describe('parseProcStat', () => {
 describe('descendantsOf', () => {
   it('returns children and grandchildren, parents first', () => {
     const table = [
-      { pid: 10, ppid: 1 }, // the wrapper (npx)
-      { pid: 11, ppid: 10 }, // tsx
-      { pid: 12, ppid: 11 }, // the server
-      { pid: 13, ppid: 10 },
-      { pid: 20, ppid: 1 }, // unrelated sibling
+      { pid: 10, ppid: 1, started: 100 }, // the wrapper (npx)
+      { pid: 11, ppid: 10, started: 110 }, // tsx
+      { pid: 12, ppid: 11, started: 120 }, // the server
+      { pid: 13, ppid: 10, started: 130 },
+      { pid: 20, ppid: 1, started: 140 }, // unrelated sibling
     ];
     expect(pids(descendantsOf([10], table))).toEqual([11, 13, 12]);
   });
 
   it('never includes the roots or unrelated processes', () => {
     const table = [
-      { pid: 10, ppid: 1 },
-      { pid: 20, ppid: 1 },
-      { pid: 21, ppid: 20 },
+      { pid: 10, ppid: 1, started: 100 },
+      { pid: 20, ppid: 1, started: 100 },
+      { pid: 21, ppid: 20, started: 200 },
     ];
     expect(descendantsOf([10], table)).toEqual([]);
   });
 
   it('returns nothing for a root that is not in the table', () => {
-    expect(descendantsOf([99], [{ pid: 11, ppid: 99 }])).toEqual([]);
+    expect(descendantsOf([99], [{ pid: 11, ppid: 99, started: 100 }])).toEqual([]);
   });
 
   it('does not follow a stale parent id (child older than its parent)', () => {
@@ -147,10 +147,24 @@ describe('descendantsOf', () => {
     expect(pids(descendantsOf([10], table))).toEqual([11]);
   });
 
+  it('never follows a link where either start time is unknown', () => {
+    // 30 has no start time: it may be an unrelated process with a stale parent id, so
+    // neither it nor its child 31 is followed
+    const table = [
+      { pid: 10, ppid: 1, started: 500 },
+      { pid: 30, ppid: 10 },
+      { pid: 31, ppid: 30, started: 700 },
+      { pid: 11, ppid: 10, started: 600 },
+    ];
+    expect(pids(descendantsOf([10], table))).toEqual([11]);
+    // ...nor from a root whose start time is unknown
+    expect(descendantsOf([30], table)).toEqual([]);
+  });
+
   it('terminates on a cycle', () => {
     const table = [
-      { pid: 10, ppid: 11 },
-      { pid: 11, ppid: 10 },
+      { pid: 10, ppid: 11, started: 100 },
+      { pid: 11, ppid: 10, started: 100 },
     ];
     expect(pids(descendantsOf([10], table))).toEqual([11]);
   });
