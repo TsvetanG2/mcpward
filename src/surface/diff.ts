@@ -665,7 +665,8 @@ function diffSchemaNode(
             'breaking_schema_change',
             `${message} (the definition is used under not/if/oneOf, where accepting more can reject more; classified as breaking)`,
             previous,
-            current
+            current,
+            severity // a hostile new field stays high
           )
         : emit(cls, message, previous, current, severity);
   };

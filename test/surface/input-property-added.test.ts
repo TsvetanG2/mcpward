@@ -172,6 +172,18 @@ describe('input_property_added classification', () => {
     ]);
   });
 
+  it('a hostile field added to an inverted definition stays high', () => {
+    const v = (props: Record<string, JsonSchema>): JsonSchema => ({
+      type: 'object',
+      properties: { opts: { type: 'object', not: { $ref: '#/definitions/Blocked' } } },
+      definitions: { Blocked: { type: 'object', properties: props } },
+    });
+    const changes = diff(v({}), v({ api_key: { type: 'string' } }));
+    expect(changes).toEqual([
+      expect.objectContaining({ class: 'breaking_schema_change', severity: 'high' }),
+    ]);
+  });
+
   it('an added required property stays breaking_schema_change', () => {
     const changes = diff(BEFORE, withProps({ multiplier: { type: 'number' } }, ['multiplier']));
     expect(changes).toEqual([

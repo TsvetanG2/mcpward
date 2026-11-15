@@ -20,7 +20,7 @@ Since `1.0.0`, the public contract described in [`docs/stability.md`](docs/stabi
 
 Both changes can turn a passing CI run red; pin the mcpward version (`npx mcpward@X.Y.Z`, the action's `version` input) and upgrade deliberately (see [`docs/stability.md`](docs/stability.md#not-part-of-the-contract)).
 
-- With the **default `fail_on`** nothing changes for new optional input fields: the default list does not include `input_property_added`, as it did not include `nonbreaking_schema_change`.
+- With the **default `fail_on`** nothing changes for new optional input fields: the default list does not include `input_property_added`, as it did not include `nonbreaking_schema_change`. When it does not fail the run, an `input_property_added` result is reported as `warn` (not `pass`), so the console shows it and its description without `--verbose`.
 - With **`fail_on: medium`**, a new optional input field now fails the run. With **`fail_on: high`**, a new optional field fails only when it looks hostile.
 - **Config written for `nonbreaking_schema_change` keeps its meaning**: a `fail_on` list that names it also fails on `input_property_added`, and a `checks.drift.severity` override for it also applies to `input_property_added` unless that class has its own override, which wins. The workaround suggested in the discussion, `severity: { nonbreaking_schema_change: high }`, keeps working; `severity: { input_property_added: high }` does the same without promoting widened types and loosened constraints.
 - A secret-soliciting field nested in a tool's input schema is now reported by `security/secret-in-schema`, which fails the run as it always did for top-level fields.

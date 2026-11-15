@@ -213,6 +213,8 @@ describe('Drift Detection Integration', () => {
         // (they're not in the default fail_on)
         expect(failingIds).not.toContain('drift/tool_added');
         expect(failingIds).not.toContain('drift/input_property_added');
+        // ...but a new input field is a warning, so the console shows it without --verbose
+        expect(results.find((r) => r.id === 'drift/input_property_added')?.status).toBe('warn');
       } finally {
         await v2Connection.close();
       }
