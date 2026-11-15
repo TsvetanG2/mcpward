@@ -108,7 +108,7 @@ describe('Version consistency', () => {
     expect(connectContent.match(/new Client\(/g)).toHaveLength(1);
 
     // ...and both stdio and HTTP go through it
-    expect(connectContent.match(/return connectTransport\(transport, timeouts\)/g)).toHaveLength(2);
+    expect(connectContent.match(/return connectTransport\(transport, timeouts,/g)).toHaveLength(2);
   });
 
   test('Report model uses MCPWARD_VERSION', () => {
