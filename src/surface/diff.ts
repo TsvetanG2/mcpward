@@ -658,7 +658,7 @@ function diffSchemaNode(
   const defEmit = (def: string): Emit => {
     negated ??= new Set([...invertedDefinitions(base), ...invertedDefinitions(curr)]);
     if (!negated.has(def)) return emit;
-    return (cls, message, previous, current) =>
+    return (cls, message, previous, current, severity) =>
       cls === 'nonbreaking_schema_change'
         ? emit(
             'breaking_schema_change',
@@ -666,7 +666,7 @@ function diffSchemaNode(
             previous,
             current
           )
-        : emit(cls, message, previous, current);
+        : emit(cls, message, previous, current, severity);
   };
   for (const key of DEFINITION_KEYWORDS) {
     const baseDefs = (asSchema(base[key]) ?? {}) as Record<string, unknown>;
@@ -688,7 +688,14 @@ function diffSchemaNode(
           undefined
         );
       } else {
-        diffSubschema(baseDefs[name], currDefs[name], defPath, depth, defEmit(`${key}/${name}`));
+        diffSubschema(
+          baseDefs[name],
+          currDefs[name],
+          defPath,
+          depth,
+          defEmit(`${key}/${name}`),
+          currRoot
+        );
       }
     }
   }
@@ -739,7 +746,8 @@ function diffSchemaNode(
       curr.additionalItems ?? true,
       `${path}[${n}+]`,
       depth,
-      emit
+      emit,
+      currRoot
     );
   } else if (
     baseItems !== undefined &&
