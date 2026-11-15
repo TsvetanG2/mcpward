@@ -91,20 +91,21 @@ Four contract changes, none of which would surface at runtime until something br
 
 Not every change should fail a build. Adding an optional parameter is safe; adding a required one breaks existing callers. The classifier encodes this judgment as a pure function with exhaustive fixture-backed tests.
 
-| Change | Classification | Severity | Fails by default? |
-|--------|----------------|----------|-------------------|
-| Description changed | `description_changed` | high | yes |
-| `readOnlyHint` true→false or `destructiveHint` false→true | `annotation_changed` | high | yes |
-| Required field added / field removed / type narrowed / enum tightened / bound tightened / pattern added — at any depth | `breaking_schema_change` | medium | yes |
-| Output field removed / new output type / output format changed (inferred, opt-in) | `breaking_output_shape_change` | medium | yes |
-| Tool removed | `tool_removed` | low | yes |
-| Tool added | `tool_added` | low | no |
-| Optional field added / type widened / enum or bound loosened — at any depth | `nonbreaking_schema_change` | low | no |
-| Output field added (inferred, opt-in) | `nonbreaking_output_shape_change` | low | no |
+| Change                                                                                                                 | Classification                    | Severity                                                                      | Fails by default? |
+| ---------------------------------------------------------------------------------------------------------------------- | --------------------------------- | ----------------------------------------------------------------------------- | ----------------- |
+| Description changed                                                                                                    | `description_changed`             | high                                                                          | yes               |
+| `readOnlyHint` true→false or `destructiveHint` false→true                                                              | `annotation_changed`              | high                                                                          | yes               |
+| Required field added / field removed / type narrowed / enum tightened / bound tightened / pattern added — at any depth | `breaking_schema_change`          | medium                                                                        | yes               |
+| Output field removed / new output type / output format changed (inferred, opt-in)                                      | `breaking_output_shape_change`    | medium                                                                        | yes               |
+| Tool removed                                                                                                           | `tool_removed`                    | low                                                                           | yes               |
+| Tool added                                                                                                             | `tool_added`                      | low                                                                           | no                |
+| Optional input field added to an existing tool — at any depth                                                          | `input_property_added`            | medium (high if it solicits a secret or its description looks like injection) | no                |
+| Type widened / enum or bound loosened / optional output field added — at any depth                                     | `nonbreaking_schema_change`       | low                                                                           | no                |
+| Output field added (inferred, opt-in)                                                                                  | `nonbreaking_output_shape_change` | low                                                                           | no                |
 
-**Severity is blast radius, not breakage.** A removed tool is breaking but *low*: it fails loudly at the call site and gets fixed in minutes. A `readOnlyHint` flip is *high*: it silently changes what clients auto-approve, and nobody notices.
+**Severity is blast radius, not breakage.** A removed tool is breaking but _low_: it fails loudly at the call site and gets fixed in minutes. A `readOnlyHint` flip is _high_: it silently changes what clients auto-approve, and nobody notices.
 
-**Concrete examples:** A tool gains a new required `multiplier` parameter → `breaking_schema_change` (existing calls will fail). A tool adds an optional `limit` parameter → `nonbreaking_schema_change` (callers can ignore it). A parameter's type widens from `string` to `string | number` → `nonbreaking_schema_change`; narrowing the other way → `breaking_schema_change`. An `enum` loses a value, `maxLength` drops from 100 to 10, or `filter.status` gains a `pattern` → `breaking_schema_change`. A description — of the tool or of any parameter — gains one zero-width character → `description_changed`, and the diff shows it as `<U+200B>`.
+**Concrete examples:** A tool gains a new required `multiplier` parameter → `breaking_schema_change` (existing calls will fail). A tool adds an optional `limit` parameter → `input_property_added`: callers can ignore it, but the model will fill it, so it is _medium_ — a new optional `context` field is how an approved tool starts collecting data it never asked for. Named `api_key`, or described with injection phrasing, it is _high_. A parameter's type widens from `string` to `string | number` → `nonbreaking_schema_change`; narrowing the other way → `breaking_schema_change`. An `enum` loses a value, `maxLength` drops from 100 to 10, or `filter.status` gains a `pattern` → `breaking_schema_change`. A description — of the tool or of any parameter — gains one zero-width character → `description_changed`, and the diff shows it as `<U+200B>`.
 
 ### Policy: choosing what fails CI
 
@@ -114,10 +115,10 @@ The `fail_on` setting is your policy engine. Fail on a severity threshold (recom
 checks:
   drift:
     baseline: ./mcpward.lock.json
-    fail_on: high          # only silent security changes fail; schema breaks and removals report
+    fail_on: high # only silent security changes fail; schema breaks and removals report
     # fail_on: medium      # high + schema/output breaks
     # fail_on: [tool_removed, description_changed, breaking_schema_change, annotation_changed]
-    severity:              # optional per-class overrides
+    severity: # optional per-class overrides
       tool_removed: high
 ```
 
@@ -132,10 +133,10 @@ checks:
   drift:
     output:
       enabled: true
-      shape_samples: 3      # calls per tool; shapes are merged, so optional fields aren't "missing"
-      tools:                # explicit allowlist, with arguments
+      shape_samples: 3 # calls per tool; shapes are merged, so optional fields aren't "missing"
+      tools: # explicit allowlist, with arguments
         - name: get_order
-          args: { id: "demo-1" }
+          args: { id: 'demo-1' }
 ```
 
 This **calls tools**, so mcpward refuses to call anything that might have side effects: only tools annotated `readOnlyHint: true` that need no arguments are called automatically, plus whatever you allowlist. Every refused or skipped tool is reported with the reason.
@@ -164,60 +165,60 @@ SECURITY (9 failed)
 
 **Description collisions** are caught on first contact, with no baseline. Two tools with near-identical descriptions but different payloads — one takes a nested `filter` object, the other a flat `status` string — make an agent pick confidently and wrong, and no success/error check can see it. mcpward flags a pair only when the descriptions are near-identical **and** the input schemas diverge, so ordinary tool families like `list_users` / `list_projects` stay silent. Similarity is computed offline; no model or API calls.
 
-**Two-layer error contract** deserves a note, because nothing else checks it. MCP distinguishes protocol errors (a JSON-RPC `error` object) from tool errors (a *successful* result carrying `isError: true`). A tool that fails its job should return the second, not the first. Servers get this backwards routinely, and it changes how a client must handle the failure.
+**Two-layer error contract** deserves a note, because nothing else checks it. MCP distinguishes protocol errors (a JSON-RPC `error` object) from tool errors (a _successful_ result carrying `isError: true`). A tool that fails its job should return the second, not the first. Servers get this backwards routinely, and it changes how a client must handle the failure.
 
 ## Where mcpward fits
 
 MCP tooling splits into three jobs. Pick the one you actually have:
 
-| Job | Use |
-|---|---|
-| Poke a server by hand and see what it does | [MCP Inspector](https://github.com/modelcontextprotocol/inspector), [MCPJam](https://github.com/MCPJam/inspector) |
-| Audit the agents, MCP servers and skills installed on your machine | [Snyk Agent Scan](https://github.com/snyk/agent-scan) (formerly mcp-scan) |
-| Test a server as a dependency, in CI, and fail the build when its contract changes | **mcpward** |
+| Job                                                                                | Use                                                                                                               |
+| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Poke a server by hand and see what it does                                         | [MCP Inspector](https://github.com/modelcontextprotocol/inspector), [MCPJam](https://github.com/MCPJam/inspector) |
+| Audit the agents, MCP servers and skills installed on your machine                 | [Snyk Agent Scan](https://github.com/snyk/agent-scan) (formerly mcp-scan)                                         |
+| Test a server as a dependency, in CI, and fail the build when its contract changes | **mcpward**                                                                                                       |
 
 ### Compared to Snyk Agent Scan (formerly mcp-scan)
 
-[Agent Scan](https://github.com/snyk/agent-scan) — mcp-scan from Invariant Labs, now maintained by Snyk — is excellent and considerably more mature. Invariant Labs' research is what named tool poisoning and rug pulls in MCP. If your question is *"are the agents, MCP servers and skills installed on my machine safe?"*, use Agent Scan. It discovers the configs of Claude, Cursor, VS Code, Windsurf and other agents, scans agent skills, can install runtime hooks (Agent Guard), and detects tool shadowing and toxic flows, which mcpward does not do at all.
+[Agent Scan](https://github.com/snyk/agent-scan) — mcp-scan from Invariant Labs, now maintained by Snyk — is excellent and considerably more mature. Invariant Labs' research is what named tool poisoning and rug pulls in MCP. If your question is _"are the agents, MCP servers and skills installed on my machine safe?"_, use Agent Scan. It discovers the configs of Claude, Cursor, VS Code, Windsurf and other agents, scans agent skills, can install runtime hooks (Agent Guard), and detects tool shadowing and toxic flows, which mcpward does not do at all.
 
-mcpward answers a different question: *"did this server's contract change since my last release?"*
+mcpward answers a different question: _"did this server's contract change since my last release?"_
 
-| | mcpward | Agent Scan |
-|---|---|---|
-| Primary use | CI gate on a dependency | Audit your installed agents and servers |
-| Baseline + drift (rug-pull) detection | yes, lockfile committed to your repo | keeps local scan state; no documented baseline/diff workflow |
-| Tool-poisoning heuristics | yes, local pattern matching | yes (stronger, model-backed analysis) |
-| Tool shadowing / toxic flows | no | yes |
-| Agent skills scanning | no | yes |
-| Runtime hooks for agents | no | yes (Agent Guard) |
-| Protocol compliance checks | yes | no |
-| Two-layer error contract | yes | no |
-| Behavioral test suites | yes | no |
-| Latency budgets | yes | no |
-| CI output | JUnit, SARIF, JSON, Markdown, PR comment | JSON, `--ci` exit code |
-| Runs fully offline | yes | no — needs a Snyk API token and sends tool names, descriptions and server configs to the Snyk API (secrets redacted) |
+|                                       | mcpward                                  | Agent Scan                                                                                                           |
+| ------------------------------------- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Primary use                           | CI gate on a dependency                  | Audit your installed agents and servers                                                                              |
+| Baseline + drift (rug-pull) detection | yes, lockfile committed to your repo     | keeps local scan state; no documented baseline/diff workflow                                                         |
+| Tool-poisoning heuristics             | yes, local pattern matching              | yes (stronger, model-backed analysis)                                                                                |
+| Tool shadowing / toxic flows          | no                                       | yes                                                                                                                  |
+| Agent skills scanning                 | no                                       | yes                                                                                                                  |
+| Runtime hooks for agents              | no                                       | yes (Agent Guard)                                                                                                    |
+| Protocol compliance checks            | yes                                      | no                                                                                                                   |
+| Two-layer error contract              | yes                                      | no                                                                                                                   |
+| Behavioral test suites                | yes                                      | no                                                                                                                   |
+| Latency budgets                       | yes                                      | no                                                                                                                   |
+| CI output                             | JUnit, SARIF, JSON, Markdown, PR comment | JSON, `--ci` exit code                                                                                               |
+| Runs fully offline                    | yes                                      | no — needs a Snyk API token and sends tool names, descriptions and server configs to the Snyk API (secrets redacted) |
 
 That last row is the practical reason to reach for mcpward on internal or client-owned servers: **nothing leaves your machine.** No account, no API key, no service to trust.
 
 ### Compared to other CI-oriented tools
 
-| Feature | mcpward | [mcpvet](https://github.com/holydement0r/mcpvet) | [MCP Contract CI](https://github.com/ajpeng/MCP-Contract-CI) |
-|---|---|---|---|
-| Description-level drift | yes | no | no |
-| Input schema drift | yes | yes | yes |
-| Output schema drift | yes (opt-in) | no | yes |
-| Prompt and resource drift | no | no | yes |
-| Breaking vs non-breaking classification | yes | breaking only | breaking only |
-| Protocol compliance | yes | partial (stdout corruption) | no |
-| Schema lint | yes | yes | no |
-| Two-layer error contract | yes | no | no |
-| Tool-poisoning heuristics | yes | no (on roadmap) | no |
-| Behavioral test suites | yes | yes | yes (saved tool-call replay) |
-| Latency budgets | yes (p50/p95) | per-call limit | no |
-| SARIF export | yes | no | no |
-| JUnit output | yes | yes | no |
-| PR comment | yes | no | yes |
-| Live server over HTTP | yes | yes | no (stdio replay, manifest diff) |
+| Feature                                 | mcpward       | [mcpvet](https://github.com/holydement0r/mcpvet) | [MCP Contract CI](https://github.com/ajpeng/MCP-Contract-CI) |
+| --------------------------------------- | ------------- | ------------------------------------------------ | ------------------------------------------------------------ |
+| Description-level drift                 | yes           | no                                               | no                                                           |
+| Input schema drift                      | yes           | yes                                              | yes                                                          |
+| Output schema drift                     | yes (opt-in)  | no                                               | yes                                                          |
+| Prompt and resource drift               | no            | no                                               | yes                                                          |
+| Breaking vs non-breaking classification | yes           | breaking only                                    | breaking only                                                |
+| Protocol compliance                     | yes           | partial (stdout corruption)                      | no                                                           |
+| Schema lint                             | yes           | yes                                              | no                                                           |
+| Two-layer error contract                | yes           | no                                               | no                                                           |
+| Tool-poisoning heuristics               | yes           | no (on roadmap)                                  | no                                                           |
+| Behavioral test suites                  | yes           | yes                                              | yes (saved tool-call replay)                                 |
+| Latency budgets                         | yes (p50/p95) | per-call limit                                   | no                                                           |
+| SARIF export                            | yes           | no                                               | no                                                           |
+| JUnit output                            | yes           | yes                                              | no                                                           |
+| PR comment                              | yes           | no                                               | yes                                                          |
+| Live server over HTTP                   | yes           | yes                                              | no (stdio replay, manifest diff)                             |
 
 ## Features
 
@@ -244,55 +245,55 @@ Create `mcpward.yaml` (`mcpward init` writes a starter file). The example shows 
 server:
   transport: stdio
   command: npx
-  args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp/sandbox"]
+  args: ['-y', '@modelcontextprotocol/server-filesystem', '/tmp/sandbox']
   env: {}
 
 expect:
-  protocol_version: "2025-11-25"   # optional: fail if the server negotiates anything else
+  protocol_version: '2025-11-25' # optional: fail if the server negotiates anything else
 
 timeouts:
-  connect_ms: 10000    # Connection timeout (default: 10s)
-  call_ms: 30000       # Per-tool-call timeout (default: 30s)
-  run_ms: 300000       # Total run timeout (default: 5min)
+  connect_ms: 10000 # Connection timeout (default: 10s)
+  call_ms: 30000 # Per-tool-call timeout (default: 30s)
+  run_ms: 300000 # Total run timeout (default: 5min)
 
 checks:
   compliance: true
   schema: true
   security: true
-  errors: true               # error contract — calls tools, see "Which checks call tools"
+  errors: true # error contract — calls tools, see "Which checks call tools"
   drift:
     baseline: ./mcpward.lock.json
-    fail_on: high            # or medium / low, or a list of drift classes (default: the classes marked "fails by default")
-    severity: {}             # per-class overrides, e.g. { tool_removed: high }
-    full_text: true          # store description text in the lockfile for diffs
-    output:                  # output shape drift — opt-in, calls tools
+    fail_on: high # or medium / low, or a list of drift classes (default: the classes marked "fails by default")
+    severity: {} # per-class overrides, e.g. { tool_removed: high }
+    full_text: true # store description text in the lockfile for diffs
+    output: # output shape drift — opt-in, calls tools
       enabled: false
       shape_samples: 3
-      call_readonly: true    # auto-call readOnlyHint tools that take no arguments
-      tools: []              # allowlist: [{ name: get_order, args: { id: "demo-1" } }]
-  collision:                 # description collision lint — on by default
+      call_readonly: true # auto-call readOnlyHint tools that take no arguments
+      tools: [] # allowlist: [{ name: get_order, args: { id: "demo-1" } }]
+  collision: # description collision lint — on by default
     enabled: true
-    threshold: 0.8           # description similarity (0–1)
-    max_tools: 500           # skip with a warning above this (pairwise is O(n²))
-    fail: false              # true = collisions fail the run instead of warning
-  latency:                   # opt-in — calls tools, see "Which checks call tools"
+    threshold: 0.8 # description similarity (0–1)
+    max_tools: 500 # skip with a warning above this (pairwise is O(n²))
+    fail: false # true = collisions fail the run instead of warning
+  latency: # opt-in — calls tools, see "Which checks call tools"
     samples: 5
     p95_budget_ms: 1000
-    call_readonly: true      # measure readOnlyHint tools (with generated minimal arguments)
-    tools: []                # allowlist: [{ name: read_file, args: { path: "/tmp/sandbox/hello.txt" } }]
-    call_all: false          # true = measure EVERY tool, destructive ones included
+    call_readonly: true # measure readOnlyHint tools (with generated minimal arguments)
+    tools: [] # allowlist: [{ name: read_file, args: { path: "/tmp/sandbox/hello.txt" } }]
+    call_all: false # true = measure EVERY tool, destructive ones included
 
 suites:
   - tool: read_file
     cases:
       - name: reads an existing file
-        args: { path: "/tmp/sandbox/hello.txt" }
+        args: { path: '/tmp/sandbox/hello.txt' }
         expect:
           tool_is_error: false
           jsonpath:
-            "$.content[0].type": "text"
+            '$.content[0].type': 'text'
       - name: returns error for missing file
-        args: { path: "/nonexistent" }
+        args: { path: '/nonexistent' }
         expect:
           tool_is_error: true
 ```
@@ -303,12 +304,12 @@ Compliance, schema, security, error-contract and collision checks run by default
 
 Most checks only read `tools/list`. These actually call tools on the server:
 
-| Check | Calls | When |
-|---|---|---|
-| Error contract | A non-existent tool name, and every tool that has required parameters, with empty arguments | Every `run`, unless `checks.errors: false` |
-| Behavioral suites | Exactly the tools and arguments you list | When `suites` is set |
-| Output drift | Only `readOnlyHint: true` tools without required arguments, plus your allowlist | When `checks.drift.output.enabled` |
-| Latency | `readOnlyHint: true` tools (not destructive), `samples` times, plus your allowlist; every tool only with `call_all: true` | When `checks.latency` is set |
+| Check             | Calls                                                                                                                     | When                                       |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| Error contract    | A non-existent tool name, and every tool that has required parameters, with empty arguments                               | Every `run`, unless `checks.errors: false` |
+| Behavioral suites | Exactly the tools and arguments you list                                                                                  | When `suites` is set                       |
+| Output drift      | Only `readOnlyHint: true` tools without required arguments, plus your allowlist                                           | When `checks.drift.output.enabled`         |
+| Latency           | `readOnlyHint: true` tools (not destructive), `samples` times, plus your allowlist; every tool only with `call_all: true` | When `checks.latency` is set               |
 
 Tools that are not called are listed in the report with the reason. A server that validates its inputs rejects the error-contract calls before doing anything. Still, prefer a test instance or sandbox over production.
 
@@ -321,60 +322,60 @@ server:
   transport: http
   url: https://example.com/mcp
   headers:
-    Authorization: "Bearer ${MCP_TOKEN}"
+    Authorization: 'Bearer ${MCP_TOKEN}'
 ```
 
 A stdio server inherits mcpward's environment — except mcpward's own credentials (`MCPWARD_GITHUB_TOKEN`, `GITHUB_TOKEN`), which are always withheld — plus anything in `server.env`. When testing a server you do not trust, keep unrelated secrets out of that job's environment; see [`SECURITY.md`](SECURITY.md#environment-of-a-stdio-server).
 
 ### Behavioral Test Expectations
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `tool_is_error` | boolean | Assert the tool response has `isError: true/false` |
-| `protocol_error_code` | number | Assert a JSON-RPC error code (e.g., -32602) |
-| `jsonpath` | object | Assert values at JSONPath locations |
-| `output_matches_schema` | boolean | Validate output against tool's outputSchema |
-| `golden` | string | Path (relative to the config file) to a golden snapshot of the tool's output. A missing file fails; create or refresh it with `mcpward run --update-golden`. Deterministic tools only. |
+| Option                  | Type    | Description                                                                                                                                                                            |
+| ----------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tool_is_error`         | boolean | Assert the tool response has `isError: true/false`                                                                                                                                     |
+| `protocol_error_code`   | number  | Assert a JSON-RPC error code (e.g., -32602)                                                                                                                                            |
+| `jsonpath`              | object  | Assert values at JSONPath locations                                                                                                                                                    |
+| `output_matches_schema` | boolean | Validate output against tool's outputSchema                                                                                                                                            |
+| `golden`                | string  | Path (relative to the config file) to a golden snapshot of the tool's output. A missing file fails; create or refresh it with `mcpward run --update-golden`. Deterministic tools only. |
 
 ## Check Families
 
 ### Compliance
 
-| Check | Description |
-|-------|-------------|
-| `compliance/handshake` | Protocol handshake completed |
-| `compliance/protocol-version` | Valid protocol version negotiated |
-| `compliance/server-info` | Server name and version present |
-| `compliance/capabilities` | Server declares capabilities |
-| `compliance/ping` | Server responds to ping |
+| Check                                  | Description                                                     |
+| -------------------------------------- | --------------------------------------------------------------- |
+| `compliance/handshake`                 | Protocol handshake completed                                    |
+| `compliance/protocol-version`          | Valid protocol version negotiated                               |
+| `compliance/server-info`               | Server name and version present                                 |
+| `compliance/capabilities`              | Server declares capabilities                                    |
+| `compliance/ping`                      | Server responds to ping                                         |
 | `compliance/expected-protocol-version` | Negotiated version matches `expect.protocol_version` (when set) |
 
 ### Schema
 
-| Check | Description |
-|-------|-------------|
-| `schema/tool-name` | Names match `^[a-zA-Z0-9_-]+$` |
-| `schema/tool-description` | Non-empty descriptions |
-| `schema/tool-input-schema` | Valid JSON Schema |
-| `schema/tool-annotations` | Valid annotation values |
-| `schema/unique-names` | No duplicate names |
+| Check                      | Description                    |
+| -------------------------- | ------------------------------ |
+| `schema/tool-name`         | Names match `^[a-zA-Z0-9_-]+$` |
+| `schema/tool-description`  | Non-empty descriptions         |
+| `schema/tool-input-schema` | Valid JSON Schema              |
+| `schema/tool-annotations`  | Valid annotation values        |
+| `schema/unique-names`      | No duplicate names             |
 
 ### Security
 
-| Check | Description |
-|-------|-------------|
-| `security/injection-pattern` | Injection-like phrasing in descriptions |
-| `security/hidden-unicode` | Zero-width, bidirectional, or Unicode Tag (ASCII smuggling) characters in names, descriptions, or parameter descriptions |
-| `security/secret-in-schema` | Schema fields soliciting secrets |
-| `security/annotation-mismatch` | readOnlyHint on destructive tools |
+| Check                          | Description                                                                                                              |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `security/injection-pattern`   | Injection-like phrasing in descriptions                                                                                  |
+| `security/hidden-unicode`      | Zero-width, bidirectional, or Unicode Tag (ASCII smuggling) characters in names, descriptions, or parameter descriptions |
+| `security/secret-in-schema`    | Schema fields soliciting secrets                                                                                         |
+| `security/annotation-mismatch` | readOnlyHint on destructive tools                                                                                        |
 
 ### Error contract
 
-| Check | Description |
-|-------|-------------|
-| `errors/unknown-tool` | Calling a non-existent tool returns a JSON-RPC protocol error |
+| Check                   | Description                                                                                                                                            |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `errors/unknown-tool`   | Calling a non-existent tool returns a JSON-RPC protocol error                                                                                          |
 | `errors/invalid-params` | Calling a tool without its required parameters returns a protocol error; a call that returns a result instead (even with `isError: true`) is a warning |
-| `errors/summary` | Number of error-contract violations |
+| `errors/summary`        | Number of error-contract violations                                                                                                                    |
 
 ### Drift
 
@@ -382,27 +383,27 @@ See [How changes are classified](#how-changes-are-classified) for the full class
 
 ### Collision
 
-| Check | Description |
-|-------|-------------|
+| Check                             | Description                                                                                             |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | `collision/description-collision` | Near-identical descriptions over divergent input schemas (required-param types or nesting depth differ) |
-| `collision/summary` | Pairs checked, or skipped above `max_tools` |
+| `collision/summary`               | Pairs checked, or skipped above `max_tools`                                                             |
 
 ### Behavioral
 
-| Check | Description |
-|-------|-------------|
-| `behavioral/tool-is-error` | Assert `isError` matches expectation |
-| `behavioral/jsonpath` | Assert values at JSONPath locations |
-| `behavioral/output-schema` | Validate output against schema |
-| `behavioral/protocol-error` | Assert protocol error codes |
-| `behavioral/golden` | Output matches its golden snapshot (`--update-golden` to refresh) |
+| Check                       | Description                                                       |
+| --------------------------- | ----------------------------------------------------------------- |
+| `behavioral/tool-is-error`  | Assert `isError` matches expectation                              |
+| `behavioral/jsonpath`       | Assert values at JSONPath locations                               |
+| `behavioral/output-schema`  | Validate output against schema                                    |
+| `behavioral/protocol-error` | Assert protocol error codes                                       |
+| `behavioral/golden`         | Output matches its golden snapshot (`--update-golden` to refresh) |
 
 ### Latency
 
-| Check | Description |
-|-------|-------------|
-| `latency/summary` | Overall p50/p95 vs budget |
-| `latency/tool` | Per-tool latency measurements |
+| Check              | Description                                                                                            |
+| ------------------ | ------------------------------------------------------------------------------------------------------ |
+| `latency/summary`  | Overall p50/p95 vs budget                                                                              |
+| `latency/tool`     | Per-tool latency measurements                                                                          |
 | `latency/sampling` | Tools not measured (not read-only and not allowlisted), and allowlisted tools the server does not have |
 
 ## CI Integration
@@ -446,15 +447,15 @@ Findings appear in the repository's **Security → Code scanning** tab, with rul
     output: results.xml
 ```
 
-| Input | Default | Description |
-|---|---|---|
-| `config` | `mcpward.yaml` | Path to the config file |
-| `reporter` | `console` | `console`, `json`, `junit`, `sarif` or `markdown` |
-| `output` | — | Write the report to this file |
-| `version` | the action's release | mcpward version to run |
-| `working-directory` | `.` | Directory to run in |
-| `pr-comment` | `false` | Post or update a PR comment |
-| `github-token` | `${{ github.token }}` | Token for the PR comment |
+| Input               | Default               | Description                                       |
+| ------------------- | --------------------- | ------------------------------------------------- |
+| `config`            | `mcpward.yaml`        | Path to the config file                           |
+| `reporter`          | `console`             | `console`, `json`, `junit`, `sarif` or `markdown` |
+| `output`            | —                     | Write the report to this file                     |
+| `version`           | the action's release  | mcpward version to run                            |
+| `working-directory` | `.`                   | Directory to run in                               |
+| `pr-comment`        | `false`               | Post or update a PR comment                       |
+| `github-token`      | `${{ github.token }}` | Token for the PR comment                          |
 
 Outputs: `exit-code` (`0`/`1`/`2`) and `report-path`. Any non-zero exit fails the step.
 
@@ -486,11 +487,11 @@ The same Markdown works as a job summary: `npx mcpward@1 run --reporter markdown
 
 ## Exit Codes
 
-| Code | Meaning |
-|------|---------|
-| `0` | All checks passed |
-| `1` | One or more checks failed |
-| `2` | Configuration or connection error, or `timeouts.run_ms` exceeded — nothing (or not everything) was tested |
+| Code | Meaning                                                                                                   |
+| ---- | --------------------------------------------------------------------------------------------------------- |
+| `0`  | All checks passed                                                                                         |
+| `1`  | One or more checks failed                                                                                 |
+| `2`  | Configuration or connection error, or `timeouts.run_ms` exceeded — nothing (or not everything) was tested |
 
 The distinction between `1` and `2` matters: `2` means the run never completed, which should be treated differently from a genuine failure.
 
@@ -498,11 +499,11 @@ The distinction between `1` and `2` matters: `2` means the run never completed, 
 
 The JSON report, the config file and the baseline lockfile each have a published JSON Schema, shipped in the npm package under `schemas/`:
 
-| File | Schema | Version field |
-|---|---|---|
-| JSON report (`--reporter json`) | [`schemas/report.v1.schema.json`](schemas/report.v1.schema.json) | `schemaVersion` |
-| `mcpward.yaml` | [`schemas/config.v1.schema.json`](schemas/config.v1.schema.json) | — |
-| Baseline lockfile | [`schemas/lockfile.v2.schema.json`](schemas/lockfile.v2.schema.json) | `meta.schemaVersion` |
+| File                            | Schema                                                               | Version field        |
+| ------------------------------- | -------------------------------------------------------------------- | -------------------- |
+| JSON report (`--reporter json`) | [`schemas/report.v1.schema.json`](schemas/report.v1.schema.json)     | `schemaVersion`      |
+| `mcpward.yaml`                  | [`schemas/config.v1.schema.json`](schemas/config.v1.schema.json)     | —                    |
+| Baseline lockfile               | [`schemas/lockfile.v2.schema.json`](schemas/lockfile.v2.schema.json) | `meta.schemaVersion` |
 
 `mcpward init` adds a `yaml-language-server` comment so editors validate and autocomplete `mcpward.yaml`. What is (and is not) covered by compatibility guarantees is described in [`docs/stability.md`](docs/stability.md).
 

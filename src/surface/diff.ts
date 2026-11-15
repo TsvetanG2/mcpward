@@ -11,7 +11,8 @@
  * | Absent in lock, present now | tool_added | no |
  * | descriptionHash changed | description_changed | yes (rug-pull!) |
  * | Added required field / removed field / narrowed type | breaking_schema_change | yes |
- * | Added optional field / widened type | nonbreaking_schema_change | no |
+ * | Added optional input field on an existing tool | input_property_added | no |
+ * | Widened type / loosened constraint | nonbreaking_schema_change | no |
  * | readOnlyHint true→false or destructiveHint false→true | annotation_changed | yes |
  */
 
@@ -26,6 +27,14 @@ import type {
 } from './types.js';
 import { canonicalizeSchema, canonicalJson, canonicalizeDescription } from './canonical.js';
 import { diffOutputShapes } from './output-shape.js';
+import {
+  collectParamDescriptions,
+  findInjectionPatterns,
+  findSuspiciousUnicode,
+  isSecretField,
+  walkParams,
+} from '../checks/heuristics.js';
+import { markInvisibleCharacters } from '../report/text-diff.js';
 
 /**
  * Maps drift classes to default severity levels based on blast radius (M2).
@@ -39,8 +48,9 @@ import { diffOutputShapes } from './output-shape.js';
  *
  * Severity levels:
  * - high: Changes affecting client security or auto-approval (permission expansion, rug-pull)
- * - medium: Changes breaking loudly at the call site (schema breaks)
- * - low: Visible, expected changes (tool add/remove, optional params)
+ * - medium: Changes breaking loudly at the call site (schema breaks), and new optional input
+ *   fields (non-breaking, but an approved tool can now be handed data it never asked for)
+ * - low: Visible, expected changes (tool add/remove, widened types, loosened constraints)
  */
 function getDefaultSeverity(driftClass: DriftClass): DriftSeverity {
   switch (driftClass) {
@@ -59,8 +69,15 @@ function getDefaultSeverity(driftClass: DriftClass): DriftSeverity {
       return 'medium';
 
     case 'nonbreaking_schema_change':
-      // Added optional field, widened type, loosened constraint
+      // Widened type, loosened constraint
       return 'low';
+
+    case 'input_property_added':
+      // Non-breaking for callers, but the post-approval exfiltration shape: an approved tool
+      // gains an optional `context` field and a helpful agent fills it with local data.
+      // Compatibility and security are separate axes. Escalated to high when the field
+      // looks hostile (see suspiciousNewInput).
+      return 'medium';
 
     case 'tool_added':
       // Visible and expected
@@ -273,7 +290,8 @@ function diffTool(toolName: string, baseline: ToolSurface, current: ToolSurface)
  *   changed; enum value removed or enum added; min-bound raised/added; max-bound lowered/added;
  *   pattern/format/const/multipleOf added or changed; uniqueItems turned on;
  *   additionalProperties closed; items constraint added; schema removed
- * - non-breaking: optional property added; required → optional; type widened; enum value added
+ * - non-breaking: optional property added (`input_property_added` in an inputSchema, medium,
+ *   high if the field looks hostile); required → optional; type widened; enum value added
  *   or enum removed; bounds relaxed or removed; pattern/format/const/multipleOf removed;
  *   uniqueItems turned off; additionalProperties opened; items constraint removed; schema added
  * - a parameter's `description` changing is `description_changed` (the model reads it too)
@@ -293,11 +311,16 @@ function diffSchema(
   const baselineCanonical = canonicalizeSchema(baseline);
   const currentCanonical = canonicalizeSchema(current);
 
-  const emit = (driftClass: DriftClass, message: string, previous: unknown, curr: unknown) => {
+  const emit: Emit = (driftClass, message, previous, curr, severity) => {
+    // A field the server adds to its OUTPUT is not something the model fills in
+    if (driftClass === 'input_property_added' && schemaType === 'outputSchema') {
+      driftClass = 'nonbreaking_schema_change';
+      severity = undefined;
+    }
     changes.push({
       tool: toolName,
       class: driftClass,
-      severity: getDefaultSeverity(driftClass),
+      severity: severity ?? getDefaultSeverity(driftClass),
       message: `Tool "${toolName}" ${schemaType} ${message}`,
       previous,
       current: curr,
@@ -324,7 +347,14 @@ function diffSchema(
   return changes;
 }
 
-type Emit = (driftClass: DriftClass, message: string, previous: unknown, current: unknown) => void;
+/** `severity` overrides the class default (an escalated `input_property_added`). */
+type Emit = (
+  driftClass: DriftClass,
+  message: string,
+  previous: unknown,
+  current: unknown,
+  severity?: DriftSeverity
+) => void;
 
 /** Nesting limit for the recursive walk (canonicalizeSchema already bounds input depth). */
 const MAX_DIFF_DEPTH = 64;
@@ -589,12 +619,7 @@ function diffSchemaNode(
           currProps[name]
         );
       } else {
-        emit(
-          'nonbreaking_schema_change',
-          `added optional property "${childPath}"`,
-          undefined,
-          currProps[name]
-        );
+        emitInputPropertyAdded(name, childPath, currProps[name], emit);
       }
       continue;
     }
@@ -738,6 +763,54 @@ function diffSchemaNode(
       currItems
     );
   }
+}
+
+/** Longest description quoted in an `input_property_added` message. */
+const MAX_QUOTED_DESCRIPTION = 300;
+
+/**
+ * A new optional input field. Its description is quoted in the message because the model reads
+ * it and nothing else diffs it: the field is new, so there is no previous description.
+ */
+function emitInputPropertyAdded(name: string, path: string, schema: unknown, emit: Emit): void {
+  const s = asSchema(schema);
+  const description = typeof s?.description === 'string' ? s.description : '';
+  const shown =
+    description.length > MAX_QUOTED_DESCRIPTION
+      ? `${description.slice(0, MAX_QUOTED_DESCRIPTION)}…`
+      : description;
+  const quoted =
+    description === '' ? 'no description' : `description "${markInvisibleCharacters(shown)}"`;
+  const reason = suspiciousNewInput(name, path, schema);
+  emit(
+    'input_property_added',
+    `added optional property "${path}" (${quoted})${reason ? ` — ${reason}` : ''}`,
+    undefined,
+    schema,
+    reason ? 'high' : undefined
+  );
+}
+
+/**
+ * Why a new input field looks hostile, or undefined. Checks the field and everything nested in
+ * it (a new `options` object can carry `options.api_key`) with the same heuristics as the
+ * security checks: a secret-soliciting name, injection phrasing or hidden unicode in a description.
+ */
+function suspiciousNewInput(name: string, path: string, schema: unknown): string | undefined {
+  // Walk the field as the only property of a root, then re-anchor the paths at its real path
+  const root = { properties: { [name]: schema } };
+  const at = (p: string) => path + p.slice(name.length);
+  const secret = walkParams(root).find((p) => p.name !== undefined && isSecretField(p.name));
+  if (secret) return `"${at(secret.path)}" solicits a secret`;
+  for (const { path: p, description } of collectParamDescriptions(root)) {
+    if (findInjectionPatterns(description).length > 0) {
+      return `"${at(p)}" description contains injection-like phrasing`;
+    }
+    if (findSuspiciousUnicode(description).length > 0) {
+      return `"${at(p)}" description contains hidden unicode`;
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -945,7 +1018,18 @@ function diffAnnotations(
 }
 
 /**
+ * Classes that took over part of an older class's meaning. Config written before the split
+ * that names the older class keeps covering the same changes: added optional input fields were
+ * `nonbreaking_schema_change` until 1.2.0.
+ */
+const LEGACY_PARENT: Partial<Record<DriftClass, DriftClass>> = {
+  input_property_added: 'nonbreaking_schema_change',
+};
+
+/**
  * Applies user per-class severity overrides (`checks.drift.severity`) to changes.
+ * An override for a class's legacy parent applies too; the class's own override wins.
+ * Runs after the classifier, so an override also beats a default escalation.
  * Pure: returns new change objects, never mutates the input.
  */
 export function applySeverityOverrides(
@@ -954,7 +1038,8 @@ export function applySeverityOverrides(
 ): DriftChange[] {
   if (!overrides || Object.keys(overrides).length === 0) return changes;
   return changes.map((change) => {
-    const override = overrides[change.class];
+    const parent = LEGACY_PARENT[change.class];
+    const override = overrides[change.class] ?? (parent ? overrides[parent] : undefined);
     return override ? { ...change, severity: override } : change;
   });
 }
@@ -965,6 +1050,7 @@ export function applySeverityOverrides(
  *
  * fail_on can be either:
  * 1. Array of drift classes (legacy): ['tool_removed', 'description_changed', ...]
+ *    A class whose legacy parent is listed fails too (see LEGACY_PARENT).
  * 2. Severity threshold (M2): 'high' | 'medium' | 'low'
  *
  * Severity threshold semantics:
@@ -979,7 +1065,10 @@ export function filterFailingChanges(
   // Legacy mode: array of drift classes
   if (Array.isArray(failOn)) {
     const failOnSet = new Set(failOn);
-    return changes.filter((change) => failOnSet.has(change.class));
+    return changes.filter((change) => {
+      const parent = LEGACY_PARENT[change.class];
+      return failOnSet.has(change.class) || (parent !== undefined && failOnSet.has(parent));
+    });
   }
 
   // M2 mode: severity threshold

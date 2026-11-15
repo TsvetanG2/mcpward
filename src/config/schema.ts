@@ -30,6 +30,7 @@ export const DRIFT_CLASSES = [
   'description_changed',
   'breaking_schema_change',
   'nonbreaking_schema_change',
+  'input_property_added',
   'annotation_changed',
   'breaking_output_shape_change',
   'nonbreaking_output_shape_change',
@@ -81,8 +82,12 @@ const DriftConfigSchema = z
      *
      * Severity is based on blast radius, NOT whether it breaks:
      * - high: silent security changes (description_changed, annotation_changed)
-     * - medium: loud schema breaks (breaking_schema_change)
+     * - medium: loud schema breaks (breaking_schema_change), new optional input fields
+     *   (input_property_added; high when the field looks hostile)
      * - low: visible changes (tool_added, tool_removed, nonbreaking_schema_change)
+     *
+     * Added optional input fields were `nonbreaking_schema_change` before 1.2.0. A list that
+     * names `nonbreaking_schema_change` therefore also covers `input_property_added`.
      */
     fail_on: z
       .union([
@@ -103,6 +108,8 @@ const DriftConfigSchema = z
      * Per-class severity overrides (M2). For users who disagree with the default
      * blast-radius mapping, e.g. `severity: { tool_removed: high }`.
      * Only affects severity-threshold `fail_on` and reporting level.
+     * An override for `nonbreaking_schema_change` also applies to `input_property_added`
+     * (its meaning before 1.2.0) unless `input_property_added` has its own.
      */
     severity: z.partialRecord(z.enum(DRIFT_CLASSES), DriftSeveritySchema).optional().default({}),
     /**

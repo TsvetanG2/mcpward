@@ -45,6 +45,7 @@ function classify(before: JsonSchema, after: JsonSchema) {
 
 const BREAKING = 'breaking_schema_change';
 const NONBREAKING = 'nonbreaking_schema_change';
+const ADDED = 'input_property_added';
 
 describe('schema drift truth table', () => {
   it.each([
@@ -268,7 +269,7 @@ describe('nested schemas', () => {
     const changes = classify(before, after);
     expect(changes).toEqual([
       { class: BREAKING, message: expect.stringContaining('property "f.b" was removed') },
-      { class: NONBREAKING, message: expect.stringContaining('added optional property "f.c"') },
+      { class: ADDED, message: expect.stringContaining('added optional property "f.c"') },
     ]);
   });
 

@@ -9,7 +9,7 @@
  * - added_tool: NEW (not in v1) → tool_added
  * - echo: description CHANGED → description_changed
  * - compute: added REQUIRED field "multiplier" → breaking_schema_change
- * - query: added OPTIONAL field "limit" → nonbreaking_schema_change
+ * - query: added OPTIONAL field "limit" → input_property_added
  * - read_data: readOnlyHint changed true→false → annotation_changed
  * - stable_tool: UNCHANGED → no drift
  */
@@ -87,7 +87,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['value', 'multiplier'],
         },
       },
-      // Added OPTIONAL field → nonbreaking_schema_change
+      // Added OPTIONAL field → input_property_added
       {
         name: 'query',
         description: 'Queries data from the system.',

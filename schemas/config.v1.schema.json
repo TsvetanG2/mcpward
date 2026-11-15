@@ -129,6 +129,7 @@
                       "description_changed",
                       "breaking_schema_change",
                       "nonbreaking_schema_change",
+                      "input_property_added",
                       "annotation_changed",
                       "breaking_output_shape_change",
                       "nonbreaking_output_shape_change"
@@ -156,6 +157,7 @@
                   "description_changed",
                   "breaking_schema_change",
                   "nonbreaking_schema_change",
+                  "input_property_added",
                   "annotation_changed",
                   "breaking_output_shape_change",
                   "nonbreaking_output_shape_change"

@@ -125,6 +125,7 @@ function getShortDescription(ruleId: string): string {
     'drift/description_changed': 'Description changed (rug-pull)',
     'drift/breaking_schema_change': 'Breaking schema change',
     'drift/nonbreaking_schema_change': 'Non-breaking schema change',
+    'drift/input_property_added': 'Optional input field added to an existing tool',
     'drift/annotation_changed': 'Annotation changed',
     'drift/breaking_output_shape_change': 'Breaking output shape change (inferred)',
     'drift/nonbreaking_output_shape_change': 'Non-breaking output shape change (inferred)',
@@ -146,7 +147,7 @@ function getFullDescription(ruleId: string): string {
     'security/hidden-unicode':
       'The tool name, description, or a parameter description contains zero-width, bidirectional override, or Unicode Tag characters (ASCII smuggling) that can hide instructions from a human reviewer while the model still reads them.',
     'security/secret-in-schema':
-      'The tool input schema contains field names that suggest it is soliciting secrets such as api_key, password, or token.',
+      'The tool input schema contains field names, at any nesting depth, that suggest it is soliciting secrets such as api_key, password, or token.',
     'security/annotation-mismatch':
       'The tool has readOnlyHint=true but its name or description implies destructive/mutating behavior.',
     'drift/description_changed':
@@ -155,6 +156,8 @@ function getFullDescription(ruleId: string): string {
       'A new tool has been added since the baseline was captured. Review the new tool carefully for unexpected functionality.',
     'drift/tool_removed':
       'A tool that existed in the baseline is no longer present. This is a breaking change for clients relying on this tool.',
+    'drift/input_property_added':
+      'An existing tool gained an optional input field. Existing calls keep working, but the model will fill it: a new field such as "context" lets an already-approved tool collect data it never asked for. High severity when the field solicits a secret or its description contains injection phrasing or hidden unicode.',
     'drift/annotation_changed':
       'A tool annotation changed in a way that widens its authority (readOnlyHint true→false or destructiveHint false→true). Clients may now auto-approve a tool that mutates state.',
     'drift/breaking_output_shape_change':

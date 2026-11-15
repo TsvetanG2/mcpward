@@ -8,6 +8,24 @@ Since `1.0.0`, the public contract described in [`docs/stability.md`](docs/stabi
 
 ## [Unreleased]
 
+### Added
+
+- **New drift class `input_property_added`** ([discussion #83](https://github.com/TsvetanG2/mcpward/discussions/83), reported by [@heyitsjakub](https://github.com/heyitsjakub)). An existing tool that gains an optional input field, at any nesting depth, was `nonbreaking_schema_change` (low), and the new field's description was never looked at. That is the shape of a post-approval attack: a tool you already approved gains an optional `context` field ("Extra context that helps the tool answer better") and a helpful agent fills it with local file contents — the tool description does not have to change, and `fail_on: high` let it through. Compatibility and security are separate axes: the change is still non-breaking, but its default severity is now **medium**, and **high** when the new field (or anything nested in it) has a secret-soliciting name or a description with injection-like phrasing or hidden unicode. The finding quotes the new field's description. An optional field added to an `outputSchema`, a new tool and a schema that did not exist before keep their classes.
+
+### Changed
+
+- **`security/secret-in-schema` checks every nesting level** — nested properties, array items, `additionalProperties` and `anyOf`/`oneOf`/`allOf` branches — not only top-level field names, and reports full paths (`options.password`, `accounts[].token`).
+
+### Upgrading
+
+Both changes can turn a passing CI run red; pin the mcpward version (`npx mcpward@X.Y.Z`, the action's `version` input) and upgrade deliberately (see [`docs/stability.md`](docs/stability.md#not-part-of-the-contract)).
+
+- With the **default `fail_on`** nothing changes for new optional input fields: the default list does not include `input_property_added`, as it did not include `nonbreaking_schema_change`.
+- With **`fail_on: medium`**, a new optional input field now fails the run. With **`fail_on: high`**, a new optional field fails only when it looks hostile.
+- **Config written for `nonbreaking_schema_change` keeps its meaning**: a `fail_on` list that names it also fails on `input_property_added`, and a `checks.drift.severity` override for it also applies to `input_property_added` unless that class has its own override, which wins. The workaround suggested in the discussion, `severity: { nonbreaking_schema_change: high }`, keeps working; `severity: { input_property_added: high }` does the same without promoting widened types and loosened constraints.
+- A secret-soliciting field nested in a tool's input schema is now reported by `security/secret-in-schema`, which fails the run as it always did for top-level fields.
+- If you match JSON or SARIF results on `drift/nonbreaking_schema_change` to find added input fields, match `drift/input_property_added` as well.
+
 ## [1.1.3] — 2026-11-15
 
 ### Fixed
@@ -43,7 +61,7 @@ The two drift fixes are false negatives: schema changes that were always there a
 
 ### Changed
 
-- **Latency measures only read-only tools by default.** Measuring latency calls each tool `samples` times; before 1.1.0 it called *every* tool with generated arguments, destructive ones included. It now follows the same policy as output drift: tools annotated `readOnlyHint: true` (and not `destructiveHint: true`) are measured, plus the tools you list in `checks.latency.tools` with arguments. Tools that are not measured are listed in the new `latency/sampling` result with the reason, and when nothing can be measured `latency/summary` warns instead of passing. This changes which tools are measured — a safety fix, so it ships in a minor version; `checks.latency.call_all: true` restores the previous behavior for test instances.
+- **Latency measures only read-only tools by default.** Measuring latency calls each tool `samples` times; before 1.1.0 it called _every_ tool with generated arguments, destructive ones included. It now follows the same policy as output drift: tools annotated `readOnlyHint: true` (and not `destructiveHint: true`) are measured, plus the tools you list in `checks.latency.tools` with arguments. Tools that are not measured are listed in the new `latency/sampling` result with the reason, and when nothing can be measured `latency/summary` warns instead of passing. This changes which tools are measured — a safety fix, so it ships in a minor version; `checks.latency.call_all: true` restores the previous behavior for test instances.
 
 ### Added
 
@@ -134,7 +152,7 @@ This release implements **M7 — freeze the contract**. Everything a pipeline de
   - `schemas/report.v1.schema.json` — the JSON report
   - `schemas/config.v1.schema.json` — `mcpward.yaml`, **generated from the config parser** so it cannot drift (`pnpm run schemas`; a test fails if the committed file is stale)
   - `schemas/lockfile.v2.schema.json` — the baseline lockfile, including inferred output shapes
-  Tests validate real `run` reports and real baselines against them, and assert they reject malformed input (a missing `schemaVersion`, an unknown status, a malformed hash, a credential-shaped fingerprint).
+    Tests validate real `run` reports and real baselines against them, and assert they reject malformed input (a missing `schemaVersion`, an unknown status, a malformed hash, a credential-shaped fingerprint).
 - **`docs/stability.md`** — what is public contract (exit codes, CLI, config, report, lockfile, rule ids, drift classes, SARIF/JUnit structure, Action inputs/outputs), what is not (human-readable text, result order, which findings a server produces), what counts as breaking, and the deprecation policy.
 - `mcpward init` and `examples/mcpward.yaml` include a `yaml-language-server` schema comment, so editors validate and autocomplete the config.
 
@@ -243,7 +261,7 @@ This release implements **M4 (description collision lint)** — the check no oth
 
 ### Added
 
-- **Description collision lint (M4, #22 + #23)** — new `collision` check family, on by default, needs no baseline. Flags tool pairs whose descriptions are near-identical (offline character-trigram Dice, default threshold 0.8) **and** whose input schemas diverge (required-parameter *types* or nesting depth differ). Tool families such as `list_users` / `list_projects` and `get_user(user_id)` / `get_project(project_id)` stay silent by design. Warns by default; `checks.collision.fail: true` fails the run. Skips with a warning above `max_tools` (default 500). The scorer sits behind an interface so an opt-in semantic scorer can be added later without network calls becoming the default.
+- **Description collision lint (M4, #22 + #23)** — new `collision` check family, on by default, needs no baseline. Flags tool pairs whose descriptions are near-identical (offline character-trigram Dice, default threshold 0.8) **and** whose input schemas diverge (required-parameter _types_ or nesting depth differ). Tool families such as `list_users` / `list_projects` and `get_user(user_id)` / `get_project(project_id)` stay silent by design. Warns by default; `checks.collision.fail: true` fails the run. Skips with a warning above `max_tools` (default 500). The scorer sits behind an interface so an opt-in semantic scorer can be added later without network calls becoming the default.
 - Config: `checks.collision` (`enabled`, `threshold`, `max_tools`, `fail`).
 
 ### Changed
@@ -254,7 +272,7 @@ This release implements **M4 (description collision lint)** — the check no oth
 
 ### Internal
 
-- New fixture `collision-server`: one true collision and three negatives. A test asserts the negative family pairs score *above* the threshold, so the schema gate — not the scorer — is what keeps them silent.
+- New fixture `collision-server`: one true collision and three negatives. A test asserts the negative family pairs score _above_ the threshold, so the schema gate — not the scorer — is what keeps them silent.
 - No collision findings on the pinned reference servers (`server-filesystem`, `server-memory`, `server-everything`).
 
 ## [0.4.0] — 2026-10-05

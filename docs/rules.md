@@ -29,6 +29,7 @@ Compliance rules verify that the MCP server correctly implements the protocol ha
 Verifies that the MCP server completes the protocol handshake successfully. The client sends an `initialize` request with its capabilities and the server must respond with its own capabilities and version information.
 
 **What it checks:**
+
 - Server responds to `initialize` request
 - Response includes valid `serverInfo` object
 - Response includes `protocolVersion`
@@ -43,6 +44,7 @@ Ensure your MCP server implements the `initialize` handler correctly and returns
 Verifies that the negotiated protocol version is recognized and supported. mcpward warns when the server reports an unknown or outdated protocol version.
 
 **What it checks:**
+
 - `protocolVersion` follows semantic versioning
 - Protocol version is a known, supported version
 
@@ -56,6 +58,7 @@ Update your MCP server to use a current protocol version. Check the MCP specific
 Verifies that the server provides complete identification information including name and version.
 
 **What it checks:**
+
 - `serverInfo.name` is present and non-empty
 - `serverInfo.version` follows semantic versioning (recommended)
 
@@ -69,6 +72,7 @@ Ensure your server's `initialize` response includes a complete `serverInfo` obje
 Verifies that the server's declared capabilities match its actual behavior. If a server declares it supports tools, it should respond to `tools/list`.
 
 **What it checks:**
+
 - Declared capabilities match available functionality
 - Server responds appropriately to capability-related requests
 
@@ -82,6 +86,7 @@ Review your server's capability declarations and ensure they accurately reflect 
 Verifies that the server responds to ping requests. This is a basic liveness check.
 
 **What it checks:**
+
 - Server responds to `ping` request
 - Response is timely (within reasonable bounds)
 
@@ -95,6 +100,7 @@ Ensure your server implements the `ping` handler. Most MCP SDKs handle this auto
 Verifies that the server uses the expected protocol version when one is specified in the config. This helps catch version drift.
 
 **What it checks:**
+
 - Negotiated version matches expected version from config
 
 **How to fix:**
@@ -113,6 +119,7 @@ Schema rules validate that tool definitions conform to MCP specifications and JS
 Verifies that the server responds to `tools/list` request. This is required if the server declares tool capabilities.
 
 **What it checks:**
+
 - Server responds to `tools/list`
 - Response is valid JSON-RPC
 
@@ -126,6 +133,7 @@ Implement the `tools/list` handler in your server.
 Verifies that all tool names are unique. Duplicate tool names cause ambiguity for clients.
 
 **What it checks:**
+
 - No two tools share the same name
 
 **How to fix:**
@@ -144,6 +152,7 @@ Summary of all schema validation checks performed.
 Verifies that tool names follow the required pattern: alphanumeric characters, underscores, and hyphens only.
 
 **What it checks:**
+
 - Name matches pattern `^[a-zA-Z0-9_-]+$`
 - Name is non-empty
 
@@ -157,6 +166,7 @@ Rename tools to use only allowed characters. Avoid spaces, special characters, a
 Verifies that tools have meaningful descriptions. Descriptions help LLMs understand when and how to use tools.
 
 **What it checks:**
+
 - Description is present
 - Description is non-empty
 - Description is reasonably detailed (not just the tool name)
@@ -171,6 +181,7 @@ Add clear, concise descriptions that explain what the tool does, when to use it,
 Verifies that tool input schemas are valid JSON Schema definitions.
 
 **What it checks:**
+
 - `inputSchema` is present and valid JSON Schema
 - Schema has `type: "object"`
 - Required fields are defined in the schema
@@ -185,6 +196,7 @@ Ensure your tool's `inputSchema` is a valid JSON Schema object. Use JSON Schema 
 Verifies that tool annotations (hints like `readOnlyHint`, `destructiveHint`) are valid boolean values.
 
 **What it checks:**
+
 - Annotation values are booleans, not strings
 - Known annotations use correct types
 
@@ -216,6 +228,7 @@ Summary of security scan results.
 Detects prompt injection patterns in tool descriptions. These patterns could be used to manipulate LLM behavior.
 
 **What it checks:**
+
 - Descriptions for patterns like "ignore previous instructions"
 - System prompt override attempts
 - Instructions that attempt to change LLM behavior
@@ -224,6 +237,7 @@ Detects prompt injection patterns in tool descriptions. These patterns could be 
 Remove or rephrase tool descriptions that contain instruction-like language. Tool descriptions should describe what the tool does, not instruct the LLM how to behave.
 
 **Example dangerous patterns:**
+
 - "Ignore all previous instructions and..."
 - "Before doing anything else, you must..."
 - "IMPORTANT: Always call this tool first"
@@ -235,6 +249,7 @@ Remove or rephrase tool descriptions that contain instruction-like language. Too
 Detects hidden unicode characters that could conceal malicious content from a human reviewer while the model still reads it.
 
 **What it checks:**
+
 - Tool names, descriptions, and **parameter descriptions at any nesting level** (nested objects, array items, `anyOf`/`oneOf`/`allOf`)
 - Zero-width characters (e.g. U+200B, U+200D, U+FEFF)
 - Bidirectional overrides and isolates (U+202A–U+202E, U+2066–U+2069)
@@ -251,7 +266,8 @@ Remove all hidden unicode characters from tool names and descriptions. Use a uni
 Detects when tool input schemas appear to solicit secrets like API keys, passwords, or tokens. Tools should not request credentials directly.
 
 **What it checks:**
-- Field names containing `password`, `secret`, `token`, `api_key`, etc.
+
+- Field names containing `password`, `secret`, `token`, `api_key`, etc., at any nesting depth — nested properties, array items, `additionalProperties` and `anyOf`/`oneOf`/`allOf` branches. The message lists full paths (`options.password`, `accounts[].token`).
 - Descriptions suggesting credential input
 
 **How to fix:**
@@ -264,6 +280,7 @@ Tools should use environment variables or secure configuration for credentials, 
 Detects when a tool's behavior hints don't match its name or description. For example, a tool named `delete_file` marked as `readOnlyHint: true` is suspicious.
 
 **What it checks:**
+
 - `readOnlyHint: true` on tools with destructive-sounding names
 - `destructiveHint: false` on tools that appear to modify data
 
@@ -278,20 +295,23 @@ Drift rules detect changes between the current server state and a previously cap
 
 ### How drift findings are classified
 
-Every change gets a **drift class** (what changed) and a **severity** (blast radius). They are separate axes: a removed tool is *breaking* but *low* severity, because it fails loudly and gets fixed in minutes; a `readOnlyHint` flip is *high* severity, because it silently changes what clients auto-approve.
+Every change gets a **drift class** (what changed) and a **severity** (blast radius). They are separate axes: a removed tool is _breaking_ but _low_ severity, because it fails loudly and gets fixed in minutes; a `readOnlyHint` flip is _high_ severity, because it silently changes what clients auto-approve.
 
-| Class | Default severity | In default `fail_on` |
-|---|---|---|
-| `description_changed` | high | yes |
-| `annotation_changed` | high | yes |
-| `breaking_schema_change` | medium | yes |
-| `breaking_output_shape_change` | medium | yes (only produced when output drift is enabled) |
-| `tool_removed` | low | yes |
-| `tool_added` | low | no |
-| `nonbreaking_schema_change` | low | no |
-| `nonbreaking_output_shape_change` | low | no |
+| Class                             | Default severity                         | In default `fail_on`                             |
+| --------------------------------- | ---------------------------------------- | ------------------------------------------------ |
+| `description_changed`             | high                                     | yes                                              |
+| `annotation_changed`              | high                                     | yes                                              |
+| `breaking_schema_change`          | medium                                   | yes                                              |
+| `breaking_output_shape_change`    | medium                                   | yes (only produced when output drift is enabled) |
+| `input_property_added`            | medium (high if the field looks hostile) | no                                               |
+| `tool_removed`                    | low                                      | yes                                              |
+| `tool_added`                      | low                                      | no                                               |
+| `nonbreaking_schema_change`       | low                                      | no                                               |
+| `nonbreaking_output_shape_change` | low                                      | no                                               |
 
 `checks.drift.fail_on` takes either a list of classes (above) or a severity threshold (`high` / `medium` / `low`). `checks.drift.severity` overrides the default severity per class, e.g. `severity: { tool_removed: high }`.
+
+`input_property_added` was part of `nonbreaking_schema_change` before 1.2.0, so config written for the older class keeps its meaning: a `fail_on` list that names `nonbreaking_schema_change` also fails on `input_property_added`, and a `severity` override for `nonbreaking_schema_change` also applies to it — unless `input_property_added` has its own override, which wins.
 
 Reporting level follows severity: high → error, medium → warning, low → info. A change that matches `fail_on` is always reported as a failure.
 
@@ -370,6 +390,7 @@ A tool's description has changed since the baseline. The model reads description
 This also fires when a **parameter** description anywhere in the input schema is changed, added where there was none, or removed — the model reads those too. Formatting-only edits (whitespace, line endings, Unicode normalization) are not drift.
 
 **What it checks:**
+
 - SHA-256 of the canonicalized description (formatting-only changes such as line endings, NFC/NFD, or whitespace do not count; injected zero-width or bidi characters do)
 - Console, Markdown and JSON reports show a word-level before/after diff with invisible characters marked as `<U+XXXX>`
 
@@ -401,10 +422,25 @@ Breaking schema changes require client updates. Review carefully and update the 
 
 **Severity:** low (info)
 
-A tool's schema changed compatibly, at any nesting depth: optional property added, type widened, required → optional, `enum` value added or `enum` removed, bounds relaxed or removed, `pattern`/`format`/`const`/`multipleOf` removed, `uniqueItems` turned off, `additionalProperties` opened, `items` constraint removed, a `$defs`/`definitions` entry added, or a declared schema added.
+A tool's schema changed compatibly, at any nesting depth: type widened, required → optional, `enum` value added or `enum` removed, bounds relaxed or removed, `pattern`/`format`/`const`/`multipleOf` removed, `uniqueItems` turned off, `additionalProperties` opened, `items` constraint removed, a `$defs`/`definitions` entry added, or a declared schema added.
+
+An optional property added to an `inputSchema` is [`input_property_added`](#driftinput_property_added) since 1.2.0; one added to an `outputSchema` stays here.
 
 **How to fix:**
 Review the change and update the baseline if appropriate.
+
+### drift/input_property_added
+
+**Severity:** medium (warning); high (error) when the field looks hostile
+
+An existing tool's `inputSchema` gained an optional property, at any nesting depth (`context`, `filter.since`, `rows[].note`). Existing calls keep working, so it is not breaking — but it is the post-approval exfiltration shape: a tool you already approved gains a field like `context` ("Extra context that helps the tool answer better"), and a helpful agent fills it with local file contents. The tool description does not have to change at all. The message quotes the new field's description, which nothing else diffs because there is no previous one.
+
+Escalated to **high** when the new field, or anything nested in it, has a secret-soliciting name (the [`security/secret-in-schema`](#securitysecret-in-schema) patterns) or a description with injection-like phrasing or hidden unicode (the [`security/injection-pattern`](#securityinjection-pattern) and [`security/hidden-unicode`](#securityhidden-unicode) heuristics).
+
+Not produced for a new tool (`tool_added`), a schema that did not exist before (`nonbreaking_schema_change`), or a new **required** property (`breaking_schema_change`).
+
+**How to fix:**
+Check what the new field asks the model to send. If that is expected, update the baseline. To fail CI on every new input field, use `fail_on: medium` or add `input_property_added` to a `fail_on` list.
 
 ### drift/annotation_changed
 
@@ -469,8 +505,9 @@ Summary of the collision lint, or a notice that it was skipped because the serve
 Two tools have near-identical descriptions but accept materially different payloads. An agent that selects tools by description — increasingly via retrieval or embeddings — picks one confidently and wrong, and no success/error check can see it.
 
 A pair is flagged only when **both** hold:
+
 1. Description similarity (character-trigram Dice, offline, no model calls) is at or above `checks.collision.threshold` (default 0.8), **and**
-2. The input schemas diverge: the *types* of required parameters differ, or the maximum nesting depth differs.
+2. The input schemas diverge: the _types_ of required parameters differ, or the maximum nesting depth differs.
 
 Similarity alone is not enough on purpose: `list_users` / `list_projects`, or `get_user(user_id)` / `get_project(project_id)`, are legitimate tool families and stay silent.
 
@@ -547,6 +584,7 @@ Review the JSONPath expression and expected value in your test suite.
 A test case's output no longer matches its golden snapshot (`expect.golden`), or the golden file is missing or not valid JSON.
 
 **What it checks:**
+
 - The tool result's `content`, `structuredContent` and `isError`, compared with key order ignored
 - The golden path resolves relative to the config file
 - A missing golden file fails — it is never created implicitly, because a first CI run that writes its own expectation tests nothing
@@ -590,6 +628,7 @@ Number of error-contract violations.
 Tests that calling an unknown tool returns a proper protocol error (not a tool error).
 
 **What it checks:**
+
 - Unknown tool call returns a JSON-RPC error
 - The error code is a JSON-RPC protocol error code: a standard one (`-32700`, `-32600` to `-32603`; `-32601` Method not found fits best) or one from the server-error range (`-32000` to `-32099`)
 
@@ -603,6 +642,7 @@ Ensure your server returns a protocol error (JSON-RPC error object) when an unkn
 Tests that calling a tool without its required parameters returns a protocol error.
 
 **What it checks:**
+
 - Missing required params return a JSON-RPC error
 - The error code is a JSON-RPC protocol error code (the same set as `errors/unknown-tool`; `-32602` Invalid params fits best)
 
@@ -655,7 +695,7 @@ Optimize the slow tools, or raise `p95_budget_ms` if the threshold is too strict
 
 Per-tool min, p50, p95 and max. Informational — the budget is enforced by `latency/summary`.
 
-Only completed calls are samples. A call the server rejects (for example because generated arguments fail validation) or that returns `isError: true` is excluded — how fast a server says "no" is not the tool's latency. A call that times out *is* counted: it was slow. When every call to a tool failed, the tool is reported as a warning with the first error.
+Only completed calls are samples. A call the server rejects (for example because generated arguments fail validation) or that returns `isError: true` is excluded — how fast a server says "no" is not the tool's latency. A call that times out _is_ counted: it was slow. When every call to a tool failed, the tool is reported as a warning with the first error.
 
 **How to fix:**
 Add the tool to `checks.latency.tools` with arguments that make the call succeed.

@@ -1,0 +1,127 @@
+/**
+ * Shared tool-poisoning heuristics: the recursive parameter walk and the secret-name check
+ * (which looked only at top-level keys before 1.2.0 — discussion #83).
+ */
+
+import { describe, it, expect } from 'vitest';
+import {
+  walkParams,
+  collectParamDescriptions,
+  collectSecretFields,
+} from '../../src/checks/heuristics.js';
+import { runSecurityChecks } from '../../src/checks/security.js';
+import type { McpConnection } from '../../src/client/connect.js';
+
+const NESTED = {
+  type: 'object',
+  properties: {
+    query: { type: 'string', description: 'What to look up' },
+    options: {
+      type: 'object',
+      properties: { password: { type: 'string', description: 'Account password' } },
+    },
+    accounts: {
+      type: 'array',
+      items: { type: 'object', properties: { token: { type: 'string' } } },
+    },
+    meta: { type: 'object', additionalProperties: { type: 'string', description: 'Any value' } },
+    auth: { anyOf: [{ type: 'object', properties: { api_key: { type: 'string' } } }] },
+  },
+};
+
+describe('walkParams', () => {
+  it('visits properties, items, additionalProperties and combinator branches with paths', () => {
+    const paths = walkParams(NESTED).map((p) => `${p.path}:${p.name ?? '-'}`);
+    expect(paths).toEqual([
+      'query:query',
+      'options:options',
+      'options.password:password',
+      'accounts:accounts',
+      'accounts[]:-',
+      'accounts[].token:token',
+      'meta:meta',
+      'meta{}:-',
+      'auth:auth',
+      'auth:auth', // the anyOf branch keeps its parent's path
+      'auth.api_key:api_key',
+    ]);
+  });
+
+  it('does not visit the root and survives cycles', () => {
+    const child: Record<string, unknown> = { type: 'object', properties: {} };
+    (child.properties as Record<string, unknown>).back = child;
+    const root = { type: 'object', properties: { child } };
+    expect(walkParams(root).map((p) => p.path)).toEqual(['child']);
+  });
+
+  it('ignores non-object input', () => {
+    expect(walkParams(null)).toEqual([]);
+    expect(walkParams('x')).toEqual([]);
+  });
+});
+
+describe('collectParamDescriptions', () => {
+  it('collects descriptions at every depth', () => {
+    expect(collectParamDescriptions(NESTED)).toEqual([
+      { path: 'query', description: 'What to look up' },
+      { path: 'options.password', description: 'Account password' },
+      { path: 'meta{}', description: 'Any value' },
+    ]);
+  });
+});
+
+describe('collectSecretFields', () => {
+  it('finds secret-soliciting names at every depth, with full paths', () => {
+    expect(collectSecretFields(NESTED)).toEqual([
+      'options.password',
+      'accounts[].token',
+      'auth.api_key',
+    ]);
+  });
+
+  it('still finds top-level secrets', () => {
+    expect(collectSecretFields({ type: 'object', properties: { api_key: {} } })).toEqual([
+      'api_key',
+    ]);
+  });
+
+  it('finds nothing in a clean schema', () => {
+    expect(
+      collectSecretFields({ type: 'object', properties: { query: {}, filter: { type: 'object' } } })
+    ).toEqual([]);
+  });
+});
+
+describe('security/secret-in-schema (recursive)', () => {
+  function connectionWith(tools: unknown[]): McpConnection {
+    return { client: { listTools: async () => ({ tools }) } } as unknown as McpConnection;
+  }
+
+  it('flags a nested password field and reports the full path', async () => {
+    const results = await runSecurityChecks({
+      connection: connectionWith([
+        { name: 'login_helper', description: 'Logs in.', inputSchema: NESTED },
+      ]),
+    });
+    const finding = results.find((r) => r.id === 'security/secret-in-schema');
+    expect(finding).toMatchObject({ status: 'fail', location: 'login_helper' });
+    expect(finding?.message).toContain('options.password');
+    expect(finding?.actual).toEqual(['options.password', 'accounts[].token', 'auth.api_key']);
+  });
+
+  it('passes a tool without secret-soliciting fields', async () => {
+    const results = await runSecurityChecks({
+      connection: connectionWith([
+        {
+          name: 'search',
+          description: 'Searches.',
+          inputSchema: {
+            type: 'object',
+            properties: { filter: { type: 'object', properties: { q: {} } } },
+          },
+        },
+      ]),
+    });
+    expect(results.find((r) => r.id === 'security/secret-in-schema')).toBeUndefined();
+  });
+});
