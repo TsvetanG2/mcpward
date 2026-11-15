@@ -130,7 +130,8 @@ export function parseProcStat(
  *
  * On Windows a parent id is not kept current: a process keeps the id of a parent that has
  * exited, and that id can be reused. A "child" that started before its supposed parent is
- * such a stale link and is never followed.
+ * such a stale link and is never followed — and neither is a link where either start time is
+ * unknown, since it cannot be told apart from a stale one.
  */
 export function descendantsOf(roots: number[], table: ProcessEntry[]): ProcessEntry[] {
   const byPid = new Map(table.map((entry) => [entry.pid, entry]));
@@ -143,8 +144,8 @@ export function descendantsOf(roots: number[], table: ProcessEntry[]): ProcessEn
     for (const entry of table) {
       if (seen.has(entry.pid) || entry.ppid !== parent.pid) continue;
       if (
-        parent.started !== undefined &&
-        entry.started !== undefined &&
+        parent.started === undefined ||
+        entry.started === undefined ||
         entry.started < parent.started
       ) {
         continue;
@@ -167,8 +168,7 @@ export function survivorsOf(tracked: ProcessEntry[], table: ProcessEntry[]): Pro
   const spawned = descendantsOf(
     alive.map((entry) => entry.pid),
     table
-  ).filter((entry) => !known.has(entry.pid) && entry.started !== undefined);
-  // A new process without a start time has no identity to re-check before signalling
+  ).filter((entry) => !known.has(entry.pid));
   return [...alive, ...spawned];
 }
 
