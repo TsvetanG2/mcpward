@@ -176,16 +176,19 @@ interface Visit {
   path: string;
   name: string | undefined;
   isRoot: boolean;
+  /** Document a `#…` reference resolves against: the nearest enclosing `$id`, else refRoot. */
+  base: unknown;
 }
 
 /**
  * Visits every parameter in an input schema, at any depth: nested `properties`, array
  * `items`/`prefixItems`/`additionalItems`/`contains`, `additionalProperties`/
  * `patternProperties`, and the in-place applicators (anyOf/oneOf/allOf, not, if/then/else,
- * dependentSchemas), which keep their parent's path. The root itself is not a parameter and is
+ * dependentSchemas, draft-07 `dependencies`), which keep their parent's path. The root itself is not a parameter and is
  * not visited; a property named `""` is. A local `$ref` (`#/$defs/Auth`) is followed into
  * `refRoot` — the document the schema came from, which defaults to the schema itself — and its
- * target keeps the referring path.
+ * target keeps the referring path. Inside a subschema with its own `$id`, references resolve
+ * against that subschema.
  *
  * Every named property is reported, even a boolean schema or an object already seen under
  * another name — the NAME is what solicits a secret. Each object is descended into once, so the
@@ -196,10 +199,10 @@ interface Visit {
 export function walkParams(schema: unknown, refRoot: unknown = schema): ParamNode[] {
   const found: ParamNode[] = [];
   const seen = new WeakSet<object>();
-  const stack: Visit[] = [{ node: schema, path: '', name: undefined, isRoot: true }];
+  const stack: Visit[] = [{ node: schema, path: '', name: undefined, isRoot: true, base: refRoot }];
 
   while (stack.length > 0) {
-    const { node, path, name, isRoot } = stack.pop() as Visit;
+    const { node, path, name, isRoot, base: outerBase } = stack.pop() as Visit;
     if (node === undefined) continue;
     const s =
       node !== null && typeof node === 'object' && !Array.isArray(node)
@@ -208,12 +211,15 @@ export function walkParams(schema: unknown, refRoot: unknown = schema): ParamNod
     if (!isRoot && (s !== undefined || name !== undefined)) found.push({ path, name, schema: s });
     if (s === undefined || seen.has(s)) continue;
     seen.add(s);
+    // A subschema with its own `$id` is a separate schema resource: fragments inside it are
+    // relative to it, not to the document
+    const base = typeof s.$id === 'string' ? s : outerBase;
 
     const children: Visit[] = [];
     const add = (child: unknown, childPath: string, childName?: string) =>
-      children.push({ node: child, path: childPath, name: childName, isRoot: false });
+      children.push({ node: child, path: childPath, name: childName, isRoot: false, base });
     // In-place applicators describe this same value: same path, name and root-ness
-    const same = (child: unknown) => children.push({ node: child, path, name, isRoot });
+    const same = (child: unknown) => children.push({ node: child, path, name, isRoot, base });
     const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
     const values = (v: unknown): unknown[] =>
       v && typeof v === 'object' && !Array.isArray(v) ? Object.values(v) : [];
@@ -235,7 +241,9 @@ export function walkParams(schema: unknown, refRoot: unknown = schema): ParamNod
     for (const key of ['anyOf', 'oneOf', 'allOf'] as const) for (const b of list(s[key])) same(b);
     for (const key of ['not', 'if', 'then', 'else'] as const) same(s[key]);
     for (const child of values(s.dependentSchemas)) same(child);
-    if (typeof s.$ref === 'string') same(resolveLocalRef(refRoot, s.$ref));
+    // draft-07 `dependencies`: a schema value applies in place (an array value lists names)
+    for (const child of values(s.dependencies)) if (!Array.isArray(child)) same(child);
+    if (typeof s.$ref === 'string') same(resolveLocalRef(base, s.$ref));
 
     // Reverse so the stack pops them in document order (pre-order, like a recursive walk)
     for (let k = children.length - 1; k >= 0; k--) stack.push(children[k] as Visit);

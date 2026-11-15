@@ -195,6 +195,37 @@ describe('applicators and long chains', () => {
     ]);
   });
 
+  it('visits schema-valued draft-07 dependencies, not property-list ones', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        auth: {
+          type: 'object',
+          dependencies: {
+            enabled: { properties: { password: { type: 'string' } } },
+            user: ['token'], // a list of property NAMES, not a schema
+          },
+        },
+      },
+    };
+    expect(collectSecretFields(schema)).toEqual(['auth.password']);
+  });
+
+  it('resolves a fragment inside a subschema with its own $id against that subschema', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        auth: {
+          $id: 'https://example.com/auth',
+          type: 'object',
+          properties: { data: { $ref: '#/definitions/Creds' } },
+          definitions: { Creds: { type: 'object', properties: { password: { type: 'string' } } } },
+        },
+      },
+    };
+    expect(collectSecretFields(schema)).toEqual(['auth.data.password']);
+  });
+
   it('finds a field at the end of a long $ref chain', () => {
     const $defs: Record<string, unknown> = {};
     for (let i = 0; i < 100; i++) $defs[`D${i}`] = { $ref: `#/$defs/D${i + 1}` };
