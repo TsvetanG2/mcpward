@@ -8,9 +8,15 @@ Since `1.0.0`, the public contract described in [`docs/stability.md`](docs/stabi
 
 ## [Unreleased]
 
+## [1.1.2] — 2026-11-15
+
 ### Fixed
 
-- **A stdio server no longer outlives mcpward** ([#71](https://github.com/TsvetanG2/mcpward/issues/71), reported by a community member). Two cases left a server that ignores stdin EOF and SIGTERM running after mcpward exited: a `timeouts.connect_ms` timeout did not close the transport at all, and closing stopped only the process mcpward spawned — a server started through a wrapper (`npx`, `tsx`, `uvx`, `sh -c`, `cmd /c` on Windows) is a grandchild of mcpward and kept running. A failed or timed-out handshake now closes the transport, and every close — mcpward's or the SDK's own — stops every process the server command started that is still running, including processes started while the server shuts down (SIGTERM, then SIGKILL after 2 s). A process is identified by its pid and start time, re-checked before each signal, so a reused pid is never signalled. The process tree is read with `ps` (Linux, macOS) or `Get-CimInstance` (Windows); if it cannot be read, nothing extra is signalled and cleanup is what it was before.
+- **A stdio server no longer outlives mcpward** ([#71](https://github.com/TsvetanG2/mcpward/issues/71), reported by a community member). Two cases left a server that ignores stdin EOF and SIGTERM running after mcpward exited: a `timeouts.connect_ms` timeout did not close the transport at all, and closing stopped only the process mcpward spawned — a server started through a wrapper (`npx`, `tsx`, `uvx`, `sh -c`, `cmd /c` on Windows) is a grandchild of mcpward and kept running. A failed or timed-out handshake now closes the transport, and every close — mcpward's or the SDK's own — stops every process the server command started that is still running, including processes started while the server shuts down (SIGTERM, then SIGKILL after 2 s). A process is identified by its pid and start time, re-checked before each signal, so a reused pid is never signalled. The process tree is read from `/proc` (Linux), `ps` (macOS) or `Get-CimInstance` (Windows); if it cannot be read, nothing extra is signalled and cleanup is what it was before. Known limit: on Linux and macOS, a process the server starts in the last ~250 ms before it is stopped can still escape, since the SDK's stdio transport offers no way to start the server in its own process group.
+
+### Changed
+
+- Dependencies: `@modelcontextprotocol/sdk` 1.30.0 → 1.32.2 (no change to the stdio transport mcpward relies on), `zod` 4.6.7, dev tooling (eslint, prettier, typescript-eslint, vitest, `@types/node`), and the CodeQL, setup-node and Scorecard actions.
 
 ## [1.1.1] — 2026-10-05
 
