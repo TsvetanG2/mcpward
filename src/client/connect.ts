@@ -161,10 +161,13 @@ function connectStdio(
     args: config.args,
     env: serverEnv(process.env, config.env),
   });
-  // transport.pid is read at close time: it exists only once the transport has started
-  return connectTransport(transport, timeouts, () =>
-    closeProcessTree(transport.pid, () => transport.close())
-  );
+  // EVERY close goes through tree cleanup, including the SDK's own (it closes the transport
+  // when initialize fails, before connect() rejects): the raw close clears transport.pid, so
+  // the tree must be read first. Memoized, so mcpward's later close awaits the same cleanup.
+  const rawClose = transport.close.bind(transport);
+  let closing: Promise<void> | undefined;
+  transport.close = () => (closing ??= closeProcessTree(transport.pid, rawClose));
+  return connectTransport(transport, timeouts, () => transport.close());
 }
 
 /**
