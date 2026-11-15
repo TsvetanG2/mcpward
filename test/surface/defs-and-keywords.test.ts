@@ -140,8 +140,55 @@ describe('drift inside $defs', () => {
     expect(classify(v(['a']), v(['a', 'b']))).toEqual([
       expect.objectContaining({
         class: BREAKING,
-        message: expect.stringContaining('used under not/if'),
+        message: expect.stringContaining('used under not/if/oneOf'),
       }),
+    ]);
+  });
+
+  it('a widened definition in a oneOf branch is breaking (branches may start to overlap)', () => {
+    const v = (a: string[]): JsonSchema => ({
+      type: 'object',
+      properties: { x: { oneOf: [{ $ref: '#/$defs/A' }, { const: 'b' }] } },
+      $defs: { A: { enum: a } },
+    });
+    expect(classify(v(['a']), v(['a', 'b']))).toEqual([
+      expect.objectContaining({ class: BREAKING }),
+    ]);
+  });
+
+  it('a pointer into a definition under not makes the definition inverted', () => {
+    const v = (x: string[]): JsonSchema => ({
+      type: 'object',
+      properties: { v: { not: { $ref: '#/$defs/A/properties/x' } } },
+      $defs: { A: { type: 'object', properties: { x: { enum: x } } } },
+    });
+    expect(classify(v(['a']), v(['a', 'b']))).toEqual([
+      expect.objectContaining({ class: BREAKING }),
+    ]);
+  });
+
+  it('a definition that uses another under not inverts it, wherever it is used', () => {
+    const v = (blocked: string[]): JsonSchema => ({
+      type: 'object',
+      properties: { name: { $ref: '#/$defs/Name' } },
+      $defs: {
+        Name: { type: 'string', not: { $ref: '#/$defs/Blocked' } },
+        Blocked: { enum: blocked },
+      },
+    });
+    expect(classify(v(['a']), v(['a', 'b']))).toEqual([
+      expect.objectContaining({ class: BREAKING }),
+    ]);
+  });
+
+  it('a parameter NAMED not is not the not keyword', () => {
+    const v = (a: string[]): JsonSchema => ({
+      type: 'object',
+      properties: { not: { $ref: '#/$defs/A' } },
+      $defs: { A: { enum: a } },
+    });
+    expect(classify(v(['a']), v(['a', 'b']))).toEqual([
+      expect.objectContaining({ class: NONBREAKING }),
     ]);
   });
 
