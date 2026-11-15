@@ -346,6 +346,28 @@ const MAX_BOUNDS = [
 /** Constraints where any addition or change narrows what is accepted, removal widens it. */
 const OPAQUE_CONSTRAINTS = ['pattern', 'format', 'const', 'multipleOf'] as const;
 const COMBINATORS = ['anyOf', 'oneOf', 'allOf'] as const;
+/** Named subschemas, compared name by name (a `$ref` target changes there, not at the `$ref`). */
+const DEFINITION_KEYWORDS = ['$defs', 'definitions'] as const;
+/** References: removing one does not prove the schema got looser (it may be inlined). */
+const REFERENCE_KEYWORDS = new Set(['$ref', '$dynamicRef', '$recursiveRef', '$id', '$anchor']);
+/** Keywords that only name the dialect and never change what is accepted. */
+const DIALECT_KEYWORDS = new Set(['$schema', '$vocabulary']);
+/** Keywords diffSchemaNode compares itself; every other constraint goes to the catch-all. */
+const MODELLED_KEYWORDS = new Set<string>([
+  'type',
+  'enum',
+  ...MIN_BOUNDS,
+  ...MAX_BOUNDS,
+  ...OPAQUE_CONSTRAINTS,
+  'uniqueItems',
+  ...COMBINATORS,
+  'additionalProperties',
+  'properties',
+  'required',
+  'items',
+  'additionalItems',
+  ...DEFINITION_KEYWORDS,
+]);
 
 function asSchema(value: unknown): JsonSchema | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -599,6 +621,60 @@ function diffSchemaNode(
 
     if (wasPresent && isPresent) {
       diffSubschema(baseProps[name], currProps[name], childPath, depth, emit);
+    }
+  }
+
+  // --- $defs / definitions: compared by name, so a change in a `$ref` target is seen ---
+  for (const key of DEFINITION_KEYWORDS) {
+    const baseDefs = (asSchema(base[key]) ?? {}) as Record<string, unknown>;
+    const currDefs = (asSchema(curr[key]) ?? {}) as Record<string, unknown>;
+    for (const name of new Set([...Object.keys(baseDefs), ...Object.keys(currDefs)])) {
+      const defPath = path === '' ? `${key}/${name}` : `${path}.${key}/${name}`;
+      if (!Object.hasOwn(baseDefs, name)) {
+        emit(
+          'nonbreaking_schema_change',
+          `definition "${defPath}" added`,
+          undefined,
+          currDefs[name]
+        );
+      } else if (!Object.hasOwn(currDefs, name)) {
+        emit(
+          'breaking_schema_change',
+          `definition "${defPath}" was removed`,
+          baseDefs[name],
+          undefined
+        );
+      } else {
+        diffSubschema(baseDefs[name], currDefs[name], defPath, depth, emit);
+      }
+    }
+  }
+
+  // --- every other constraint keyword (prefixItems, contains, not, if/then/else,
+  // dependentRequired, $ref, …): not modelled, so a change cannot be classified. Like anyOf,
+  // it is breaking; only removing a plain constraint is known to widen what is accepted. ---
+  for (const key of new Set([...Object.keys(base), ...Object.keys(curr)])) {
+    if (
+      MODELLED_KEYWORDS.has(key) ||
+      ANNOTATION_KEYWORDS.has(key) ||
+      DIALECT_KEYWORDS.has(key) ||
+      key.startsWith('x-') // vendor extensions annotate, they do not constrain
+    ) {
+      continue;
+    }
+    const b = base[key];
+    const c = curr[key];
+    if (same(b, c)) continue;
+    if (c === undefined && !REFERENCE_KEYWORDS.has(key)) {
+      emit('nonbreaking_schema_change', `${subject}${key} removed`, b, undefined);
+    } else {
+      const verb = b === undefined ? 'added' : c === undefined ? 'removed' : 'changed';
+      emit(
+        'breaking_schema_change',
+        `${subject}${key} ${verb} (compatibility cannot be determined; classified as breaking)`,
+        b,
+        c
+      );
     }
   }
 
