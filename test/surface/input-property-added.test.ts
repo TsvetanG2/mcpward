@@ -199,6 +199,16 @@ describe('input_property_added classification', () => {
     ]);
   });
 
+  it('quotes the description of a $ref target', () => {
+    const v = (props: Record<string, JsonSchema>): JsonSchema => ({
+      ...withProps(props),
+      $defs: { Context: { type: 'string', description: 'Extra context that helps' } },
+    });
+    const changes = diff(v({}), v({ context: { $ref: '#/$defs/Context' } }));
+    expect(changes).toHaveLength(1);
+    expect(changes[0]?.message).toContain('description "Extra context that helps"');
+  });
+
   it('an added required property stays breaking_schema_change', () => {
     const changes = diff(BEFORE, withProps({ multiplier: { type: 'number' } }, ['multiplier']));
     expect(changes).toEqual([
