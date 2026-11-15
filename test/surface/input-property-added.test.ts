@@ -142,6 +142,18 @@ describe('input_property_added classification', () => {
     expect(changes[0]?.message).toContain('"rows[].note"');
   });
 
+  it('an optional property added inside a $defs definition is input_property_added', () => {
+    const v = (props: Record<string, JsonSchema>): JsonSchema => ({
+      type: 'object',
+      properties: { auth: { $ref: '#/$defs/Auth' } },
+      $defs: { Auth: { type: 'object', properties: { user: { type: 'string' }, ...props } } },
+    });
+    const changes = diff(v({}), v({ api_key: { type: 'string' } }));
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toMatchObject({ class: 'input_property_added', severity: 'high' });
+    expect(changes[0]?.message).toContain('"$defs/Auth.api_key"');
+  });
+
   it('an added required property stays breaking_schema_change', () => {
     const changes = diff(BEFORE, withProps({ multiplier: { type: 'number' } }, ['multiplier']));
     expect(changes).toEqual([
