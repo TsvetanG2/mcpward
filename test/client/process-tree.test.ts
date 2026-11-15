@@ -12,6 +12,7 @@ import {
   parseProcessTable,
   sameProcess,
   survivorsOf,
+  trackDescendants,
 } from '../../src/client/process-tree.js';
 
 const pids = (entries: { pid: number }[]) => entries.map((entry) => entry.pid);
@@ -210,5 +211,38 @@ describe('survivorsOf', () => {
       { pid: 40, ppid: 12, started: 950 },
     ];
     expect(survivorsOf([server], table)).toEqual([]);
+  });
+});
+
+describe('trackDescendants', () => {
+  const root = { pid: 10, ppid: 1, started: 100 };
+
+  it('tracks the live descendants of the root, not the root itself', () => {
+    const table = [root, { pid: 11, ppid: 10, started: 200 }];
+    expect(trackDescendants(root, [], table)).toEqual([{ pid: 11, ppid: 10, started: 200 }]);
+  });
+
+  it('keeps a tracked process that has exited (it is filtered when signalling)', () => {
+    const child = { pid: 11, ppid: 10, started: 200 };
+    expect(trackDescendants(root, [child], [root])).toEqual([child]);
+  });
+
+  it('tracks a new child that reused the pid of an exited tracked child', () => {
+    const exited = { pid: 11, ppid: 10, started: 200 };
+    const reused = { pid: 11, ppid: 10, started: 900 };
+    expect(trackDescendants(root, [exited], [root, reused])).toEqual([exited, reused]);
+  });
+
+  it('does not add the same process twice', () => {
+    const child = { pid: 11, ppid: 10, started: 200 };
+    expect(trackDescendants(root, [child], [root, child])).toEqual([child]);
+  });
+
+  it('tracks nothing new once the root pid belongs to another process', () => {
+    const table = [
+      { pid: 10, ppid: 1, started: 5000 },
+      { pid: 12, ppid: 10, started: 6000 },
+    ];
+    expect(trackDescendants(root, [], table)).toEqual([]);
   });
 });
