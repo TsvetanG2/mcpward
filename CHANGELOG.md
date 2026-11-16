@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 Since `1.0.0`, the public contract described in [`docs/stability.md`](docs/stability.md) — exit codes, CLI, config, JSON report, lockfile, rule ids, SARIF/JUnit structure and the GitHub Action — changes incompatibly only in a major version. In `0.x`, minor versions could contain breaking changes; each one is called out below.
 
-## [Unreleased]
+## [1.2.0] — 2026-11-16
 
 ### Added
 
