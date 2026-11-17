@@ -203,6 +203,56 @@ describe('drift inside $defs', () => {
     ]);
   });
 
+  it('a widened definition under contains with maxContains is breaking (#90)', () => {
+    // ['a', 'b'] matched once before and twice after: maxContains 1 now rejects it
+    const v = (a: string[], max?: number): JsonSchema => ({
+      type: 'object',
+      properties: {
+        list: {
+          type: 'array',
+          contains: { $ref: '#/$defs/A' },
+          ...(max === undefined ? {} : { maxContains: max }),
+        },
+      },
+      $defs: { A: { enum: a } },
+    });
+    expect(classify(v(['a'], 1), v(['a', 'b'], 1))).toEqual([
+      expect.objectContaining({ class: BREAKING }),
+    ]);
+    // Without maxContains, matching more only accepts more
+    expect(classify(v(['a']), v(['a', 'b']))).toEqual([
+      expect.objectContaining({ class: NONBREAKING }),
+    ]);
+  });
+
+  it.each([
+    ['$anchor', { $anchor: 'blocked' }, '$defs'],
+    ['draft-07 $id anchor', { $id: '#blocked' }, 'definitions'],
+  ])('a definition referenced by %s under not is inverted (#90)', (_, anchor, key) => {
+    const v = (blocked: string[]): JsonSchema => ({
+      type: 'object',
+      properties: { name: { type: 'string', not: { $ref: '#blocked' } } },
+      [key]: { Blocked: { ...anchor, enum: blocked } },
+    });
+    expect(classify(v(['a']), v(['a', 'b']))).toEqual([
+      expect.objectContaining({
+        class: BREAKING,
+        message: expect.stringContaining('used under not/if/oneOf'),
+      }),
+    ]);
+  });
+
+  it('an anchor inside a definition under not inverts that definition (#90)', () => {
+    const v = (x: string[]): JsonSchema => ({
+      type: 'object',
+      properties: { v: { not: { $ref: '#x' } } },
+      $defs: { A: { type: 'object', properties: { x: { $anchor: 'x', enum: x } } } },
+    });
+    expect(classify(v(['a']), v(['a', 'b']))).toEqual([
+      expect.objectContaining({ class: BREAKING }),
+    ]);
+  });
+
   it('an unchanged schema with $defs has no drift', () => {
     expect(classify(withItem(ITEM), withItem(ITEM))).toEqual([]);
   });
