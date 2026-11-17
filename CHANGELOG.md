@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 Since `1.0.0`, the public contract described in [`docs/stability.md`](docs/stability.md) — exit codes, CLI, config, JSON report, lockfile, rule ids, SARIF/JUnit structure and the GitHub Action — changes incompatibly only in a major version. In `0.x`, minor versions could contain breaking changes; each one is called out below.
 
+## [1.2.1] — 2026-11-18
+
+### Fixed
+
+- **A secret-soliciting field behind a pointer into a nested `$id` resource was missed.** A reference such as `#/definitions/Bundle/definitions/Auth`, where `Bundle` declares its own `$id`, kept resolving the target's own references (`#/definitions/Creds`) against the document root, so `Creds.password` was never seen. References now resolve in the schema resource the pointer leads into. This affects `security/secret-in-schema` and the high-severity escalation of `input_property_added`, whose quoted description is now read from the right target too (#88).
+- **Two schema changes that can reject previously valid input passed as non-breaking.** A definition used in a `contains` limited by `maxContains` is now treated like one under `not`/`if`/`oneOf`: matching more items can exceed the maximum. A definition referenced by a plain-name anchor (`$anchor`, or draft-07 `$id: "#name"`), on it or anywhere inside it, is now recognised as used there. Any change inside such a definition is `breaking_schema_change` (#90).
+
+### Upgrading
+
+Both fixes are false negatives: findings that were always there are now reported and **can turn a passing CI run red**. Review each one; if the change is intended, re-baseline. Pin the mcpward version (`npx mcpward@1.2.1`, the action's `version` input) and upgrade deliberately.
+
 ## [1.2.0] — 2026-11-16
 
 ### Added
@@ -460,7 +471,8 @@ Initial release.
 - **GitHub composite Action** for one-step CI integration.
 - `${ENV_VAR}` interpolation in config for secrets and tokens.
 
-[Unreleased]: https://github.com/TsvetanG2/mcpward/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/TsvetanG2/mcpward/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/TsvetanG2/mcpward/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/TsvetanG2/mcpward/compare/v1.1.3...v1.2.0
 [1.1.3]: https://github.com/TsvetanG2/mcpward/compare/v1.1.2...v1.1.3
 [1.1.2]: https://github.com/TsvetanG2/mcpward/compare/v1.1.1...v1.1.2
