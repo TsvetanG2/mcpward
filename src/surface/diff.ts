@@ -34,7 +34,7 @@ import {
   isSchemaResource,
   isSecretField,
   walkParams,
-  resolveLocalRef,
+  resolveLocalRefIn,
 } from '../checks/heuristics.js';
 
 /**
@@ -801,10 +801,15 @@ function emitInputPropertyAdded(
 ): void {
   // The model reads the description of a `$ref` target too: follow local references to it
   let s = asSchema(schema);
+  let root: unknown = currRoot;
   const seen = new Set<unknown>();
   while (s && typeof s.description !== 'string' && typeof s.$ref === 'string' && !seen.has(s)) {
     seen.add(s);
-    s = asSchema(resolveLocalRef(currRoot, s.$ref));
+    if (isSchemaResource(s)) root = s;
+    // The next reference resolves in the resource the pointer led into
+    const target = resolveLocalRefIn(root, s.$ref);
+    s = asSchema(target?.node);
+    root = target?.base;
   }
   const description = typeof s?.description === 'string' ? s.description : '';
   // Quoted whole and raw: report redaction matches registered secrets by their exact value, so a

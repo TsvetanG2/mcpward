@@ -189,7 +189,8 @@ interface Visit {
  * not visited; a property named `""` is. A local `$ref` (`#/$defs/Auth`, or an anchor like
  * `#Auth`) is followed into `refRoot` — the document the schema came from, which defaults to the
  * schema itself — and its target keeps the referring path. Inside a subschema with its own
- * (non-fragment) `$id`, references resolve against that subschema.
+ * (non-fragment) `$id`, references resolve against that subschema — also when a pointer only
+ * passes through it on the way to the target.
  *
  * Every named property is reported, even a boolean schema or an object already seen under
  * another name — the NAME is what solicits a secret. Each object is descended into once, so the
@@ -260,7 +261,9 @@ export function walkParams(schema: unknown, refRoot: unknown = schema): ParamNod
     // `$dynamicRef`/`$recursiveRef` resolve like `$ref` within one document (no dynamic scope
     // across documents to follow — remote references are never fetched)
     for (const key of ['$ref', '$dynamicRef', '$recursiveRef'] as const) {
-      if (typeof s[key] === 'string') same(resolveLocalRef(base, s[key]));
+      const target = typeof s[key] === 'string' ? resolveLocalRefIn(base, s[key]) : undefined;
+      // The target keeps this path but resolves its own references in its resource
+      if (target) children.push({ node: target.node, path, name, isRoot, base: target.base });
     }
 
     // Reverse so the stack pops them in document order (pre-order, like a recursive walk)
@@ -341,6 +344,18 @@ function anchorsOf(root: object): Map<string, unknown> {
  * the server under test is untrusted.
  */
 export function resolveLocalRef(root: unknown, ref: string): unknown {
+  return resolveLocalRefIn(root, ref)?.node;
+}
+
+/**
+ * Like {@link resolveLocalRef}, and also returns the schema resource the target belongs to: the
+ * last subschema with its own `$id` the pointer passed through (or the target itself), else
+ * `root`. References inside the target resolve against it.
+ */
+export function resolveLocalRefIn(
+  root: unknown,
+  ref: string
+): { node: unknown; base: unknown } | undefined {
   if (!ref.startsWith('#')) return undefined;
   let pointer: string;
   try {
@@ -348,17 +363,24 @@ export function resolveLocalRef(root: unknown, ref: string): unknown {
   } catch {
     return undefined;
   }
-  if (pointer === '') return root;
+  if (pointer === '') return { node: root, base: root };
   if (!pointer.startsWith('/')) {
-    return root !== null && typeof root === 'object' ? anchorsOf(root).get(pointer) : undefined;
+    // Anchors are indexed per resource and never inside a nested one
+    const node =
+      root !== null && typeof root === 'object' ? anchorsOf(root).get(pointer) : undefined;
+    return node === undefined ? undefined : { node, base: root };
   }
   let node: unknown = root;
+  let base: unknown = root;
   for (const raw of pointer.slice(1).split('/')) {
     const key = raw.replace(/~1/g, '/').replace(/~0/g, '~');
     if (node === null || typeof node !== 'object' || !Object.hasOwn(node, key)) return undefined;
     node = (node as Record<string, unknown>)[key];
+    if (node !== null && typeof node === 'object' && !Array.isArray(node)) {
+      if (isSchemaResource(node as Record<string, unknown>)) base = node;
+    }
   }
-  return node;
+  return { node, base };
 }
 
 /**

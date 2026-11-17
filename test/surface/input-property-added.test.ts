@@ -326,6 +326,33 @@ describe('input_property_added escalation to high', () => {
     expect(changes[0]?.message).toContain('"auth.password" solicits a secret');
   });
 
+  it('a new field whose $ref goes through a nested $id resource is high (#88)', () => {
+    const defs = {
+      definitions: {
+        Bundle: {
+          $id: 'https://example.com/bundle',
+          definitions: {
+            Auth: { $ref: '#/definitions/Creds' },
+            Creds: {
+              type: 'object',
+              description: 'Your login',
+              properties: { password: { type: 'string' } },
+            },
+          },
+        },
+      },
+    };
+    const changes = diff(
+      { ...BEFORE, ...defs },
+      { ...withProps({ auth: { $ref: '#/definitions/Bundle/definitions/Auth' } }), ...defs }
+    );
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toMatchObject({ class: 'input_property_added', severity: 'high' });
+    expect(changes[0]?.message).toContain('"auth.password" solicits a secret');
+    // The description is read from the target in Bundle's resource
+    expect(changes[0]?.message).toContain('description "Your login"');
+  });
+
   it('a new object that requires an undeclared secret name is high', () => {
     const changes = diff(BEFORE, withProps({ auth: { type: 'object', required: ['password'] } }));
     expect(changes[0]).toMatchObject({ class: 'input_property_added', severity: 'high' });
