@@ -2,7 +2,7 @@
 
 **DRAFT.** Shared risk manifest format proposed with KyttoMCP. Not implemented in mcpward yet.
 
-Discussion: <link will be added>
+Discussion: https://github.com/TsvetanG2/mcpward/discussions/98
 
 ## Files
 
