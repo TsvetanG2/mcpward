@@ -949,20 +949,47 @@ function diffSubschema(
 }
 
 /**
- * `$defs/Name` or `definitions/Name` for a same-document reference into a definition —
- * `#/$defs/A` or a pointer inside it such as `#/$defs/A/properties/x`.
+ * `$defs/Name` or `definitions/Name` for a same-document reference into a definition of
+ * `schema` — `#/$defs/A`, a pointer inside it such as `#/$defs/A/properties/x`, or a plain-name
+ * anchor (`#blocked`, `$anchor` or draft-07 `$id: "#blocked"`) declared on or inside it.
  */
-function definitionOf(ref: unknown): string | undefined {
+function definitionOf(ref: unknown, schema: JsonSchema): string | undefined {
   if (typeof ref !== 'string') return undefined;
   const m = /^#\/(\$defs|definitions)\/([^/]+)(?:\/.*)?$/s.exec(ref);
-  if (!m) return undefined;
-  try {
-    return `${m[1]}/${decodeURIComponent(m[2] ?? '')
-      .replace(/~1/g, '/')
-      .replace(/~0/g, '~')}`;
-  } catch {
-    return undefined;
+  if (m) {
+    try {
+      return `${m[1]}/${decodeURIComponent(m[2] ?? '')
+        .replace(/~1/g, '/')
+        .replace(/~0/g, '~')}`;
+    } catch {
+      return undefined;
+    }
   }
+  if (!ref.startsWith('#') || ref.startsWith('#/')) return undefined;
+  const target = resolveLocalRefIn(schema, ref)?.node;
+  if (target === null || typeof target !== 'object') return undefined;
+  for (const key of DEFINITION_KEYWORDS) {
+    const defs = asSchema(schema[key]);
+    if (!defs) continue;
+    for (const [name, def] of Object.entries(defs)) {
+      if (contains(def, target)) return `${key}/${name}`;
+    }
+  }
+  return undefined;
+}
+
+/** True when `target` is `node` or an object somewhere inside it. */
+function contains(node: unknown, target: object): boolean {
+  const seen = new WeakSet<object>();
+  const stack = [node];
+  while (stack.length > 0) {
+    const n = stack.pop();
+    if (n === target) return true;
+    if (n === null || typeof n !== 'object' || seen.has(n)) continue;
+    seen.add(n);
+    stack.push(...Object.values(n));
+  }
+  return false;
 }
 
 /** Keywords whose value maps names to subschemas. */
@@ -979,7 +1006,6 @@ const SAME_POLARITY_KEYWORDS = [
   'items',
   'prefixItems',
   'additionalItems',
-  'contains',
   'additionalProperties',
   'unevaluatedItems',
   'unevaluatedProperties',
@@ -991,14 +1017,16 @@ const SAME_POLARITY_KEYWORDS = [
 ] as const;
 /**
  * Keywords where accepting more can reject more: `not` inverts, `if` selects a branch, and
- * `oneOf` fails when a widened branch starts to overlap another.
+ * `oneOf` fails when a widened branch starts to overlap another. `contains` joins them next to
+ * `maxContains`: more items match, and the count can exceed the maximum.
  */
 const INVERTING_KEYWORDS = ['not', 'if', 'oneOf'] as const;
 
 /**
- * Definitions of `schema` used, directly or through other definitions, under `not`, `if` or
- * `oneOf`. A "widening" inside such a definition cannot be trusted. The walk follows schema
- * keywords only, so a parameter NAMED `not` is not mistaken for the keyword.
+ * Definitions of `schema` used, directly or through other definitions, under `not`, `if`,
+ * `oneOf` or a `contains` limited by `maxContains`. A "widening" inside such a definition cannot
+ * be trusted. The walk follows schema keywords only, so a parameter NAMED `not` is not mistaken
+ * for the keyword.
  */
 function invertedDefinitions(schema: JsonSchema): Set<string> {
   const inverted = new Set<string>();
@@ -1011,7 +1039,7 @@ function invertedDefinitions(schema: JsonSchema): Set<string> {
     const s = asSchema(node);
     if (!s) continue;
     if (inverting) {
-      const def = definitionOf(s.$ref);
+      const def = definitionOf(s.$ref, schema);
       if (def !== undefined && !inverted.has(def)) {
         inverted.add(def);
         // Everything the definition uses is inverted too
@@ -1026,6 +1054,7 @@ function invertedDefinitions(schema: JsonSchema): Set<string> {
       if (map) for (const child of Object.values(map)) push(child, inverting);
     }
     for (const key of SAME_POLARITY_KEYWORDS) push(s[key], inverting);
+    push(s.contains, inverting || s.maxContains !== undefined);
     for (const key of INVERTING_KEYWORDS) push(s[key], true);
   }
   return inverted;
