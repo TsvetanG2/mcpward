@@ -253,6 +253,53 @@ describe('drift inside $defs', () => {
     ]);
   });
 
+  it('an anchor under not inside a nested $id resource is not the document anchor (#101)', () => {
+    // `#shared` inside the nested resource names ITS definition, not the document's one
+    const v = (shared: string[]): JsonSchema => ({
+      type: 'object',
+      properties: {
+        name: { $ref: '#shared' },
+        nested: {
+          $id: 'https://example.com/nested',
+          $defs: { S: { $anchor: 'shared', const: 'z' } },
+          not: { $ref: '#shared' },
+        },
+      },
+      $defs: { Shared: { $anchor: 'shared', enum: shared } },
+    });
+    expect(classify(v(['a']), v(['a', 'b']))).toEqual([
+      expect.objectContaining({ class: NONBREAKING }),
+    ]);
+  });
+
+  it('a pointer under not inside a nested $id resource is not a document definition', () => {
+    const v = (a: string[]): JsonSchema => ({
+      type: 'object',
+      properties: {
+        name: { $ref: '#/$defs/A' },
+        nested: {
+          $id: 'https://example.com/nested',
+          $defs: { A: { const: 'z' } },
+          not: { $ref: '#/$defs/A' },
+        },
+      },
+      $defs: { A: { enum: a } },
+    });
+    expect(classify(v(['a']), v(['a', 'b']))).toEqual([
+      expect.objectContaining({ class: NONBREAKING }),
+    ]);
+  });
+
+  it('a huge enum next to an inverted anchor does not overflow the stack (#101)', () => {
+    const big = Array.from({ length: 200_000 }, (_, i) => `v${i}`);
+    const schema: JsonSchema = {
+      type: 'object',
+      properties: { name: { type: 'string', not: { $ref: '#blocked' } } },
+      $defs: { Big: { enum: big }, Blocked: { $anchor: 'blocked', enum: ['x'] } },
+    };
+    expect(classify(schema, schema)).toEqual([]);
+  });
+
   it('an unchanged schema with $defs has no drift', () => {
     expect(classify(withItem(ITEM), withItem(ITEM))).toEqual([]);
   });

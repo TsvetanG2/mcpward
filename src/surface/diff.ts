@@ -987,7 +987,8 @@ function contains(node: unknown, target: object): boolean {
     if (n === target) return true;
     if (n === null || typeof n !== 'object' || seen.has(n)) continue;
     seen.add(n);
-    stack.push(...Object.values(n));
+    // One push per value: spreading a huge `enum` into push() overflows the call stack
+    for (const child of Object.values(n)) stack.push(child);
   }
   return false;
 }
@@ -1022,23 +1023,36 @@ const SAME_POLARITY_KEYWORDS = [
  */
 const INVERTING_KEYWORDS = ['not', 'if', 'oneOf'] as const;
 
+/** A pending step of {@link invertedDefinitions}; `nested`: inside a nested schema resource. */
+interface PolarityVisit {
+  node: unknown;
+  inverting: boolean;
+  nested: boolean;
+}
+
 /**
  * Definitions of `schema` used, directly or through other definitions, under `not`, `if`,
  * `oneOf` or a `contains` limited by `maxContains`. A "widening" inside such a definition cannot
  * be trusted. The walk follows schema keywords only, so a parameter NAMED `not` is not mistaken
- * for the keyword.
+ * for the keyword. Inside a nested schema resource (its own `$id`), `#…` references name that
+ * resource, not `schema`: they are left to the comparison of the resource's own definitions.
  */
 function invertedDefinitions(schema: JsonSchema): Set<string> {
   const inverted = new Set<string>();
-  const stack: { node: unknown; inverting: boolean }[] = [{ node: schema, inverting: false }];
+  const stack: PolarityVisit[] = [{ node: schema, inverting: false, nested: false }];
+  let nested = false;
   const push = (value: unknown, inverting: boolean) => {
-    for (const node of Array.isArray(value) ? value : [value]) stack.push({ node, inverting });
+    for (const node of Array.isArray(value) ? value : [value]) {
+      stack.push({ node, inverting, nested });
+    }
   };
   while (stack.length > 0) {
-    const { node, inverting } = stack.pop() as { node: unknown; inverting: boolean };
-    const s = asSchema(node);
+    const visit = stack.pop() as PolarityVisit;
+    const s = asSchema(visit.node);
     if (!s) continue;
-    if (inverting) {
+    const { inverting } = visit;
+    nested = visit.nested || (s !== schema && isSchemaResource(s));
+    if (inverting && !nested) {
       const def = definitionOf(s.$ref, schema);
       if (def !== undefined && !inverted.has(def)) {
         inverted.add(def);
