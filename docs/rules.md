@@ -267,7 +267,7 @@ Detects when tool input schemas appear to solicit secrets like API keys, passwor
 
 **What it checks:**
 
-- Field names containing `password`, `secret`, `token`, `api_key`, etc., at any nesting depth — nested properties, array items, `additionalProperties` and `anyOf`/`oneOf`/`allOf` branches. The message lists full paths (`options.password`, `accounts[].token`).
+- Field names containing `password`, `secret`, `token`, `api_key`, etc., at any nesting depth — nested properties, array items, `additionalProperties` and `anyOf`/`oneOf`/`allOf` branches, and local `$ref` targets (JSON pointers and plain-name anchors, resolved in the schema resource — nearest `$id` — they belong to; remote references are never fetched). The message lists full paths (`options.password`, `accounts[].token`).
 - Descriptions suggesting credential input
 
 **How to fix:**
@@ -412,7 +412,7 @@ A tool's input or output schema changed in a way that can reject previously vali
 - `anyOf`/`oneOf`/`allOf` changed (cannot be classified structurally — conservative)
 - any other keyword added, changed or removed — `prefixItems`, `contains`, `not`, `if`/`then`/`else`, `dependentRequired`, `propertyNames`, `unevaluatedProperties`, `$ref`, `$schema` and the like. These are not modelled, so compatibility cannot be determined and the message says so (even a removal can reject more: dropping `prefixItems` next to `items: false`). Annotations (`title`, `default`, `examples`, …) and `x-` vendor extensions are not compared.
 - `additionalItems` tightened behind a tuple (path `t[1+]`)
-- a definition in `$defs`/`definitions` removed, or changed in any of the ways above (paths like `$defs/Item.x`) — a `$ref` target changes there, not at the `$ref`. A definition used under `not`, `if` or `oneOf` (directly, through a pointer into it, or through another definition) can reject more when it accepts more, so any change inside it is breaking.
+- a definition in `$defs`/`definitions` removed, or changed in any of the ways above (paths like `$defs/Item.x`) — a `$ref` target changes there, not at the `$ref`. A definition used under `not`, `if`, `oneOf` or a `contains` limited by `maxContains` (directly, through a pointer into it, through a plain-name anchor declared on or inside it, or through another definition) can reject more when it accepts more, so any change inside it is breaking.
 - a declared schema removed
 
 **How to fix:**
