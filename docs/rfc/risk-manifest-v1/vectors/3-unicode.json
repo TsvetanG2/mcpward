@@ -1,0 +1,1 @@
+{"name":"get_note","description":"Café notes​ here","inputSchema":{"type":"object","properties":{"id":{"type":"string"}}}}

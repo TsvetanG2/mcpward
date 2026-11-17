@@ -1,0 +1,1 @@
+{"name":"delete_record","description":"Deletes a record   by id.\r\n\r\nCannot be undone. ","inputSchema":{"type":"object","required":["table","id"],"properties":{"table":{"type":"string"},"id":{"type":"integer","minimum":1}}}}
