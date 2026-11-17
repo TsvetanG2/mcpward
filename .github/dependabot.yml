@@ -28,3 +28,9 @@ updates:
       day: monday
     commit-message:
       prefix: 'chore'
+    groups:
+      # init, analyze and upload-sarif must run the same version, or CodeQL fails.
+      codeql-action:
+        patterns:
+          - 'github/codeql-action'
+          - 'github/codeql-action/*'
