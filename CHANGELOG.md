@@ -460,7 +460,23 @@ Initial release.
 - **GitHub composite Action** for one-step CI integration.
 - `${ENV_VAR}` interpolation in config for secrets and tokens.
 
-[Unreleased]: https://github.com/TsvetanG2/mcpward/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/TsvetanG2/mcpward/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/TsvetanG2/mcpward/compare/v1.1.3...v1.2.0
+[1.1.3]: https://github.com/TsvetanG2/mcpward/compare/v1.1.2...v1.1.3
+[1.1.2]: https://github.com/TsvetanG2/mcpward/compare/v1.1.1...v1.1.2
+[1.1.1]: https://github.com/TsvetanG2/mcpward/compare/v1.1.0...v1.1.1
+[1.1.0]: https://github.com/TsvetanG2/mcpward/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/TsvetanG2/mcpward/compare/v0.9.0...v1.0.0
+[0.9.0]: https://github.com/TsvetanG2/mcpward/compare/v0.8.1...v0.9.0
+[0.8.1]: https://github.com/TsvetanG2/mcpward/compare/v0.8.0...v0.8.1
+[0.8.0]: https://github.com/TsvetanG2/mcpward/compare/v0.7.2...v0.8.0
+[0.7.2]: https://github.com/TsvetanG2/mcpward/compare/v0.7.1...v0.7.2
+[0.7.1]: https://github.com/TsvetanG2/mcpward/compare/v0.7.0...v0.7.1
+[0.7.0]: https://github.com/TsvetanG2/mcpward/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/TsvetanG2/mcpward/compare/92456c2327bb5effbe546b89ab21955b9f661d2f...v0.6.0
+[0.5.0]: https://github.com/TsvetanG2/mcpward/compare/43cb0dd2fc7a769d240fdb2006bb3076b3c7b6f7...92456c2327bb5effbe546b89ab21955b9f661d2f
+[0.4.0]: https://github.com/TsvetanG2/mcpward/compare/v0.3.0...43cb0dd2fc7a769d240fdb2006bb3076b3c7b6f7
+[0.3.0]: https://github.com/TsvetanG2/mcpward/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/TsvetanG2/mcpward/compare/v0.2.0...v0.2.1
-[0.2.0]: https://github.com/TsvetanG2/mcpward/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/TsvetanG2/mcpward/releases/tag/v0.1.0
+[0.2.0]: https://github.com/TsvetanG2/mcpward/compare/v0.1.1...v0.2.0
+[0.1.0]: https://www.npmjs.com/package/mcpward/v/0.1.0
