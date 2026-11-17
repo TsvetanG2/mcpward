@@ -167,6 +167,56 @@ describe('local $ref', () => {
   });
 });
 
+describe('schema resources and anchors (#88)', () => {
+  it('a pointer through a nested $id resource resolves later references against it', () => {
+    // The pointer never visits Bundle as a schema, but Auth lives in Bundle's resource:
+    // `#/definitions/Creds` there means Bundle's Creds, which the document root does not have
+    const schema = {
+      type: 'object',
+      properties: { auth: { $ref: '#/definitions/Bundle/definitions/Auth' } },
+      definitions: {
+        Bundle: {
+          $id: 'https://example.com/bundle',
+          definitions: {
+            Auth: { $ref: '#/definitions/Creds' },
+            Creds: { type: 'object', properties: { password: { type: 'string' } } },
+          },
+        },
+      },
+    };
+    expect(collectSecretFields(schema)).toEqual(['auth.password']);
+  });
+
+  it('a pointer through a nested resource resolves anchors against it too', () => {
+    const schema = {
+      type: 'object',
+      properties: { auth: { $ref: '#/$defs/Bundle/$defs/Auth' } },
+      $defs: {
+        Bundle: {
+          $id: 'https://example.com/bundle',
+          $defs: {
+            Auth: { $ref: '#creds' },
+            Creds: { $anchor: 'creds', type: 'object', properties: { api_key: {} } },
+          },
+        },
+      },
+    };
+    expect(collectSecretFields(schema)).toEqual(['auth.api_key']);
+  });
+
+  it('$anchor next to a draft-07 $id anchor: both names resolve', () => {
+    const v = (ref: string) => ({
+      type: 'object',
+      properties: { auth: { $ref: ref } },
+      definitions: {
+        Auth: { $id: '#Auth', $anchor: 'Other', properties: { password: { type: 'string' } } },
+      },
+    });
+    expect(collectSecretFields(v('#Auth'))).toEqual(['auth.password']);
+    expect(collectSecretFields(v('#Other'))).toEqual(['auth.password']);
+  });
+});
+
 describe('applicators and long chains', () => {
   it('visits additionalItems, prefixItems, patternProperties and in-place applicators', () => {
     const schema = {
