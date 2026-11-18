@@ -71,6 +71,19 @@ export const descriptionArb: fc.Arbitrary<string> = fc
   )
   .map((parts) => parts.join(''));
 
+/**
+ * Any UTF-16 code unit, lone high and low surrogates included. A JSON string from a server may
+ * contain them (`"\uD800"` is valid JSON); fast-check's `binary` unit never produces them.
+ */
+const codeUnitArb = fc.integer({ min: 0, max: 0xffff }).map((u) => String.fromCharCode(u));
+
+/** Strings of arbitrary code units, mixed with well-formed astral characters. */
+export const anyCodeUnitsArb = (maxLength?: number): fc.Arbitrary<string> =>
+  fc.string({
+    unit: fc.oneof(codeUnitArb, fc.string({ unit: 'binary', minLength: 1, maxLength: 1 })),
+    ...(maxLength === undefined ? {} : { maxLength }),
+  });
+
 /** Identifiers for tool and property names. */
 export const identArb = fc.stringMatching(/^[a-z][a-zA-Z0-9_]{0,10}$/);
 
