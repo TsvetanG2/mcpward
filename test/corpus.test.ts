@@ -7,9 +7,12 @@
  * - `test/corpus/registry-clean/`: real tool definitions; none should be flagged. Entries that
  *   are flagged today are listed in its `known-false-positives.json`.
  *
- * A case the detectors get wrong today carries `knownGap` (evasion) or a known-false-positives
- * entry (registry) and runs as `it.fails`: the suite stays green, the gap stays visible, and a
- * detector that closes the gap turns the test red until the note is removed.
+ * The suite stays green while every gap stays visible, and fixing a gap turns a test red until
+ * its note is removed:
+ * - an evasion case the detectors get wrong today carries `knownGap`, and the test asserts the
+ *   wrong outcome (not `it.fails`, which would also accept a detector that throws);
+ * - a registry tool flagged today is asserted against the exact rule ids in
+ *   `known-false-positives.json`, so both a fix and a new finding are seen.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -54,13 +57,12 @@ describe('evasion corpus', () => {
   for (const file of files) {
     const c = JSON.parse(readFileSync(join(dir, file), 'utf-8')) as EvasionCase;
     const name = `${file}: ${c.technique} — ${c.shouldFlag ? 'flagged' : 'not flagged'}`;
-    const run = () => {
-      const ids = findings(c.tool);
-      if (c.shouldFlag) expect(ids).not.toEqual([]);
-      else expect(ids).toEqual([]);
-    };
-    if (c.knownGap) it.fails(`${name} [known gap: ${c.knownGap}]`, run);
-    else it(name, run);
+    // Not `it.fails`: that would also accept a detector that throws. A known gap asserts the
+    // wrong outcome explicitly, so a crash and a fixed gap both turn the test red.
+    it(c.knownGap ? `${name} [known gap: ${c.knownGap}]` : name, () => {
+      const flagged = findings(c.tool).length > 0;
+      expect(flagged).toBe(c.knownGap ? !c.shouldFlag : c.shouldFlag);
+    });
   }
 });
 
@@ -87,22 +89,29 @@ describe('registry clean corpus', () => {
 
   const snapshots = jsonFiles(dir).filter((f) => f !== 'known-false-positives.json');
   if (snapshots.length === 0) it.todo('snapshot of registry tool definitions');
+  const all = snapshots.flatMap(
+    (file) => JSON.parse(readFileSync(join(dir, file), 'utf-8')) as RegistryEntry[]
+  );
 
-  for (const file of snapshots) {
-    const entries = JSON.parse(readFileSync(join(dir, file), 'utf-8')) as RegistryEntry[];
-    for (const { server, version, tool } of entries) {
-      const fp = known.find((k) => k.server === server && k.tool === tool.name);
-      const name = `${server}@${version} ${tool.name}`;
-      if (fp) {
-        // A known false positive: asserted exactly, so a change in either direction is seen
-        it(`${name} [known false positive: ${fp.reason}]`, () => {
-          expect([...new Set(findings(tool))].sort()).toEqual([...fp.ids].sort());
-        });
-      } else {
-        it(`${name} — no finding`, () => {
-          expect(findings(tool)).toEqual([]);
-        });
-      }
+  it('every known false positive names a tool in the snapshot', () => {
+    const stale = known.filter(
+      (k) => !all.some((e) => e.server === k.server && e.tool.name === k.tool)
+    );
+    expect(stale).toEqual([]);
+  });
+
+  for (const { server, version, tool } of all) {
+    const fp = known.find((k) => k.server === server && k.tool === tool.name);
+    const name = `${server}@${version} ${tool.name}`;
+    if (fp) {
+      // A known false positive: asserted exactly, so a change in either direction is seen
+      it(`${name} [known false positive: ${fp.reason}]`, () => {
+        expect([...new Set(findings(tool))].sort()).toEqual([...fp.ids].sort());
+      });
+    } else {
+      it(`${name} — no finding`, () => {
+        expect(findings(tool)).toEqual([]);
+      });
     }
   }
 });
