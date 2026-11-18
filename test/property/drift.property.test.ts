@@ -145,6 +145,20 @@ describe('drift classifier properties', () => {
     );
   });
 
+  // Known gap (found in review of this property): descriptions that differ only in lone
+  // surrogates hash the same, because UTF-8 encoding turns every lone surrogate into U+FFFD.
+  // `descriptionArb` has no lone surrogates, so the property below does not cover this case.
+  // Asserted as it is today; when fixed, this test turns red: flip it to expect a change.
+  it('a description change between lone surrogates is silent [known gap]', () => {
+    const tool = (description: string): Tool => ({
+      name: 'a',
+      description,
+      inputSchema: { type: 'object', properties: {} },
+    });
+    expect(canonicalizeDescription('x\uD800')).not.toBe(canonicalizeDescription('x\uDC00'));
+    expect(diff([tool('x\uD800')], [tool('x\uDC00')])).toEqual([]);
+  });
+
   it('a changed tool description is never silent', () => {
     fc.assert(
       fc.property(toolArb, descriptionArb, (tool, text) => {
