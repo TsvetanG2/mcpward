@@ -139,7 +139,7 @@ export async function runSecurityChecks(ctx: SecurityCheckContext): Promise<Chec
 /**
  * Checks a single tool for security issues.
  */
-function checkToolSecurity(tool: Tool): CheckResult[] {
+export function checkToolSecurity(tool: Tool): CheckResult[] {
   const results: CheckResult[] = [];
   const { name, description, inputSchema, annotations } = tool;
 

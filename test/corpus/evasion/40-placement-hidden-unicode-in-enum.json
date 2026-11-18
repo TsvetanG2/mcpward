@@ -1,0 +1,19 @@
+{
+  "category": "placement",
+  "technique": "Zero-width space inside an enum value",
+  "shouldFlag": true,
+  "knownGap": "Placement: hidden unicode is looked for in names and descriptions only; enum values are not scanned",
+  "tool": {
+    "name": "lookup",
+    "description": "Looks up a record.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "q": {
+          "type": "string",
+          "enum": ["fa\u200Bst", "slow"]
+        }
+      }
+    }
+  }
+}

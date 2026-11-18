@@ -1,0 +1,18 @@
+{
+  "category": "benign",
+  "technique": "Right-to-left text without bidi control characters",
+  "shouldFlag": false,
+  "tool": {
+    "name": "lookup",
+    "description": "Translates text. Example: مرحبا بالعالم",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "q": {
+          "type": "string",
+          "description": "Search query"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "category": "benign",
+  "technique": "Family emoji built with zero-width joiners",
+  "shouldFlag": false,
+  "knownGap": "False positive: U+200D inside a valid emoji ZWJ sequence is flagged as zero-width (only subdivision flags are exempt)",
+  "tool": {
+    "name": "lookup",
+    "description": "Plans family trips 👨\u200D👩\u200D👧.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "q": {
+          "type": "string",
+          "description": "Search query"
+        }
+      }
+    }
+  }
+}
