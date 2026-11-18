@@ -74,6 +74,15 @@ For every check you add, write a test that feeds a known-bad fixture and asserts
 
 The drift classifier, schema wrappers, JSONPath assertions, config parser, and exit-code logic are pure and deterministic. Cover every branch as an explicit case. We do not chase a global coverage percentage; we care about the classifier, the error-layer logic, and the security matchers specifically.
 
+On top of the truth tables, `test/property/` checks invariants of the classifier and canonicalization with [fast-check](https://fast-check.dev): a surface diffed against itself has no drift, formatting is never drift, a new required field is always breaking, hostile input never crashes a check. CI runs them with a fixed seed. To search harder locally:
+
+```bash
+FC_NUM_RUNS=5000 pnpm vitest run test/property
+FC_SEED=$RANDOM FC_NUM_RUNS=2000 pnpm vitest run test/property
+```
+
+A counterexample becomes a named regression test next to the property. A gap that is not fixed in the same change is asserted as it is today and marked `[known gap]`, so fixing it turns the test red.
+
 ### 6. Report shapes are a public contract
 
 The JSON, JUnit and SARIF output shapes and the exit codes (`0`/`1`/`2`) are consumed by other people's CI. They are golden-snapshotted, and the JSON report, config and lockfile are validated against the published schemas in `schemas/`. Changing them is a deliberate, documented, semver-relevant decision — never an accident. See [`docs/stability.md`](docs/stability.md).
