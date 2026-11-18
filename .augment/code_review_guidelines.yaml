@@ -1,0 +1,5 @@
+# Augment Code Review settings (https://docs.augmentcode.com/codereview/review-guidelines)
+
+# Large data snapshots: collected by a script and reviewed through their README, not line by line
+file_paths_to_ignore:
+  - 'test/corpus/registry-clean/tools-*.json'
