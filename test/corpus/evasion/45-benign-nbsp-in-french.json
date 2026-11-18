@@ -1,0 +1,19 @@
+{
+  "category": "benign",
+  "technique": "French typography: a non-breaking space before a colon",
+  "shouldFlag": false,
+  "knownGap": "False positive: U+00A0 is flagged as a confusable space, but French typography uses it before \":\" \";\" \"?\" \"!\"",
+  "tool": {
+    "name": "lookup",
+    "description": "Recherche un enregistrement\u00A0: renvoie le premier résultat.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "q": {
+          "type": "string",
+          "description": "Search query"
+        }
+      }
+    }
+  }
+}
