@@ -12,17 +12,27 @@ import { diffSurfaces } from '../../src/surface/diff.js';
 import type { McpConnection } from '../../src/client/connect.js';
 import type { JsonSchema } from '../../src/surface/types.js';
 import type { Tool } from '../../src/checks/schema.js';
-import { FC_PARAMS, inputSchemaArb, surfaceOf } from './arbitraries.js';
+import { FC_PARAMS, anyCodeUnitsArb, inputSchemaArb, surfaceOf } from './arbitraries.js';
 
 /** Per-input budget. Generous: CI runners are slow, and the point is "not quadratic or stuck". */
 const BUDGET_MS = 2000;
 
 /** Strings a server may send: any code units (lone surrogates too), long runs, tag characters. */
 const hostileText = fc.oneof(
-  fc.string({ unit: 'binary', maxLength: 200 }),
+  anyCodeUnitsArb(200),
   fc
     .tuple(
-      fc.constantFrom('a', ' ', '​', '\u{E0041}', '\u{1F3F4}', '\r\n', '\uD800'),
+      fc.constantFrom(
+        'a',
+        ' ',
+        '\u200B',
+        '\u{E0041}',
+        '\u{1F3F4}',
+        '\r\n',
+        '\uD800', // lone high surrogate
+        '\uDC00', // lone low surrogate
+        '\uDC00\uD800' // a reversed pair: two lone surrogates
+      ),
       fc.integer({ min: 1, max: 20_000 })
     )
     .map(([unit, n]) => unit.repeat(n))
@@ -110,7 +120,7 @@ describe('hostile input properties', () => {
   it('one tool with 150,000 findings crashes the security scan [known gap]', async () => {
     // runSecurityChecks spreads one tool's results into results.push(...)
     const properties = Object.fromEntries(
-      Array.from({ length: 150_000 }, (_, i) => [`p${i}`, { description: 'x​y' }])
+      Array.from({ length: 150_000 }, (_, i) => [`p${i}`, { description: 'x\u200By' }])
     );
     const tool = { name: 't', inputSchema: { type: 'object', properties } };
     const connection = {

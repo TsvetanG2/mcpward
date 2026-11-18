@@ -11,12 +11,26 @@ import {
   canonicalJson,
 } from '../../src/surface/canonical.js';
 import { hashDescription } from '../../src/surface/capture.js';
-import { FC_PARAMS, descriptionArb, inputSchemaArb, reformat, reorder } from './arbitraries.js';
+import {
+  FC_PARAMS,
+  anyCodeUnitsArb,
+  descriptionArb,
+  inputSchemaArb,
+  reformat,
+  reorder,
+} from './arbitraries.js';
 
 /** Any string, including astral characters, lone surrogates and control characters. */
-const anyText = fc.oneof(fc.string({ unit: 'binary' }), descriptionArb);
+const anyText = fc.oneof(anyCodeUnitsArb(), descriptionArb);
 
 describe('canonicalization properties', () => {
+  it('the text arbitrary produces lone high and low surrogates', () => {
+    const samples = fc.sample(anyCodeUnitsArb(), { seed: FC_PARAMS.seed, numRuns: 500 });
+    const all = samples.join('');
+    expect(all).toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/);
+    expect(all).toMatch(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/);
+  });
+
   it('canonicalizing a description twice changes nothing', () => {
     fc.assert(
       fc.property(anyText, (text) => {
@@ -58,7 +72,14 @@ describe('canonicalization properties', () => {
   });
 
   it('invisible characters survive canonicalization (they are the attack, not formatting)', () => {
-    const invisible = fc.constantFrom('​', '‍', '‮', '⁠', '﻿', '\u{E0041}');
+    const invisible = fc.constantFrom(
+      '\u200B',
+      '\u200D',
+      '\u202E',
+      '\u2060',
+      '\uFEFF',
+      '\u{E0041}'
+    );
     fc.assert(
       fc.property(descriptionArb, invisible, fc.nat(), (text, char, at) => {
         const i = at % (text.length + 1);
