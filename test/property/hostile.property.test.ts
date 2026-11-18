@@ -17,6 +17,9 @@ import { FC_PARAMS, anyCodeUnitsArb, inputSchemaArb, surfaceOf } from './arbitra
 /** Per-input budget. Generous: CI runners are slow, and the point is "not quadratic or stuck". */
 const BUDGET_MS = 2000;
 
+/** Hostile inputs are slow to build: 50 runs by default, but an explicit FC_NUM_RUNS wins. */
+const HOSTILE_PARAMS = process.env.FC_NUM_RUNS ? FC_PARAMS : { ...FC_PARAMS, numRuns: 50 };
+
 /** Strings a server may send: any code units (lone surrogates too), long runs, tag characters. */
 const hostileText = fc.oneof(
   anyCodeUnitsArb(200),
@@ -91,7 +94,7 @@ describe('hostile input properties', () => {
       fc.property(hostileToolArb, (tool) => {
         timed(() => checkToolSecurity(tool));
       }),
-      { ...FC_PARAMS, numRuns: Math.min(FC_PARAMS.numRuns ?? 100, 50) }
+      HOSTILE_PARAMS
     );
   });
 
@@ -103,7 +106,7 @@ describe('hostile input properties', () => {
         if (!captureOrReject(before) || !captureOrReject(after)) return;
         timed(() => diffSurfaces(surfaceOf([before]), surfaceOf([after])));
       }),
-      { ...FC_PARAMS, numRuns: Math.min(FC_PARAMS.numRuns ?? 100, 50) }
+      HOSTILE_PARAMS
     );
   });
 
