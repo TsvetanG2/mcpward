@@ -365,6 +365,15 @@ The baseline was captured with different credentials than the current run (crede
 **How to fix:**
 Capture the baseline and run the comparison with the same credentials, or keep one baseline per auth role.
 
+### drift/titles-not-compared
+
+**Severity:** warning
+
+The baseline was written before mcpward 1.3.0, which started capturing each tool's `title` and `annotations.title`. Titles cannot be compared against it, so a changed title would pass unnoticed. Everything else is still compared.
+
+**How to fix:**
+Re-run `mcpward baseline` (after reviewing that the current surface is the one you trust).
+
 ### drift/tool_removed
 
 **Severity:** low (info) — fails under the default `fail_on`

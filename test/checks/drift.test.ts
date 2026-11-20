@@ -280,7 +280,7 @@ describe('Drift Detection Integration', () => {
         // Should have a pass result indicating no drift
         const passResult = results.find((r) => r.id === 'drift/no-changes' && r.status === 'pass');
         expect(passResult).toBeDefined();
-        expect(passResult?.message).not.toContain('titles were not compared');
+        expect(results.find((r) => r.id === 'drift/titles-not-compared')).toBeUndefined();
       } finally {
         await v1Connection2.close();
       }
@@ -307,9 +307,11 @@ describe('Drift Detection Integration', () => {
           fullConfig: config,
           config: config.checks?.drift,
         });
-        const noChanges = results.find((r) => r.id === 'drift/no-changes');
-        expect(noChanges?.status).toBe('pass');
-        expect(noChanges?.message).toContain('titles were not compared');
+        expect(results.find((r) => r.id === 'drift/no-changes')?.status).toBe('pass');
+        // a warning, not a note on the pass result: the console and PR comment hide pass messages
+        const note = results.find((r) => r.id === 'drift/titles-not-compared');
+        expect(note?.status).toBe('warn');
+        expect(note?.message).toContain('titles were not compared');
       } finally {
         await v1Connection2.close();
       }

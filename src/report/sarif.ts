@@ -133,6 +133,7 @@ function getShortDescription(ruleId: string): string {
     'drift/nonbreaking_output_shape_change': 'Non-breaking output shape change (inferred)',
     'drift/output-sampling': 'Output sampling notice',
     'drift/auth-context-mismatch': 'Baseline captured under a different auth context',
+    'drift/titles-not-compared': 'Baseline predates title capture; titles not compared',
     'collision/description-collision': 'Description collision (tool selection hazard)',
     'collision/summary': 'Description collision lint summary',
   };

@@ -12,6 +12,7 @@ Since `1.0.0`, the public contract described in [`docs/stability.md`](docs/stabi
 
 - **New drift class `annotation_relaxed`** (medium, not in the default `fail_on`): a tool hint now claims a safer tool — `readOnlyHint` false→true, `destructiveHint` true→false or `openWorldHint` true→false. These changes passed silently. A tool that tells clients "I am harmless now" after you reviewed it is on the path to auto-approval, so it is reported as a warning.
 - **New drift class `idempotency_changed`** (medium, non-breaking, not in the default `fail_on`): a tool's `idempotentHint` changed, in either direction. true→false means a retried call may now repeat its effects; false→true means the tool now claims retries are harmless. A retry risk, not a data risk, so it is a warning of its own instead of part of `annotation_changed`.
+- **New rule id `drift/titles-not-compared`** (warning): the baseline was written before 1.3.0, so tool titles are not compared against it. Re-run `mcpward baseline` to clear it.
 
 ### Changed
 
@@ -35,7 +36,7 @@ Checks get better ([`docs/stability.md`](docs/stability.md)); three effects to e
 
 Review each finding; if the change is intended, re-baseline. Pin the mcpward version and upgrade deliberately.
 
-Run `mcpward baseline` again to start tracking tool titles; older baselines skip title comparison (the drift summary says so). Older mcpward versions read the new lockfile fields without error.
+Run `mcpward baseline` again to start tracking tool titles; older baselines skip title comparison, and a `drift/titles-not-compared` warning says so. Older mcpward versions read the new lockfile fields without error.
 
 ## [1.2.1] — 2026-11-18
 
