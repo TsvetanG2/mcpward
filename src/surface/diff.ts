@@ -817,8 +817,13 @@ function diffSchemaNode(
   ) {
     diffSubschema(baseItems, currItems, itemsPath, depth, emit, currRoot);
   } else if (baseItems === undefined && currItems !== undefined) {
-    diffSchemaText({}, asSchema(currItems) ?? {}, `property "${itemsPath}" `, emit);
-    const reason = newHostility('allOf', [true], [currItems], itemsPath, currRoot);
+    // A draft-07 tuple is a list of schemas, one per position
+    const added = Array.isArray(currItems) ? (currItems as unknown[]) : [currItems];
+    added.forEach((item, i) => {
+      const p = Array.isArray(currItems) ? `${path}[${i}]` : itemsPath;
+      diffSchemaText({}, asSchema(item) ?? {}, `property "${p}" `, emit);
+    });
+    const reason = newHostility('allOf', [true], added, itemsPath, currRoot);
     emit(
       'breaking_schema_change',
       `property "${itemsPath}" items constraint added${reason ? ` — ${reason}` : ''}`,
@@ -912,7 +917,8 @@ function suspiciousNewInput(
 
 /**
  * Text the model reads on each parameter: `description`, `title` and `$comment` strings, and
- * every string inside `default`, `examples` and `x-*` values (diffSchemaText's keywords).
+ * every string inside `default`, `examples` and `x-*` values, object keys included
+ * (diffSchemaText's keywords).
  */
 function collectModelText(
   params: ReturnType<typeof walkParams>
@@ -933,8 +939,10 @@ function collectModelText(
         const v = stack.pop();
         if (typeof v === 'string') out.push({ path, keyword, text: v });
         // No spread: an argument list overflows on a large array (RangeError)
+        else if (Array.isArray(v)) for (const x of v) stack.push(x);
+        // A key is read by the model as much as a value is
         else if (v !== null && typeof v === 'object')
-          for (const x of Object.values(v)) stack.push(x);
+          for (const [k, x] of Object.entries(v)) stack.push(k, x);
       }
     }
   }
