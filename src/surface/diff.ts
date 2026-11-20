@@ -31,7 +31,6 @@ import type {
 import { canonicalizeSchema, canonicalJson, canonicalizeDescription } from './canonical.js';
 import { diffOutputShapes } from './output-shape.js';
 import {
-  collectParamDescriptions,
   findInjectionPatterns,
   findSuspiciousUnicode,
   isSchemaResource,
@@ -629,11 +628,20 @@ function diffSchemaNode(
     );
     // open ⊃ schema ⊃ closed
     const rank = { open: 2, schema: 1, closed: 0 } as const;
+    // A schema that arrives here can bring in hostile fields or text, as a new property can
+    const reason = newHostility(
+      'allOf',
+      [base.additionalProperties ?? true],
+      [curr.additionalProperties ?? true],
+      `${path}{}`,
+      currRoot
+    );
     emit(
       rank[currAdd] < rank[baseAdd] ? 'breaking_schema_change' : 'nonbreaking_schema_change',
-      `${subject}additionalProperties ${baseAdd} → ${currAdd}`,
+      `${subject}additionalProperties ${baseAdd} → ${currAdd}${reason ? ` — ${reason}` : ''}`,
       base.additionalProperties,
-      curr.additionalProperties
+      curr.additionalProperties,
+      reason ? 'high' : undefined
     );
   }
 
@@ -810,11 +818,13 @@ function diffSchemaNode(
     diffSubschema(baseItems, currItems, itemsPath, depth, emit, currRoot);
   } else if (baseItems === undefined && currItems !== undefined) {
     diffSchemaText({}, asSchema(currItems) ?? {}, `property "${itemsPath}" `, emit);
+    const reason = newHostility('allOf', [true], [currItems], itemsPath, currRoot);
     emit(
       'breaking_schema_change',
-      `property "${itemsPath}" items constraint added`,
+      `property "${itemsPath}" items constraint added${reason ? ` — ${reason}` : ''}`,
       undefined,
-      currItems
+      currItems,
+      reason ? 'high' : undefined
     );
   } else if (baseItems !== undefined && currItems === undefined) {
     diffSchemaText(asSchema(baseItems) ?? {}, {}, `property "${itemsPath}" `, emit);
@@ -889,15 +899,46 @@ function suspiciousNewInput(
   const params = walkParams(root, currRoot);
   const secret = params.find((p) => p.name !== undefined && isSecretField(p.name));
   if (secret) return `"${at(secret.path)}" solicits a secret`;
-  for (const { path: p, description } of collectParamDescriptions(root, currRoot)) {
-    if (findInjectionPatterns(description).length > 0) {
-      return `"${at(p)}" description contains injection-like phrasing`;
+  for (const { path: p, keyword, text } of collectModelText(params)) {
+    if (findInjectionPatterns(text).length > 0) {
+      return `"${at(p)}" ${keyword} contains injection-like phrasing`;
     }
-    if (findSuspiciousUnicode(description).length > 0) {
-      return `"${at(p)}" description contains hidden unicode`;
+    if (findSuspiciousUnicode(text).length > 0) {
+      return `"${at(p)}" ${keyword} contains hidden unicode`;
     }
   }
   return undefined;
+}
+
+/**
+ * Text the model reads on each parameter: `description`, `title` and `$comment` strings, and
+ * every string inside `default`, `examples` and `x-*` values (diffSchemaText's keywords).
+ */
+function collectModelText(
+  params: ReturnType<typeof walkParams>
+): { path: string; keyword: string; text: string }[] {
+  const out: { path: string; keyword: string; text: string }[] = [];
+  for (const { path, schema } of params) {
+    if (!schema) continue;
+    for (const keyword of ['description', 'title', '$comment']) {
+      const v = schema[keyword];
+      if (typeof v === 'string' && v !== '') out.push({ path, keyword, text: v });
+    }
+    const values = Object.keys(schema).filter(
+      (k) => k === 'default' || k === 'examples' || k.startsWith('x-')
+    );
+    for (const keyword of values) {
+      const stack: unknown[] = [schema[keyword]];
+      while (stack.length > 0) {
+        const v = stack.pop();
+        if (typeof v === 'string') out.push({ path, keyword, text: v });
+        // No spread: an argument list overflows on a large array (RangeError)
+        else if (v !== null && typeof v === 'object')
+          for (const x of Object.values(v)) stack.push(x);
+      }
+    }
+  }
+  return out;
 }
 
 /** Every hostile-looking parameter reached through `{ [key]: value }`, as reasons. */
@@ -919,12 +960,12 @@ function hostileFindings(
       found.add(`"${at(p.path)}" solicits a secret`);
     }
   }
-  for (const { path: p, description } of collectParamDescriptions(root, currRoot)) {
-    if (findInjectionPatterns(description).length > 0) {
-      found.add(`"${at(p)}" description contains injection-like phrasing`);
+  for (const { path: p, keyword, text } of collectModelText(walkParams(root, currRoot))) {
+    if (findInjectionPatterns(text).length > 0) {
+      found.add(`"${at(p)}" ${keyword} contains injection-like phrasing`);
     }
-    if (findSuspiciousUnicode(description).length > 0) {
-      found.add(`"${at(p)}" description contains hidden unicode`);
+    if (findSuspiciousUnicode(text).length > 0) {
+      found.add(`"${at(p)}" ${keyword} contains hidden unicode`);
     }
   }
   return found;

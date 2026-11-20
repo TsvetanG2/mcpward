@@ -84,13 +84,13 @@ describe('text keywords are description_changed at every level', () => {
       'additionalProperties false → schema',
       { additionalProperties: false },
       { additionalProperties: { title: HOSTILE } },
-      'nonbreaking_schema_change/low',
+      'nonbreaking_schema_change/high',
     ],
     [
       'additionalProperties open → schema',
       {},
       { additionalProperties: { title: HOSTILE } },
-      'breaking_schema_change/medium',
+      'breaking_schema_change/high',
     ],
     [
       'additionalProperties schema → closed',
@@ -98,7 +98,7 @@ describe('text keywords are description_changed at every level', () => {
       { additionalProperties: false },
       'breaking_schema_change/medium',
     ],
-    ['items added', {}, { items: { title: HOSTILE } }, 'breaking_schema_change/medium'],
+    ['items added', {}, { items: { title: HOSTILE } }, 'breaking_schema_change/high'],
     ['items removed', { items: { description: HOSTILE } }, {}, 'nonbreaking_schema_change/low'],
   ])('text arriving or leaving with %s is reported too', (_case, before, after, shape) => {
     const at = (s: object): JsonSchema => ({
@@ -186,6 +186,43 @@ describe('NEGATIVE: formatting and data stay quiet', () => {
       required: r,
     });
     expect(schemaClasses(at(['a', 'b']), at(['b', 'a']))).toEqual([]);
+  });
+});
+
+describe('hostile text inside NEW structure escalates the finding to high', () => {
+  const o = (a: unknown): JsonSchema => ({ type: 'object', properties: { a } }) as JsonSchema;
+  const nested = (k: string, v: unknown) => ({ type: 'object', properties: { b: { [k]: v } } });
+
+  it.each([
+    ['title', HOSTILE],
+    ['$comment', HOSTILE],
+    ['default', HOSTILE],
+    ['examples', [HOSTILE]],
+    ['x-hint', { note: [HOSTILE] }],
+    ['description', HOSTILE],
+  ])('%s two levels down', (k, v) => {
+    // a new optional field
+    expect(classes({ inputSchema: o(undefined) }, { inputSchema: o(nested(k, v)) })).toEqual([
+      'input_property_added/high',
+    ]);
+    // a subschema that was `false`
+    expect(schemaClasses(o(false), o(nested(k, v)))).toEqual(['nonbreaking_schema_change/high']);
+    // additionalProperties that were closed
+    expect(
+      schemaClasses(
+        o({ type: 'object', additionalProperties: false }),
+        o({ type: 'object', additionalProperties: nested(k, v) })
+      )
+    ).toEqual(['nonbreaking_schema_change/high']);
+  });
+
+  it('NEGATIVE: benign text in new structure stays at the default severity', () => {
+    expect(schemaClasses(o(false), o(nested('title', 'Name')))).toEqual([
+      'nonbreaking_schema_change/low',
+    ]);
+    expect(
+      classes({ inputSchema: o(undefined) }, { inputSchema: o(nested('default', 'x')) })
+    ).toEqual(['input_property_added/medium']);
   });
 });
 

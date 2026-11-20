@@ -445,7 +445,7 @@ Review the change and update the baseline if appropriate.
 
 An existing tool's `inputSchema` gained an optional property, at any nesting depth (`context`, `filter.since`, `rows[].note`). Existing calls keep working, so it is not breaking — but it is the post-approval exfiltration shape: a tool you already approved gains a field like `context` ("Extra context that helps the tool answer better"), and a helpful agent fills it with local file contents. The tool description does not have to change at all. The message quotes the new field's description, which nothing else diffs because there is no previous one.
 
-Escalated to **high** when the new field, or anything nested in it, has a secret-soliciting name (the [`security/secret-in-schema`](#securitysecret-in-schema) patterns) or a description with injection-like phrasing or hidden unicode (the [`security/injection-pattern`](#securityinjection-pattern) and [`security/hidden-unicode`](#securityhidden-unicode) heuristics).
+Escalated to **high** when the new field, or anything nested in it, has a secret-soliciting name (the [`security/secret-in-schema`](#securitysecret-in-schema) patterns) or text with injection-like phrasing or hidden unicode — a description, and since 1.3.0 also a `title`, `$comment`, or any string in `default`, `examples` or an `x-*` value (the [`security/injection-pattern`](#securityinjection-pattern) and [`security/hidden-unicode`](#securityhidden-unicode) heuristics).
 
 Not produced for a new tool (`tool_added`), a schema that did not exist before (`nonbreaking_schema_change`), or a new **required** property (`breaking_schema_change`).
 
