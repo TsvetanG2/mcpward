@@ -29,12 +29,11 @@ Checks get better ([`docs/stability.md`](docs/stability.md)); three effects to e
 
 - **A server that adds annotations for the first time gets `annotation_relaxed` warnings** for every hint safer than its default (for example a new `readOnlyHint: true`), and `idempotency_changed` for a new `idempotentHint: true`. They do not fail CI with the default `fail_on`; with `fail_on: medium` or `low` they do.
 - **A server that removes `readOnlyHint: true` or `destructiveHint: false` now produces `annotation_changed` with high severity and fails CI by default.** Removing the hint widens the tool's authority exactly like flipping it, and was missed before. The same holds for `openWorldHint: false`. Removing `idempotentHint: true` produces `idempotency_changed`, a warning that does not fail CI by default.
-
 - **Schema text is now compared, so a passing CI run can turn red** when a schema's `title`, `default`, `examples`, `$comment`, `x-*` or root `description` changed since the baseline. These were false negatives.
 
 Review each finding; if the change is intended, re-baseline. Pin the mcpward version and upgrade deliberately.
 
-A baseline written by an older version has no titles: they are not compared against it, and the drift summary says so. Re-run `mcpward baseline` to include them. Older mcpward versions read the new lockfile fields without error.
+Run `mcpward baseline` again to start tracking tool titles; older baselines skip title comparison (the drift summary says so). Older mcpward versions read the new lockfile fields without error.
 
 ## [1.2.1] — 2026-11-18
 
