@@ -567,7 +567,7 @@ describe('diffSurfaces classifier', () => {
       ['openWorldHint true→absent', { openWorldHint: true }, null, []],
       ['idempotentHint absent→false', null, { idempotentHint: false }, []],
       ['no annotations → empty annotations', null, {}, []],
-      // destructive/idempotent mean nothing while the tool is read-only on both sides
+      // destructive/idempotent mean nothing for a read-only tool, on either side
       [
         'read-only tool drops destructiveHint: false',
         { readOnlyHint: true, destructiveHint: false },
@@ -579,6 +579,24 @@ describe('diffSurfaces classifier', () => {
         { readOnlyHint: true, idempotentHint: true },
         { readOnlyHint: true },
         [],
+      ],
+      [
+        'tool becomes read-only and drops destructiveHint: false (Augment, PR #105)',
+        { readOnlyHint: false, destructiveHint: false },
+        { readOnlyHint: true },
+        ['annotation_relaxed/medium'],
+      ],
+      [
+        'tool becomes read-only and drops idempotentHint: true',
+        { readOnlyHint: false, idempotentHint: true },
+        { readOnlyHint: true },
+        ['annotation_relaxed/medium'],
+      ],
+      [
+        'tool stops being read-only: only the readOnlyHint change, destructive defaults apply after',
+        { readOnlyHint: true, destructiveHint: false },
+        { readOnlyHint: false },
+        ['annotation_changed/high'],
       ],
       [
         'tool stops being read-only and gains destructiveHint: true',

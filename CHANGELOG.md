@@ -16,7 +16,7 @@ Since `1.0.0`, the public contract described in [`docs/stability.md`](docs/stabi
 ### Changed
 
 - **`annotation_changed` covers `openWorldHint`.** Besides `readOnlyHint` true→false and `destructiveHint` false→true, it now reports `openWorldHint` false→true (high): the tool may now reach external systems.
-- **Hints are compared as the MCP spec reads them.** An absent hint counts as its default (`readOnlyHint` false, `destructiveHint` true, `idempotentHint` false, `openWorldHint` true), so a hint that appears or disappears is classified like a flip. `destructiveHint` and `idempotentHint` are not compared while a tool is read-only on both sides, since they do not apply to it.
+- **Hints are compared as the MCP spec reads them.** An absent hint counts as its default (`readOnlyHint` false, `destructiveHint` true, `idempotentHint` false, `openWorldHint` true), so a hint that appears or disappears is classified like a flip. `destructiveHint` and `idempotentHint` are not compared while a tool is read-only on either side, since they do not apply to it.
 
 ### Upgrading
 
