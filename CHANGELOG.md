@@ -10,19 +10,20 @@ Since `1.0.0`, the public contract described in [`docs/stability.md`](docs/stabi
 
 ### Added
 
-- **New drift class `annotation_relaxed`** (medium, not in the default `fail_on`): a tool hint now claims a safer tool — `readOnlyHint` false→true, `destructiveHint` true→false, `openWorldHint` true→false or `idempotentHint` false→true. These changes passed silently. A tool that tells clients "I am harmless now" after you reviewed it is on the path to auto-approval, so it is reported as a warning.
+- **New drift class `annotation_relaxed`** (medium, not in the default `fail_on`): a tool hint now claims a safer tool — `readOnlyHint` false→true, `destructiveHint` true→false or `openWorldHint` true→false. These changes passed silently. A tool that tells clients "I am harmless now" after you reviewed it is on the path to auto-approval, so it is reported as a warning.
+- **New drift class `idempotency_changed`** (medium, non-breaking, not in the default `fail_on`): a tool's `idempotentHint` changed, in either direction. true→false means a retried call may now repeat its effects; false→true means the tool now claims retries are harmless. A retry risk, not a data risk, so it is a warning of its own instead of part of `annotation_changed`.
 
 ### Changed
 
-- **`annotation_changed` covers all four hints.** Besides `readOnlyHint` true→false and `destructiveHint` false→true, it now reports `openWorldHint` false→true (high) and `idempotentHint` true→false (**medium**: losing idempotency is a retry risk, not a data risk; a `severity` override for the class still wins).
+- **`annotation_changed` covers `openWorldHint`.** Besides `readOnlyHint` true→false and `destructiveHint` false→true, it now reports `openWorldHint` false→true (high): the tool may now reach external systems.
 - **Hints are compared as the MCP spec reads them.** An absent hint counts as its default (`readOnlyHint` false, `destructiveHint` true, `idempotentHint` false, `openWorldHint` true), so a hint that appears or disappears is classified like a flip. `destructiveHint` and `idempotentHint` are not compared while a tool is read-only on both sides, since they do not apply to it.
 
 ### Upgrading
 
 Checks get better ([`docs/stability.md`](docs/stability.md)); two effects to expect:
 
-- **A server that adds annotations for the first time gets `annotation_relaxed` warnings** for every hint safer than its default (for example a new `readOnlyHint: true`). They do not fail CI with the default `fail_on`; with `fail_on: medium` or `low` they do.
-- **A server that removes `readOnlyHint: true` or `destructiveHint: false` now produces `annotation_changed` with high severity and fails CI by default.** Removing the hint widens the tool's authority exactly like flipping it, and was missed before. The same holds for `openWorldHint: false` and, at medium, `idempotentHint: true`. Note that the default `fail_on` is a list of classes, so `idempotentHint` true→false fails with it too; with `fail_on: high` it is a warning.
+- **A server that adds annotations for the first time gets `annotation_relaxed` warnings** for every hint safer than its default (for example a new `readOnlyHint: true`), and `idempotency_changed` for a new `idempotentHint: true`. They do not fail CI with the default `fail_on`; with `fail_on: medium` or `low` they do.
+- **A server that removes `readOnlyHint: true` or `destructiveHint: false` now produces `annotation_changed` with high severity and fails CI by default.** Removing the hint widens the tool's authority exactly like flipping it, and was missed before. The same holds for `openWorldHint: false`. Removing `idempotentHint: true` produces `idempotency_changed`, a warning that does not fail CI by default.
 
 Review each finding; if the change is intended, re-baseline. Pin the mcpward version and upgrade deliberately.
 

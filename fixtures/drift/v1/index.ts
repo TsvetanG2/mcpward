@@ -12,6 +12,7 @@
  * - query: will gain an optional field in v2 → input_property_added
  * - read_data: readOnlyHint=true, will flip to false in v2 → annotation_changed
  * - fetch_page: openWorldHint=true, will flip to false in v2 → annotation_relaxed
+ * - retry_job: idempotentHint=true, will flip to false in v2 → idempotency_changed
  * - stable_tool: unchanged between versions → no drift
  */
 
@@ -126,6 +127,24 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
         annotations: {
           openWorldHint: true,
+        },
+      },
+      // idempotentHint will flip false in v2 → idempotency_changed
+      {
+        name: 'retry_job',
+        description: 'Retries a failed job.',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {
+            job_id: {
+              type: 'string',
+              description: 'Job id',
+            },
+          },
+          required: ['job_id'],
+        },
+        annotations: {
+          idempotentHint: true,
         },
       },
       // Unchanged between versions → no drift

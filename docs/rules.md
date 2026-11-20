@@ -300,11 +300,12 @@ Every change gets a **drift class** (what changed) and a **severity** (blast rad
 | Class                             | Default severity                         | In default `fail_on`                             |
 | --------------------------------- | ---------------------------------------- | ------------------------------------------------ |
 | `description_changed`             | high                                     | yes                                              |
-| `annotation_changed`              | high (medium for `idempotentHint`)       | yes                                              |
+| `annotation_changed`              | high                                     | yes                                              |
 | `breaking_schema_change`          | medium                                   | yes                                              |
 | `breaking_output_shape_change`    | medium                                   | yes (only produced when output drift is enabled) |
 | `input_property_added`            | medium (high if the field looks hostile) | no                                               |
 | `annotation_relaxed`              | medium                                   | no                                               |
+| `idempotency_changed`             | medium                                   | no                                               |
 | `tool_removed`                    | low                                      | yes                                              |
 | `tool_added`                      | low                                      | no                                               |
 | `nonbreaking_schema_change`       | low                                      | no                                               |
@@ -445,7 +446,7 @@ Check what the new field asks the model to send. If that is expected, update the
 
 ### drift/annotation_changed
 
-**Severity:** high (error); medium (warning) for `idempotentHint`
+**Severity:** high (error)
 
 A tool's annotations widened its authority. One finding per hint that now claims a riskier tool:
 
@@ -454,11 +455,8 @@ A tool's annotations widened its authority. One finding per hint that now claims
 | `readOnlyHint`    | true → false      | high     |
 | `destructiveHint` | false → true      | high     |
 | `openWorldHint`   | false → true      | high     |
-| `idempotentHint`  | true → false      | medium   |
 
-Clients use these hints to decide what to auto-approve. Values are compared as the MCP spec reads them: an absent hint counts as its default (`readOnlyHint` false, `destructiveHint` true, `idempotentHint` false, `openWorldHint` true), so a server that **removes** `readOnlyHint: true` or `destructiveHint: false` widens its authority just like one that flips it. `destructiveHint` and `idempotentHint` only apply to tools that are not read-only, so they are not compared while `readOnlyHint` is true on both sides.
-
-**Exception:** `idempotentHint` true → false is medium at the finding level, not high. Losing idempotency is a risk for retries, not for data. This is the same mechanism as the high escalation of `input_property_added`, in the other direction. A `severity` override for `annotation_changed` still wins. The class stays in the default `fail_on` list, and a list matches by class, so with the default list this change still fails; with `fail_on: high` it is a warning.
+Clients use these hints to decide what to auto-approve. Values are compared as the MCP spec reads them: an absent hint counts as its default (`readOnlyHint` false, `destructiveHint` true, `openWorldHint` true), so a server that **removes** `readOnlyHint: true` or `destructiveHint: false` widens its authority just like one that flips it. `destructiveHint` only applies to tools that are not read-only, so it is not compared while `readOnlyHint` is true on both sides. `idempotentHint` has its own class, `drift/idempotency_changed`.
 
 **How to fix:**
 Review the annotation change. If a tool is now destructive or reaches external systems, clients may need to update their handling.
@@ -467,10 +465,19 @@ Review the annotation change. If a tool is now destructive or reaches external s
 
 **Severity:** medium (warning)
 
-A tool's annotations now claim a safer tool: `readOnlyHint` false → true, `destructiveHint` true → false, `openWorldHint` true → false or `idempotentHint` false → true, with absent hints read as their defaults (see `drift/annotation_changed`). Not breaking, but "I am harmless now" is exactly what clients auto-approve, so a tool that claims it after you reviewed it deserves a look. A server that adds annotations for the first time gets these warnings for every hint that is safer than its default. Not in the default `fail_on`.
+A tool's annotations now claim a safer tool: `readOnlyHint` false → true, `destructiveHint` true → false or `openWorldHint` true → false, with absent hints read as their defaults (see `drift/annotation_changed`). Not breaking, but "I am harmless now" is exactly what clients auto-approve, so a tool that claims it after you reviewed it deserves a look. A server that adds annotations for the first time gets these warnings for every hint that is safer than its default. Not in the default `fail_on`.
 
 **How to fix:**
 Check that the tool really changed its behavior. If the claim is right, re-baseline. To fail CI on it, use `fail_on: medium` or add `annotation_relaxed` to a `fail_on` list.
+
+### drift/idempotency_changed
+
+**Severity:** medium (warning)
+
+A tool's `idempotentHint` changed, in either direction. An absent hint counts as false, its MCP default. true → false means a retried call may now repeat its effects; false → true means the tool now claims retries are harmless, which a client may use to retry automatically. Losing or gaining idempotency is a risk for retries, not for data, so it has its own non-breaking class instead of `annotation_changed`. Like `destructiveHint`, it is not compared while `readOnlyHint` is true on both sides. Not in the default `fail_on`.
+
+**How to fix:**
+Check that the tool's retry behavior really changed. If it did, re-baseline. To fail CI on it, use `fail_on: medium` or add `idempotency_changed` to a `fail_on` list.
 
 ### drift/breaking_output_shape_change
 

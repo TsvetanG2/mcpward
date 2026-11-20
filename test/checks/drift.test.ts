@@ -85,6 +85,7 @@ describe('Drift Detection Integration', () => {
           'query',
           'read_data',
           'removed_tool',
+          'retry_job',
           'stable_tool',
         ]);
 
@@ -112,6 +113,7 @@ describe('Drift Detection Integration', () => {
           'fetch_page',
           'query',
           'read_data',
+          'retry_job',
           'stable_tool',
         ]);
 
@@ -164,6 +166,7 @@ describe('Drift Detection Integration', () => {
       expect(classes).toContain('input_property_added'); // query got new optional field
       expect(classes).toContain('annotation_changed'); // read_data readOnlyHint flipped
       expect(classes).toContain('annotation_relaxed'); // fetch_page openWorldHint true→false
+      expect(classes).toContain('idempotency_changed'); // retry_job idempotentHint true→false
 
       // Verify specific tools
       const toolRemoved = diff.changes.find((c) => c.class === 'tool_removed');
@@ -180,6 +183,13 @@ describe('Drift Detection Integration', () => {
 
       const annotRelaxed = diff.changes.filter((c) => c.class === 'annotation_relaxed');
       expect(annotRelaxed.map((c) => c.tool)).toEqual(['fetch_page']);
+
+      const idempotency = diff.changes.filter((c) => c.class === 'idempotency_changed');
+      expect(idempotency.map((c) => c.tool)).toEqual(['retry_job']);
+      // idempotentHint never lands in annotation_changed, so it never fails the default fail_on
+      expect(
+        diff.changes.filter((c) => c.class === 'annotation_changed').map((c) => c.tool)
+      ).toEqual(['read_data']);
     }, 60000);
   });
 
@@ -226,6 +236,10 @@ describe('Drift Detection Integration', () => {
         const relaxed = results.find((r) => r.id === 'drift/annotation_relaxed');
         expect(relaxed?.status).toBe('warn');
         expect(relaxed?.severity).toBe('warning');
+        expect(failingIds).not.toContain('drift/idempotency_changed');
+        const idempotency = results.find((r) => r.id === 'drift/idempotency_changed');
+        expect(idempotency?.status).toBe('warn');
+        expect(idempotency?.severity).toBe('warning');
       } finally {
         await v2Connection.close();
       }

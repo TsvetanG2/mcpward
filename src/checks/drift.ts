@@ -62,7 +62,8 @@ function changeToResult(change: DriftChange, shouldFail: boolean): CheckResult {
     baseSeverity === 'error' ||
     change.class === 'input_property_added' ||
     change.class === 'annotation_changed' ||
-    change.class === 'annotation_relaxed';
+    change.class === 'annotation_relaxed' ||
+    change.class === 'idempotency_changed';
 
   return {
     id: `drift/${change.class}`,
