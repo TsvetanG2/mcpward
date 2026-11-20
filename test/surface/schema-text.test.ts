@@ -79,6 +79,35 @@ describe('text keywords are description_changed at every level', () => {
     );
   });
 
+  it.each([
+    [
+      'additionalProperties false → schema',
+      { additionalProperties: false },
+      { additionalProperties: { title: HOSTILE } },
+      'nonbreaking_schema_change/low',
+    ],
+    [
+      'additionalProperties open → schema',
+      {},
+      { additionalProperties: { title: HOSTILE } },
+      'breaking_schema_change/medium',
+    ],
+    [
+      'additionalProperties schema → closed',
+      { additionalProperties: { default: HOSTILE } },
+      { additionalProperties: false },
+      'breaking_schema_change/medium',
+    ],
+    ['items added', {}, { items: { title: HOSTILE } }, 'breaking_schema_change/medium'],
+    ['items removed', { items: { description: HOSTILE } }, {}, 'nonbreaking_schema_change/low'],
+  ])('text arriving or leaving with %s is reported too', (_case, before, after, shape) => {
+    const at = (s: object): JsonSchema => ({
+      type: 'object',
+      properties: { a: { type: 'object', ...s } },
+    });
+    expect(schemaClasses(at(before), at(after))).toEqual(['description_changed/high', shape]);
+  });
+
   it('text arriving with a switch from `true` to an object schema is reported too', () => {
     expect(
       schemaClasses(
