@@ -13,7 +13,9 @@
  * | Added required field / removed field / narrowed type | breaking_schema_change | yes |
  * | Added optional input field on an existing tool | input_property_added | no |
  * | Widened type / loosened constraint | nonbreaking_schema_change | no |
- * | readOnlyHint true→false or destructiveHint false→true | annotation_changed | yes |
+ * | A hint now claims a riskier tool (readOnlyHint true→false, destructiveHint false→true,
+ * |   openWorldHint false→true, idempotentHint true→false) | annotation_changed | yes |
+ * | A hint now claims a safer tool (the reverse of each) | annotation_relaxed | no |
  */
 
 import type {
@@ -60,9 +62,15 @@ function getDefaultSeverity(driftClass: DriftClass): DriftSeverity {
       return 'high';
 
     case 'annotation_changed':
-      // readOnlyHint true→false or destructiveHint false→true
-      // Changes what a client auto-approves - silent authority increase
+      // A hint now claims a riskier tool (readOnlyHint true→false, ...).
+      // Changes what a client auto-approves - silent authority increase.
+      // idempotentHint true→false is lowered to medium in diffAnnotations.
       return 'high';
+
+    case 'annotation_relaxed':
+      // A hint now claims a safer tool (readOnlyHint false→true, ...). Not breaking, but
+      // "I am harmless now" is how a tool gets auto-approved.
+      return 'medium';
 
     case 'breaking_schema_change':
       // New required field, removed field, narrowed type
@@ -1107,12 +1115,64 @@ function diffDescription(before: unknown, after: unknown, subject: string, emit:
   emit('description_changed', `${subject}${what} (possible rug-pull)`, before, after);
 }
 
+type HintName = 'readOnlyHint' | 'destructiveHint' | 'idempotentHint' | 'openWorldHint';
+
 /**
- * Compares tool annotations for security-relevant changes.
+ * The four MCP tool hints: the value the MCP spec assumes when a hint is absent, the value that
+ * claims the riskier tool, and what each direction means. destructiveHint and idempotentHint
+ * only mean something when the tool is not read-only.
+ */
+const HINTS: readonly {
+  name: HintName;
+  absent: boolean;
+  riskier: boolean;
+  riskierMeaning: string;
+  saferMeaning: string;
+}[] = [
+  {
+    name: 'readOnlyHint',
+    absent: false,
+    riskier: false,
+    riskierMeaning: 'tool may now mutate state',
+    saferMeaning: 'tool now claims to be read-only',
+  },
+  {
+    name: 'destructiveHint',
+    absent: true,
+    riskier: true,
+    riskierMeaning: 'tool may now destroy data',
+    saferMeaning: 'tool now claims to be non-destructive',
+  },
+  {
+    name: 'idempotentHint',
+    absent: false,
+    riskier: false,
+    riskierMeaning: 'repeated calls may now have additional effects',
+    saferMeaning: 'tool now claims repeated calls are harmless',
+  },
+  {
+    name: 'openWorldHint',
+    absent: true,
+    riskier: true,
+    riskierMeaning: 'tool may now reach external entities',
+    saferMeaning: 'tool now claims to stay within its own domain',
+  },
+];
+
+function showHint(value: boolean | undefined, absent: boolean): string {
+  return value === undefined ? `absent (means ${absent})` : String(value);
+}
+
+/**
+ * Compares tool annotations in both directions, on effective values: an absent hint counts as
+ * the value the MCP spec assumes for it, so a hint that appears or disappears is classified too.
  *
- * Breaking annotation changes:
- * - readOnlyHint: true → false (tool became destructive)
- * - destructiveHint: false → true (tool became destructive)
+ * - A hint now claims a riskier tool → annotation_changed (high; medium for idempotentHint,
+ *   which is a retry risk, not a data risk).
+ * - A hint now claims a safer tool → annotation_relaxed (medium): the path to auto-approval.
+ *
+ * destructiveHint and idempotentHint are compared only when the tool is not read-only on both
+ * sides; a readOnlyHint change is reported on its own.
  */
 function diffAnnotations(
   toolName: string,
@@ -1120,35 +1180,28 @@ function diffAnnotations(
   current: ToolSurface['annotations']
 ): DriftChange[] {
   const changes: DriftChange[] = [];
+  const readOnlyBoth = (baseline?.readOnlyHint ?? false) && (current?.readOnlyHint ?? false);
 
-  const baselineReadOnly = baseline?.readOnlyHint;
-  const currentReadOnly = current?.readOnlyHint;
-  const baselineDestructive = baseline?.destructiveHint;
-  const currentDestructive = current?.destructiveHint;
+  for (const hint of HINTS) {
+    if (readOnlyBoth && (hint.name === 'destructiveHint' || hint.name === 'idempotentHint')) {
+      continue;
+    }
+    const before = baseline?.[hint.name];
+    const after = current?.[hint.name];
+    if ((before ?? hint.absent) === (after ?? hint.absent)) continue;
 
-  // readOnlyHint: true → false is concerning (tool became potentially mutating)
-  if (baselineReadOnly === true && currentReadOnly === false) {
-    const driftClass: DriftClass = 'annotation_changed';
+    const riskier = (after ?? hint.absent) === hint.riskier;
+    const driftClass: DriftClass = riskier ? 'annotation_changed' : 'annotation_relaxed';
+    const severity =
+      riskier && hint.name === 'idempotentHint' ? 'medium' : getDefaultSeverity(driftClass);
+    const meaning = riskier ? hint.riskierMeaning : hint.saferMeaning;
     changes.push({
       tool: toolName,
       class: driftClass,
-      severity: getDefaultSeverity(driftClass),
-      message: `Tool "${toolName}" readOnlyHint changed from true to false (tool may now mutate state)`,
-      previous: { readOnlyHint: true },
-      current: { readOnlyHint: false },
-    });
-  }
-
-  // destructiveHint: false → true is concerning (tool became destructive)
-  if (baselineDestructive === false && currentDestructive === true) {
-    const driftClass: DriftClass = 'annotation_changed';
-    changes.push({
-      tool: toolName,
-      class: driftClass,
-      severity: getDefaultSeverity(driftClass),
-      message: `Tool "${toolName}" destructiveHint changed from false to true (tool became destructive)`,
-      previous: { destructiveHint: false },
-      current: { destructiveHint: true },
+      severity,
+      message: `Tool "${toolName}" ${hint.name} changed from ${showHint(before, hint.absent)} to ${showHint(after, hint.absent)} (${meaning})`,
+      previous: { [hint.name]: before ?? null },
+      current: { [hint.name]: after ?? null },
     });
   }
 

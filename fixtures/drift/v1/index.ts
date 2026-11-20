@@ -11,6 +11,7 @@
  * - compute: will gain a required field in v2 → breaking_schema_change
  * - query: will gain an optional field in v2 → input_property_added
  * - read_data: readOnlyHint=true, will flip to false in v2 → annotation_changed
+ * - fetch_page: openWorldHint=true, will flip to false in v2 → annotation_relaxed
  * - stable_tool: unchanged between versions → no drift
  */
 
@@ -107,6 +108,24 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
         annotations: {
           readOnlyHint: true,
+        },
+      },
+      // openWorldHint will flip false in v2 → annotation_relaxed
+      {
+        name: 'fetch_page',
+        description: 'Fetches a web page.',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {
+            url: {
+              type: 'string',
+              description: 'Page URL',
+            },
+          },
+          required: ['url'],
+        },
+        annotations: {
+          openWorldHint: true,
         },
       },
       // Unchanged between versions → no drift

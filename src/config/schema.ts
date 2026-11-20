@@ -32,6 +32,7 @@ export const DRIFT_CLASSES = [
   'nonbreaking_schema_change',
   'input_property_added',
   'annotation_changed',
+  'annotation_relaxed',
   'breaking_output_shape_change',
   'nonbreaking_output_shape_change',
 ] as const;
@@ -83,7 +84,8 @@ const DriftConfigSchema = z
      * Severity is based on blast radius, NOT whether it breaks:
      * - high: silent security changes (description_changed, annotation_changed)
      * - medium: loud schema breaks (breaking_schema_change), new optional input fields
-     *   (input_property_added; high when the field looks hostile)
+     *   (input_property_added; high when the field looks hostile), a hint that now claims a
+     *   safer tool (annotation_relaxed), idempotentHint true→false (annotation_changed)
      * - low: visible changes (tool_added, tool_removed, nonbreaking_schema_change)
      *
      * Added optional input fields were `nonbreaking_schema_change` before 1.2.0. A list that
