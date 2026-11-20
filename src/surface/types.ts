@@ -25,11 +25,21 @@ export interface ToolSurface {
   /** Canonical outputSchema if present */
   outputSchema: JsonSchema | null;
 
-  /** Tool annotations */
-  annotations: Pick<
-    ToolAnnotations,
-    'readOnlyHint' | 'destructiveHint' | 'idempotentHint' | 'openWorldHint'
-  > | null;
+  /**
+   * Canonical tool-level `title`, null when the tool has none. Absent in lockfiles written
+   * before 1.3.0: tool and annotation titles are then not compared (optional, additive).
+   */
+  title?: string | null;
+
+  /** Tool annotations; `title` is canonical text (captured since 1.3.0). */
+  annotations:
+    | (Pick<
+        ToolAnnotations,
+        'readOnlyHint' | 'destructiveHint' | 'idempotentHint' | 'openWorldHint'
+      > & {
+        title?: string;
+      })
+    | null;
 
   /**
    * Output shape inferred from real tool calls (M3).

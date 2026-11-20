@@ -37,6 +37,8 @@ export interface ToolAnnotations {
 
 export interface Tool {
   name: string;
+  /** Human-readable display name (MCP 2025-06-18+); some clients show it to the model. */
+  title?: string;
   description?: string;
   inputSchema?: JsonSchema;
   outputSchema?: JsonSchema;

@@ -84,6 +84,10 @@ export function captureToolSurface(tool: Tool, fullText = true): ToolSurface {
   return {
     descriptionHash: hashDescription(tool.description),
     description,
+    title:
+      typeof tool.title === 'string' && tool.title !== ''
+        ? canonicalizeDescription(tool.title)
+        : null,
     // Store canonical forms to avoid false drift from key order, etc.
     inputSchema: canonicalizeSchema(inputSchema),
     outputSchema: canonicalizeSchema(outputSchema),
@@ -93,6 +97,10 @@ export function captureToolSurface(tool: Tool, fullText = true): ToolSurface {
           destructiveHint: tool.annotations.destructiveHint,
           idempotentHint: tool.annotations.idempotentHint,
           openWorldHint: tool.annotations.openWorldHint,
+          title:
+            typeof tool.annotations.title === 'string'
+              ? canonicalizeDescription(tool.annotations.title)
+              : undefined,
         }
       : null,
   };
