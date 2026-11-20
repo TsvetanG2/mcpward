@@ -128,6 +128,34 @@ describe('flags are nonbreaking_schema_change (low) at every level', () => {
       'nonbreaking_schema_change/low',
     ]);
   });
+
+  it.each(['not', 'if', 'oneOf'])(
+    'stay low in a definition used under %s (they do not change accepted values)',
+    (keyword) => {
+      const at = (flag: boolean): JsonSchema => ({
+        type: 'object',
+        $defs: { D: { type: 'string', deprecated: flag } },
+        properties: {
+          a:
+            keyword === 'oneOf'
+              ? { oneOf: [{ $ref: '#/$defs/D' }] }
+              : { [keyword]: { $ref: '#/$defs/D' } },
+        },
+      });
+      expect(schemaClasses(at(false), at(true))).toEqual(['nonbreaking_schema_change/low']);
+    }
+  );
+
+  it('NEGATIVE: a real widening in such a definition is still breaking', () => {
+    const at = (type: unknown): JsonSchema => ({
+      type: 'object',
+      $defs: { D: { type } },
+      properties: { a: { not: { $ref: '#/$defs/D' } } },
+    });
+    expect(schemaClasses(at('string'), at(['string', 'number']))).toEqual([
+      'breaking_schema_change/medium',
+    ]);
+  });
 });
 
 describe('NEGATIVE: formatting and data stay quiet', () => {
