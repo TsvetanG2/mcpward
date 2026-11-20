@@ -216,6 +216,20 @@ describe('hostile text inside NEW structure escalates the finding to high', () =
     ).toEqual(['nonbreaking_schema_change/high']);
   });
 
+  it('a hostile KEY inside a new default is read too', () => {
+    expect(
+      classes({ inputSchema: o(undefined) }, { inputSchema: o({ default: { [HOSTILE]: true } }) })
+    ).toEqual(['input_property_added/high']);
+  });
+
+  it('a draft-07 tuple added as items: each position is compared and read', () => {
+    const at = (items?: unknown): JsonSchema => o({ type: 'array', ...(items ? { items } : {}) });
+    expect(schemaClasses(at(), at([{ type: 'string' }, { title: HOSTILE }]))).toEqual([
+      'description_changed/high',
+      'breaking_schema_change/high',
+    ]);
+  });
+
   it('NEGATIVE: benign text in new structure stays at the default severity', () => {
     expect(schemaClasses(o(false), o(nested('title', 'Name')))).toEqual([
       'nonbreaking_schema_change/low',
