@@ -1176,8 +1176,9 @@ function showHint(value: boolean | undefined, absent: boolean): string {
  * - idempotentHint changed, either direction → idempotency_changed (medium): a retry risk,
  *   not a data risk.
  *
- * destructiveHint and idempotentHint are compared only when the tool is not read-only on both
- * sides; a readOnlyHint change is reported on its own.
+ * destructiveHint and idempotentHint only apply to a tool that is not read-only, so they are
+ * compared only when it is not read-only on either side: a tool that becomes read-only and drops
+ * its destructiveHint is a safer claim, reported once as the readOnlyHint change.
  */
 function diffAnnotations(
   toolName: string,
@@ -1185,10 +1186,10 @@ function diffAnnotations(
   current: ToolSurface['annotations']
 ): DriftChange[] {
   const changes: DriftChange[] = [];
-  const readOnlyBoth = (baseline?.readOnlyHint ?? false) && (current?.readOnlyHint ?? false);
+  const readOnlyEither = (baseline?.readOnlyHint ?? false) || (current?.readOnlyHint ?? false);
 
   for (const hint of HINTS) {
-    if (readOnlyBoth && (hint.name === 'destructiveHint' || hint.name === 'idempotentHint')) {
+    if (readOnlyEither && (hint.name === 'destructiveHint' || hint.name === 'idempotentHint')) {
       continue;
     }
     const before = baseline?.[hint.name];

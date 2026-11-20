@@ -456,7 +456,7 @@ A tool's annotations widened its authority. One finding per hint that now claims
 | `destructiveHint` | false → true      | high     |
 | `openWorldHint`   | false → true      | high     |
 
-Clients use these hints to decide what to auto-approve. Values are compared as the MCP spec reads them: an absent hint counts as its default (`readOnlyHint` false, `destructiveHint` true, `openWorldHint` true), so a server that **removes** `readOnlyHint: true` or `destructiveHint: false` widens its authority just like one that flips it. `destructiveHint` only applies to tools that are not read-only, so it is not compared while `readOnlyHint` is true on both sides. `idempotentHint` has its own class, `drift/idempotency_changed`.
+Clients use these hints to decide what to auto-approve. Values are compared as the MCP spec reads them: an absent hint counts as its default (`readOnlyHint` false, `destructiveHint` true, `openWorldHint` true), so a server that **removes** `readOnlyHint: true` or `destructiveHint: false` widens its authority just like one that flips it. `destructiveHint` only applies to tools that are not read-only, so it is not compared while `readOnlyHint` is true on either side: a tool that becomes read-only and drops `destructiveHint: false` is reported once, as `annotation_relaxed`. `idempotentHint` has its own class, `drift/idempotency_changed`.
 
 **How to fix:**
 Review the annotation change. If a tool is now destructive or reaches external systems, clients may need to update their handling.
@@ -474,7 +474,7 @@ Check that the tool really changed its behavior. If the claim is right, re-basel
 
 **Severity:** medium (warning)
 
-A tool's `idempotentHint` changed, in either direction. An absent hint counts as false, its MCP default. true → false means a retried call may now repeat its effects; false → true means the tool now claims retries are harmless, which a client may use to retry automatically. Losing or gaining idempotency is a risk for retries, not for data, so it has its own non-breaking class instead of `annotation_changed`. Like `destructiveHint`, it is not compared while `readOnlyHint` is true on both sides. Not in the default `fail_on`.
+A tool's `idempotentHint` changed, in either direction. An absent hint counts as false, its MCP default. true → false means a retried call may now repeat its effects; false → true means the tool now claims retries are harmless, which a client may use to retry automatically. Losing or gaining idempotency is a risk for retries, not for data, so it has its own non-breaking class instead of `annotation_changed`. Like `destructiveHint`, it is not compared while `readOnlyHint` is true on either side. Not in the default `fail_on`.
 
 **How to fix:**
 Check that the tool's retry behavior really changed. If it did, re-baseline. To fail CI on it, use `fail_on: medium` or add `idempotency_changed` to a `fail_on` list.
