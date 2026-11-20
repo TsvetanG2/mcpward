@@ -362,5 +362,41 @@ describe('Golden Snapshot Tests', () => {
       expect(output).toContain('description "a<U+202E>b<U+001B>[2J<U+000D>c"');
       for (const raw of ['\u202E', '\u001b', '\r']) expect(output).not.toContain(raw);
     });
+
+    it('marks hidden characters in expected/actual values (a title added where there was none)', () => {
+      const lines: string[] = [];
+      const originalLog = console.log;
+      console.log = (...args: unknown[]) => {
+        lines.push(args.map(String).join(' '));
+      };
+
+      try {
+        renderConsoleReport(
+          {
+            ...FIXED_REPORT,
+            results: [
+              {
+                id: 'drift/description_changed',
+                family: 'drift',
+                status: 'fail',
+                severity: 'error',
+                message: 'Tool "t" title added (possible rug-pull)',
+                expected: null,
+                actual: 'a\u202Eb\u001b[2J\rc',
+              },
+            ],
+          },
+          { verbose: false }
+        );
+      } finally {
+        console.log = originalLog;
+      }
+
+      const output = lines.join('\n');
+      expect(output).toContain('actual:   "a<U+202E>b<U+001B>[2J<U+000D>c"');
+      // null is "none", not a hash: no "full text unavailable" note
+      expect(output).not.toContain('full text unavailable');
+      for (const raw of ['\u202E', '\u001b', '\r']) expect(output).not.toContain(raw);
+    });
   });
 });
