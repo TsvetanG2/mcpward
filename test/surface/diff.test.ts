@@ -436,7 +436,7 @@ describe('diffSurfaces classifier', () => {
       expect(annotationChange?.message).toContain('destructiveHint');
     });
 
-    it('does not flag non-security-relevant annotation changes', () => {
+    it('reports readOnlyHint false → true as annotation_relaxed (a path to auto-approval)', () => {
       const baseline = createSurface({
         tool: createTool({
           annotations: { readOnlyHint: false },
@@ -445,13 +445,163 @@ describe('diffSurfaces classifier', () => {
 
       const current = createSurface({
         tool: createTool({
-          annotations: { readOnlyHint: true }, // false → true is fine
+          annotations: { readOnlyHint: true },
         }),
       });
 
       const result = diffSurfaces(baseline, current);
 
-      expect(result.unchanged).toBe(true);
+      expect(result.changes.map((c) => [c.class, c.severity])).toEqual([
+        ['annotation_relaxed', 'medium'],
+      ]);
+    });
+  });
+
+  describe('annotation hints: both directions on effective values (truth table)', () => {
+    type Hints = NonNullable<ToolSurface['annotations']>;
+    const run = (before: Hints | null, after: Hints | null) =>
+      diffSurfaces(
+        createSurface({ t: createTool({ annotations: before }) }),
+        createSurface({ t: createTool({ annotations: after }) })
+      ).changes.map((c) => `${c.class}/${c.severity}`);
+
+    // [case, before, after, expected class/severity list]
+    const table: [string, Hints | null, Hints | null, string[]][] = [
+      // riskier → annotation_changed
+      [
+        'readOnlyHint true→false',
+        { readOnlyHint: true },
+        { readOnlyHint: false },
+        ['annotation_changed/high'],
+      ],
+      [
+        'readOnlyHint true→absent (means false)',
+        { readOnlyHint: true },
+        {},
+        ['annotation_changed/high'],
+      ],
+      [
+        'readOnlyHint true→no annotations',
+        { readOnlyHint: true },
+        null,
+        ['annotation_changed/high'],
+      ],
+      [
+        'destructiveHint false→true',
+        { destructiveHint: false },
+        { destructiveHint: true },
+        ['annotation_changed/high'],
+      ],
+      [
+        'destructiveHint false→absent (means true)',
+        { destructiveHint: false },
+        {},
+        ['annotation_changed/high'],
+      ],
+      [
+        'openWorldHint false→true',
+        { openWorldHint: false },
+        { openWorldHint: true },
+        ['annotation_changed/high'],
+      ],
+      [
+        'openWorldHint false→absent (means true)',
+        { openWorldHint: false },
+        {},
+        ['annotation_changed/high'],
+      ],
+      [
+        'idempotentHint true→false (medium)',
+        { idempotentHint: true },
+        { idempotentHint: false },
+        ['annotation_changed/medium'],
+      ],
+      [
+        'idempotentHint true→absent (means false)',
+        { idempotentHint: true },
+        {},
+        ['annotation_changed/medium'],
+      ],
+      // safer → annotation_relaxed
+      [
+        'readOnlyHint false→true',
+        { readOnlyHint: false },
+        { readOnlyHint: true },
+        ['annotation_relaxed/medium'],
+      ],
+      ['readOnlyHint absent→true', {}, { readOnlyHint: true }, ['annotation_relaxed/medium']],
+      [
+        'destructiveHint true→false',
+        { destructiveHint: true },
+        { destructiveHint: false },
+        ['annotation_relaxed/medium'],
+      ],
+      [
+        'destructiveHint absent→false',
+        null,
+        { destructiveHint: false },
+        ['annotation_relaxed/medium'],
+      ],
+      [
+        'openWorldHint true→false',
+        { openWorldHint: true },
+        { openWorldHint: false },
+        ['annotation_relaxed/medium'],
+      ],
+      [
+        'idempotentHint false→true',
+        { idempotentHint: false },
+        { idempotentHint: true },
+        ['annotation_relaxed/medium'],
+      ],
+      // same effective value → nothing
+      ['readOnlyHint false→absent', { readOnlyHint: false }, {}, []],
+      ['destructiveHint absent→true', {}, { destructiveHint: true }, []],
+      ['openWorldHint true→absent', { openWorldHint: true }, null, []],
+      ['idempotentHint absent→false', null, { idempotentHint: false }, []],
+      ['no annotations → empty annotations', null, {}, []],
+      // destructive/idempotent mean nothing while the tool is read-only on both sides
+      [
+        'read-only tool drops destructiveHint: false',
+        { readOnlyHint: true, destructiveHint: false },
+        { readOnlyHint: true },
+        [],
+      ],
+      [
+        'read-only tool drops idempotentHint: true',
+        { readOnlyHint: true, idempotentHint: true },
+        { readOnlyHint: true },
+        [],
+      ],
+      [
+        'tool stops being read-only and gains destructiveHint: true',
+        { readOnlyHint: true },
+        { readOnlyHint: false, destructiveHint: true },
+        ['annotation_changed/high'],
+      ],
+      // several hints at once: one finding each, in hint order
+      [
+        'readOnlyHint relaxed while openWorldHint widens',
+        { readOnlyHint: false, openWorldHint: false },
+        { readOnlyHint: true, openWorldHint: true },
+        ['annotation_relaxed/medium', 'annotation_changed/high'],
+      ],
+    ];
+
+    it.each(table)('%s', (_case, before, after, expected) => {
+      expect(run(before, after)).toEqual(expected);
+    });
+
+    it('names both values in the message, absent included', () => {
+      const [change] = diffSurfaces(
+        createSurface({ t: createTool({ annotations: { readOnlyHint: true } }) }),
+        createSurface({ t: createTool({ annotations: {} }) })
+      ).changes;
+      expect(change?.message).toBe(
+        'Tool "t" readOnlyHint changed from true to absent (means false) (tool may now mutate state)'
+      );
+      expect(change?.previous).toEqual({ readOnlyHint: true });
+      expect(change?.current).toEqual({ readOnlyHint: null });
     });
   });
 

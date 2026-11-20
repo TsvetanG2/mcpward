@@ -81,6 +81,7 @@ describe('Drift Detection Integration', () => {
         expect(Object.keys(surface.tools).sort()).toEqual([
           'compute',
           'echo',
+          'fetch_page',
           'query',
           'read_data',
           'removed_tool',
@@ -108,6 +109,7 @@ describe('Drift Detection Integration', () => {
           'added_tool',
           'compute',
           'echo',
+          'fetch_page',
           'query',
           'read_data',
           'stable_tool',
@@ -161,6 +163,7 @@ describe('Drift Detection Integration', () => {
       expect(classes).toContain('breaking_schema_change'); // compute got new required field
       expect(classes).toContain('input_property_added'); // query got new optional field
       expect(classes).toContain('annotation_changed'); // read_data readOnlyHint flipped
+      expect(classes).toContain('annotation_relaxed'); // fetch_page openWorldHint true→false
 
       // Verify specific tools
       const toolRemoved = diff.changes.find((c) => c.class === 'tool_removed');
@@ -174,6 +177,9 @@ describe('Drift Detection Integration', () => {
 
       const annotChanged = diff.changes.find((c) => c.class === 'annotation_changed');
       expect(annotChanged?.tool).toBe('read_data');
+
+      const annotRelaxed = diff.changes.filter((c) => c.class === 'annotation_relaxed');
+      expect(annotRelaxed.map((c) => c.tool)).toEqual(['fetch_page']);
     }, 60000);
   });
 
@@ -215,6 +221,11 @@ describe('Drift Detection Integration', () => {
         expect(failingIds).not.toContain('drift/input_property_added');
         // ...but a new input field is a warning, so the console shows it without --verbose
         expect(results.find((r) => r.id === 'drift/input_property_added')?.status).toBe('warn');
+        // A hint that now claims a safer tool is not in the default fail_on either, but warns
+        expect(failingIds).not.toContain('drift/annotation_relaxed');
+        const relaxed = results.find((r) => r.id === 'drift/annotation_relaxed');
+        expect(relaxed?.status).toBe('warn');
+        expect(relaxed?.severity).toBe('warning');
       } finally {
         await v2Connection.close();
       }

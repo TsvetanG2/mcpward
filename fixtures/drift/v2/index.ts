@@ -11,6 +11,7 @@
  * - compute: added REQUIRED field "multiplier" → breaking_schema_change
  * - query: added OPTIONAL field "limit" → input_property_added
  * - read_data: readOnlyHint changed true→false → annotation_changed
+ * - fetch_page: openWorldHint changed true→false → annotation_relaxed
  * - stable_tool: UNCHANGED → no drift
  */
 
@@ -122,6 +123,24 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
         annotations: {
           readOnlyHint: false,
+        },
+      },
+      // openWorldHint changed true→false → annotation_relaxed
+      {
+        name: 'fetch_page',
+        description: 'Fetches a web page.',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {
+            url: {
+              type: 'string',
+              description: 'Page URL',
+            },
+          },
+          required: ['url'],
+        },
+        annotations: {
+          openWorldHint: false,
         },
       },
       // Unchanged → no drift

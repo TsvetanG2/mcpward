@@ -56,8 +56,13 @@ function mapDriftSeverityToCheckSeverity(driftSeverity: DriftSeverity): Severity
  */
 function changeToResult(change: DriftChange, shouldFail: boolean): CheckResult {
   const baseSeverity = mapDriftSeverityToCheckSeverity(change.severity);
-  // A new input field is for a human to read (the model fills it): never a silent pass
-  const warn = baseSeverity === 'error' || change.class === 'input_property_added';
+  // A new input field is for a human to read (the model fills it), and so is a hint change:
+  // never a silent pass
+  const warn =
+    baseSeverity === 'error' ||
+    change.class === 'input_property_added' ||
+    change.class === 'annotation_changed' ||
+    change.class === 'annotation_relaxed';
 
   return {
     id: `drift/${change.class}`,

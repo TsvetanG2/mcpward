@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 Since `1.0.0`, the public contract described in [`docs/stability.md`](docs/stability.md) — exit codes, CLI, config, JSON report, lockfile, rule ids, SARIF/JUnit structure and the GitHub Action — changes incompatibly only in a major version. In `0.x`, minor versions could contain breaking changes; each one is called out below.
 
+## [Unreleased]
+
+### Added
+
+- **New drift class `annotation_relaxed`** (medium, not in the default `fail_on`): a tool hint now claims a safer tool — `readOnlyHint` false→true, `destructiveHint` true→false, `openWorldHint` true→false or `idempotentHint` false→true. These changes passed silently. A tool that tells clients "I am harmless now" after you reviewed it is on the path to auto-approval, so it is reported as a warning.
+
+### Changed
+
+- **`annotation_changed` covers all four hints.** Besides `readOnlyHint` true→false and `destructiveHint` false→true, it now reports `openWorldHint` false→true (high) and `idempotentHint` true→false (**medium**: losing idempotency is a retry risk, not a data risk; a `severity` override for the class still wins).
+- **Hints are compared as the MCP spec reads them.** An absent hint counts as its default (`readOnlyHint` false, `destructiveHint` true, `idempotentHint` false, `openWorldHint` true), so a hint that appears or disappears is classified like a flip. `destructiveHint` and `idempotentHint` are not compared while a tool is read-only on both sides, since they do not apply to it.
+
+### Upgrading
+
+Checks get better ([`docs/stability.md`](docs/stability.md)); two effects to expect:
+
+- **A server that adds annotations for the first time gets `annotation_relaxed` warnings** for every hint safer than its default (for example a new `readOnlyHint: true`). They do not fail CI with the default `fail_on`; with `fail_on: medium` or `low` they do.
+- **A server that removes `readOnlyHint: true` or `destructiveHint: false` now produces `annotation_changed` with high severity and fails CI by default.** Removing the hint widens the tool's authority exactly like flipping it, and was missed before. The same holds for `openWorldHint: false` and, at medium, `idempotentHint: true`. Note that the default `fail_on` is a list of classes, so `idempotentHint` true→false fails with it too; with `fail_on: high` it is a warning.
+
+Review each finding; if the change is intended, re-baseline. Pin the mcpward version and upgrade deliberately.
+
 ## [1.2.1] — 2026-11-18
 
 ### Fixed
