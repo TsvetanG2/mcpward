@@ -393,7 +393,7 @@ This also fires for every other piece of text the model reads, when it is change
 
 - the tool's top-level `title` and `annotations.title` (some clients show them to the model; compared since 1.3.0 — a baseline written by an older version has no titles, and the drift summary says they were not compared);
 - `description` and `title` anywhere in the schema, the root included;
-- `default`, `examples`, `$comment` and `x-*` extension values anywhere in the schema, the root included (since 1.3.0). These are compared exactly: they are data, not prose.
+- `default`, `examples`, `$comment` and `x-*` extension values anywhere in the schema, the root included (since 1.3.0). These are compared as data, not prose: exactly, except that strings are Unicode NFC-normalized like every string in the schema.
 
 Formatting-only edits to descriptions and titles (whitespace, line endings, Unicode normalization) are not drift. Changes inside `anyOf`/`oneOf`/`allOf` branches are still reported as `breaking_schema_change`.
 
