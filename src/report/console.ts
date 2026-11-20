@@ -150,7 +150,7 @@ function renderResult(result: CheckResult, verbose: boolean): void {
     !isHash(result.expected) &&
     !isHash(result.actual);
 
-  if (isDescriptionChanged && !hasDescriptionText) {
+  if (isDescriptionChanged && (isHash(result.expected) || isHash(result.actual))) {
     // Lockfile has no text for one side (full_text: false, or a v1 baseline)
     console.log(
       pc.dim(
@@ -248,7 +248,9 @@ function truncateText(text: string, maxLength: number): string {
 function formatValue(value: unknown): string {
   if (value === undefined) return 'undefined';
   if (value === null) return 'null';
-  if (typeof value === 'string') return `"${value}"`;
+  // Server text: show hidden characters and neutralize terminal control sequences
+  if (typeof value === 'string')
+    return `"${markControlCharacters(markInvisibleCharacters(value))}"`;
   if (typeof value === 'object') {
     try {
       return JSON.stringify(value);
