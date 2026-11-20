@@ -12,6 +12,7 @@
  * - query: added OPTIONAL field "limit" → input_property_added
  * - read_data: readOnlyHint changed true→false → annotation_changed
  * - fetch_page: openWorldHint changed true→false → annotation_relaxed
+ * - retry_job: idempotentHint changed true→false → idempotency_changed
  * - stable_tool: UNCHANGED → no drift
  */
 
@@ -141,6 +142,24 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
         annotations: {
           openWorldHint: false,
+        },
+      },
+      // idempotentHint changed true→false → idempotency_changed
+      {
+        name: 'retry_job',
+        description: 'Retries a failed job.',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {
+            job_id: {
+              type: 'string',
+              description: 'Job id',
+            },
+          },
+          required: ['job_id'],
+        },
+        annotations: {
+          idempotentHint: false,
         },
       },
       // Unchanged → no drift

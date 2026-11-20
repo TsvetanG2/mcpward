@@ -510,18 +510,6 @@ describe('diffSurfaces classifier', () => {
         {},
         ['annotation_changed/high'],
       ],
-      [
-        'idempotentHint true→false (medium)',
-        { idempotentHint: true },
-        { idempotentHint: false },
-        ['annotation_changed/medium'],
-      ],
-      [
-        'idempotentHint true→absent (means false)',
-        { idempotentHint: true },
-        {},
-        ['annotation_changed/medium'],
-      ],
       // safer → annotation_relaxed
       [
         'readOnlyHint false→true',
@@ -548,11 +536,30 @@ describe('diffSurfaces classifier', () => {
         { openWorldHint: false },
         ['annotation_relaxed/medium'],
       ],
+      // idempotentHint → idempotency_changed, either direction
+      [
+        'idempotentHint true→false',
+        { idempotentHint: true },
+        { idempotentHint: false },
+        ['idempotency_changed/medium'],
+      ],
+      [
+        'idempotentHint true→absent (means false)',
+        { idempotentHint: true },
+        {},
+        ['idempotency_changed/medium'],
+      ],
       [
         'idempotentHint false→true',
         { idempotentHint: false },
         { idempotentHint: true },
-        ['annotation_relaxed/medium'],
+        ['idempotency_changed/medium'],
+      ],
+      [
+        'idempotentHint absent→true',
+        null,
+        { idempotentHint: true },
+        ['idempotency_changed/medium'],
       ],
       // same effective value → nothing
       ['readOnlyHint false→absent', { readOnlyHint: false }, {}, []],

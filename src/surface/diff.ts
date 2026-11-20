@@ -14,8 +14,9 @@
  * | Added optional input field on an existing tool | input_property_added | no |
  * | Widened type / loosened constraint | nonbreaking_schema_change | no |
  * | A hint now claims a riskier tool (readOnlyHint true→false, destructiveHint false→true,
- * |   openWorldHint false→true, idempotentHint true→false) | annotation_changed | yes |
+ * |   openWorldHint false→true) | annotation_changed | yes |
  * | A hint now claims a safer tool (the reverse of each) | annotation_relaxed | no |
+ * | idempotentHint changed, either direction | idempotency_changed | no |
  */
 
 import type {
@@ -64,8 +65,11 @@ function getDefaultSeverity(driftClass: DriftClass): DriftSeverity {
     case 'annotation_changed':
       // A hint now claims a riskier tool (readOnlyHint true→false, ...).
       // Changes what a client auto-approves - silent authority increase.
-      // idempotentHint true→false is lowered to medium in diffAnnotations.
       return 'high';
+
+    case 'idempotency_changed':
+      // idempotentHint changed, either direction: a retry risk, not a data risk.
+      return 'medium';
 
     case 'annotation_relaxed':
       // A hint now claims a safer tool (readOnlyHint false→true, ...). Not breaking, but
@@ -1167,9 +1171,10 @@ function showHint(value: boolean | undefined, absent: boolean): string {
  * Compares tool annotations in both directions, on effective values: an absent hint counts as
  * the value the MCP spec assumes for it, so a hint that appears or disappears is classified too.
  *
- * - A hint now claims a riskier tool → annotation_changed (high; medium for idempotentHint,
- *   which is a retry risk, not a data risk).
- * - A hint now claims a safer tool → annotation_relaxed (medium): the path to auto-approval.
+ * - readOnlyHint, destructiveHint, openWorldHint now claim a riskier tool → annotation_changed
+ *   (high); a safer tool → annotation_relaxed (medium): the path to auto-approval.
+ * - idempotentHint changed, either direction → idempotency_changed (medium): a retry risk,
+ *   not a data risk.
  *
  * destructiveHint and idempotentHint are compared only when the tool is not read-only on both
  * sides; a readOnlyHint change is reported on its own.
@@ -1191,14 +1196,17 @@ function diffAnnotations(
     if ((before ?? hint.absent) === (after ?? hint.absent)) continue;
 
     const riskier = (after ?? hint.absent) === hint.riskier;
-    const driftClass: DriftClass = riskier ? 'annotation_changed' : 'annotation_relaxed';
-    const severity =
-      riskier && hint.name === 'idempotentHint' ? 'medium' : getDefaultSeverity(driftClass);
+    const driftClass: DriftClass =
+      hint.name === 'idempotentHint'
+        ? 'idempotency_changed'
+        : riskier
+          ? 'annotation_changed'
+          : 'annotation_relaxed';
     const meaning = riskier ? hint.riskierMeaning : hint.saferMeaning;
     changes.push({
       tool: toolName,
       class: driftClass,
-      severity,
+      severity: getDefaultSeverity(driftClass),
       message: `Tool "${toolName}" ${hint.name} changed from ${showHint(before, hint.absent)} to ${showHint(after, hint.absent)} (${meaning})`,
       previous: { [hint.name]: before ?? null },
       current: { [hint.name]: after ?? null },

@@ -128,6 +128,7 @@ function getShortDescription(ruleId: string): string {
     'drift/input_property_added': 'Optional input field added to an existing tool',
     'drift/annotation_changed': 'Annotation now claims a riskier tool',
     'drift/annotation_relaxed': 'Annotation now claims a safer tool',
+    'drift/idempotency_changed': 'idempotentHint changed',
     'drift/breaking_output_shape_change': 'Breaking output shape change (inferred)',
     'drift/nonbreaking_output_shape_change': 'Non-breaking output shape change (inferred)',
     'drift/output-sampling': 'Output sampling notice',
@@ -160,9 +161,11 @@ function getFullDescription(ruleId: string): string {
     'drift/input_property_added':
       'An existing tool gained an optional input field. Existing calls keep working, but the model will fill it: a new field such as "context" lets an already-approved tool collect data it never asked for. High severity when the field solicits a secret or its description contains injection phrasing or hidden unicode.',
     'drift/annotation_changed':
-      'A tool annotation changed in a way that widens its authority: readOnlyHint true→false, destructiveHint false→true, openWorldHint false→true or idempotentHint true→false (an absent hint counts as its MCP default). Clients may now auto-approve a tool that mutates state. idempotentHint is medium severity: it is a retry risk, not a data risk.',
+      'A tool annotation changed in a way that widens its authority: readOnlyHint true→false, destructiveHint false→true or openWorldHint false→true (an absent hint counts as its MCP default). Clients may now auto-approve a tool that mutates state.',
     'drift/annotation_relaxed':
-      'A tool annotation now claims a safer tool: readOnlyHint false→true, destructiveHint true→false, openWorldHint true→false or idempotentHint false→true (an absent hint counts as its MCP default). Not breaking, but a tool that claims to be harmless is what clients auto-approve.',
+      'A tool annotation now claims a safer tool: readOnlyHint false→true, destructiveHint true→false or openWorldHint true→false (an absent hint counts as its MCP default). Not breaking, but a tool that claims to be harmless is what clients auto-approve.',
+    'drift/idempotency_changed':
+      "A tool's idempotentHint changed, in either direction (an absent hint counts as false). true→false means retrying a call may now repeat its effects; false→true means the tool now claims retries are harmless. A retry risk, not a data risk.",
     'drift/breaking_output_shape_change':
       "The structure of a tool's output, inferred from real calls, changed in a way that breaks consumers: a field disappeared or became optional, a new type appeared, or the output format changed.",
     'drift/nonbreaking_output_shape_change':

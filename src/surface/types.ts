@@ -156,6 +156,7 @@ export type DriftClass =
   | 'input_property_added'
   | 'annotation_changed'
   | 'annotation_relaxed'
+  | 'idempotency_changed'
   | 'breaking_output_shape_change'
   | 'nonbreaking_output_shape_change';
 
