@@ -14,6 +14,8 @@ import { connect } from '../../src/client/connect.js';
 import { captureServerSurface, saveLockfile, diffSurfaces } from '../../src/surface/index.js';
 import { runDriftChecks } from '../../src/checks/drift.js';
 import { testConfig } from '../helpers/config.js';
+import { getExitCode } from '../../src/report/model.js';
+import { DRIFT_CLASSES } from '../../src/config/schema.js';
 
 // Fixture paths
 const FIXTURES_DIR = join(process.cwd(), 'fixtures');
@@ -298,20 +300,24 @@ describe('Drift Detection Integration', () => {
 
       const v1Connection2 = await connect(v1Config);
       try {
-        const config = testConfig({
-          ...v1Config,
-          checks: { drift: { baseline: BASELINE_PATH } },
-        });
-        const results = await runDriftChecks({
-          connection: v1Connection2,
-          fullConfig: config,
-          config: config.checks?.drift,
-        });
-        expect(results.find((r) => r.id === 'drift/no-changes')?.status).toBe('pass');
-        // a warning, not a note on the pass result: the console and PR comment hide pass messages
-        const note = results.find((r) => r.id === 'drift/titles-not-compared');
-        expect(note?.status).toBe('warn');
-        expect(note?.message).toContain('titles were not compared');
+        // The strictest fail_on of each form (every class; the lowest threshold): never fails CI
+        for (const fail_on of ['low' as const, [...DRIFT_CLASSES]]) {
+          const config = testConfig({
+            ...v1Config,
+            checks: { drift: { baseline: BASELINE_PATH, fail_on } },
+          });
+          const results = await runDriftChecks({
+            connection: v1Connection2,
+            fullConfig: config,
+            config: config.checks?.drift,
+          });
+          expect(results.find((r) => r.id === 'drift/no-changes')?.status).toBe('pass');
+          // a warning, not a note on the pass result: the console and PR comment hide pass messages
+          const note = results.find((r) => r.id === 'drift/titles-not-compared');
+          expect(note?.status).toBe('warn');
+          expect(note?.message).toContain('titles were not compared');
+          expect(getExitCode(results)).toBe(0);
+        }
       } finally {
         await v1Connection2.close();
       }
