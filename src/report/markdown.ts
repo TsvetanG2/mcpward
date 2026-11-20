@@ -81,14 +81,25 @@ function truncate(text: string): string {
 const STATUS_ICON: Record<string, string> = { fail: '❌', warn: '⚠️', skip: '⏭️', pass: '✅' };
 const DESCRIPTION_HASH = /^sha256:[0-9a-f]{64}$/;
 
+const isHash = (v: unknown) => typeof v === 'string' && DESCRIPTION_HASH.test(v);
+
+/**
+ * Text of one side of a description_changed: absent is empty (a title added where there was
+ * none), and a non-string value (`examples`, an `x-*` object) is shown as JSON.
+ */
+function asText(value: unknown): string {
+  if (value === undefined || value === null) return '';
+  return typeof value === 'string' ? value : (JSON.stringify(value, null, 2) ?? String(value));
+}
+
 /** A diff code block for description_changed, with invisible characters made visible. */
 function renderDescriptionChange(result: CheckResult): string | null {
-  const prev = result.expected;
-  const curr = result.actual;
-  if (typeof prev !== 'string' || typeof curr !== 'string') return null;
-  if (DESCRIPTION_HASH.test(prev) || DESCRIPTION_HASH.test(curr)) {
+  if (isHash(result.expected) || isHash(result.actual)) {
     return '_Full text unavailable (`full_text` disabled or v1 baseline) — re-run `mcpward baseline` to see a diff._';
   }
+  const prev = asText(result.expected);
+  const curr = asText(result.actual);
+  if (prev === curr) return null;
 
   const lines: string[] = [];
   const segments = wordDiff(prev, curr);
