@@ -20,7 +20,8 @@ Since `1.0.0`, the public contract described in [`docs/stability.md`](docs/stabi
 
 ### Fixed
 
-- **Text the model reads in a schema passed drift silently.** `title`, `default`, `examples`, `$comment` and `x-*` extensions were skipped at every level, and `description` at the schema root, so an instruction planted there after the baseline was never reported. They are now `description_changed` (high) at every level, the root included: `title` and `description` compared canonically (formatting is not drift), the others exactly. The `deprecated`, `readOnly` and `writeOnly` flags are now `nonbreaking_schema_change` (low). Changes inside `anyOf`/`oneOf`/`allOf` branches are unchanged (still `breaking_schema_change`).
+- **Text the model reads in a schema passed drift silently.** `title`, `default`, `examples`, `$comment` and `x-*` extensions were skipped at every level, and `description` at the schema root, so an instruction planted there after the baseline was never reported. They are now `description_changed` (high) at every level, the root included: `title` and `description` compared canonically (formatting is not drift), the others as data (exactly, after Unicode NFC). The `deprecated`, `readOnly` and `writeOnly` flags are now `nonbreaking_schema_change` (low). Changes inside `anyOf`/`oneOf`/`allOf` branches are unchanged (still `breaking_schema_change`).
+- **Reordering a `required` list inside `const`, `enum`, `default`, `examples` or an `x-*` value was not drift.** Canonicalization sorted every array named `required` as if it were a schema keyword; inside data it now keeps its order.
 - **Tool titles were not captured.** The tool's top-level `title` and `annotations.title`, which some clients show to the model, are now stored in the lockfile (optional fields, additive) and a change is `description_changed`.
 
 ### Upgrading

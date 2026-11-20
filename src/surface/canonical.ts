@@ -77,12 +77,35 @@ function setOwn(obj: Record<string, unknown>, key: string, value: unknown): void
   Object.defineProperty(obj, key, { value, enumerable: true, writable: true, configurable: true });
 }
 
+type Mode = 'schema' | 'names' | 'data';
+
+/** Keywords whose value is instance data or free text, never a schema. */
+const DATA_KEYWORDS = new Set(['default', 'const', 'enum', 'examples', '$comment']);
+/** Keywords whose value maps names to schemas. */
+const NAME_MAP_KEYWORDS = new Set([
+  'properties',
+  'patternProperties',
+  '$defs',
+  'definitions',
+  'dependentSchemas',
+  'dependencies',
+]);
+
+function childMode(mode: Mode, key: string): Mode {
+  if (mode === 'data') return 'data';
+  if (mode === 'names') return 'schema';
+  if (DATA_KEYWORDS.has(key) || key.startsWith('x-')) return 'data';
+  return NAME_MAP_KEYWORDS.has(key) ? 'names' : 'schema';
+}
+
 /**
  * Canonicalizes a JSON Schema for drift detection.
  *
  * Normalizations applied:
  * - Object keys sorted deterministically (recursively)
- * - Array order preserved EXCEPT for `required` array which is sorted
+ * - Array order preserved EXCEPT for a schema's `required` array, which is sorted. A
+ *   `required` key inside instance data (`default`, `const`, `enum`, `examples`,
+ *   `$comment`, `x-*`) is data and keeps its order.
  * - String values normalized to NFC (descriptions, titles, enum members)
  * - Keys with `undefined` values dropped (undefined is not valid JSON)
  * - `null` values preserved (null IS valid JSON)
@@ -101,7 +124,9 @@ export function canonicalizeSchema(schema: JsonSchema | null): JsonSchema | null
 
   const seen = new WeakSet<object>();
 
-  function canonicalizeValue(value: unknown, depth: number): unknown {
+  // 'schema': a schema object · 'names': a map of names to schemas (`properties`, `$defs`, …)
+  // · 'data': instance data or an extension value, where `required` is just a key
+  function canonicalizeValue(value: unknown, depth: number, mode: Mode = 'schema'): unknown {
     // Depth limit check
     if (depth > MAX_SCHEMA_DEPTH) {
       throw new Error(
@@ -128,7 +153,7 @@ export function canonicalizeSchema(schema: JsonSchema | null): JsonSchema | null
 
     // Handle arrays
     if (Array.isArray(value)) {
-      const result = value.map((item) => canonicalizeValue(item, depth + 1));
+      const result = value.map((item) => canonicalizeValue(item, depth + 1, mode));
       seen.delete(value);
       return result;
     }
@@ -144,10 +169,10 @@ export function canonicalizeSchema(schema: JsonSchema | null): JsonSchema | null
       if (val === undefined) continue;
 
       // Special case: sort the `required` array since it's a set
-      if (key === 'required' && Array.isArray(val)) {
+      if (mode === 'schema' && key === 'required' && Array.isArray(val)) {
         setOwn(result, key, [...val].sort());
       } else {
-        setOwn(result, key, canonicalizeValue(val, depth + 1));
+        setOwn(result, key, canonicalizeValue(val, depth + 1, childMode(mode, key)));
       }
     }
 

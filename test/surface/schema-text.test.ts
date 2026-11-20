@@ -178,6 +178,43 @@ describe('NEGATIVE: formatting and data stay quiet', () => {
     };
     expect(schemaClasses(s, structuredClone(s))).toEqual([]);
   });
+
+  it('a schema `required` reordered is not drift', () => {
+    const at = (r: string[]): JsonSchema => ({
+      type: 'object',
+      properties: { a: { type: 'string' }, b: { type: 'string' } },
+      required: r,
+    });
+    expect(schemaClasses(at(['a', 'b']), at(['b', 'a']))).toEqual([]);
+  });
+});
+
+describe('a `required` key inside data is data: its order is compared', () => {
+  const at = (k: string, v: unknown): JsonSchema => ({
+    type: 'object',
+    properties: { a: { type: 'object', [k]: v } },
+  });
+  it.each([
+    ['default', { required: ['a', 'b'] }, { required: ['b', 'a'] }, 'description_changed/high'],
+    [
+      'examples',
+      [{ required: ['a', 'b'] }],
+      [{ required: ['b', 'a'] }],
+      'description_changed/high',
+    ],
+    ['x-hint', { required: ['a', 'b'] }, { required: ['b', 'a'] }, 'description_changed/high'],
+    ['const', { required: ['a', 'b'] }, { required: ['b', 'a'] }, 'breaking_schema_change/medium'],
+  ])('%s', (k, a, b, expected) => {
+    expect(schemaClasses(at(k, a), at(k, b))).toEqual([expected]);
+  });
+
+  it('a property NAMED `required` is still a schema', () => {
+    const at = (r: string[]): JsonSchema => ({
+      type: 'object',
+      properties: { required: { type: 'object', required: r } },
+    });
+    expect(schemaClasses(at(['a', 'b']), at(['b', 'a']))).toEqual([]);
+  });
 });
 
 describe('tool-level title and annotations.title', () => {
