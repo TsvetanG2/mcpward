@@ -615,6 +615,13 @@ function diffSchemaNode(
       currRoot
     );
   } else if (baseAdd !== currAdd) {
+    // Text can arrive or leave with the switch (`false` → `{title: …}`)
+    diffSchemaText(
+      asSchema(base.additionalProperties) ?? {},
+      asSchema(curr.additionalProperties) ?? {},
+      `property "${path}{}" `,
+      emit
+    );
     // open ⊃ schema ⊃ closed
     const rank = { open: 2, schema: 1, closed: 0 } as const;
     emit(
@@ -797,6 +804,7 @@ function diffSchemaNode(
   ) {
     diffSubschema(baseItems, currItems, itemsPath, depth, emit, currRoot);
   } else if (baseItems === undefined && currItems !== undefined) {
+    diffSchemaText({}, asSchema(currItems) ?? {}, `property "${itemsPath}" `, emit);
     emit(
       'breaking_schema_change',
       `property "${itemsPath}" items constraint added`,
@@ -804,6 +812,7 @@ function diffSchemaNode(
       currItems
     );
   } else if (baseItems !== undefined && currItems === undefined) {
+    diffSchemaText(asSchema(baseItems) ?? {}, {}, `property "${itemsPath}" `, emit);
     emit(
       'nonbreaking_schema_change',
       `property "${itemsPath}" items constraint removed`,
