@@ -1,0 +1,1 @@
+{"name":"café_search","description":"Searches.","inputSchema":{"type":"object","properties":{"café":{"type":"string","enum":["café"]},"café":{"type":"string"}},"required":["café","café"]}}

@@ -36,7 +36,9 @@
     }
   },
   "patternProperties": {
-    "^x-[a-z0-9][a-z0-9-]*$": { "description": "Generator-specific extension. Other consumers ignore it." }
+    "^x-[a-z0-9][a-z0-9-]*$": {
+      "description": "Generator-specific extension. Other consumers ignore it."
+    }
   },
   "$defs": {
     "canonicalization": {
@@ -54,7 +56,7 @@
         "fields": {
           "description": "The tool fields that went into the hash, in the canonical object. Fixed per rules version; listed so a consumer can see it without reading the spec.",
           "type": "array",
-          "items": { "enum": ["name", "description", "inputSchema", "annotations"] },
+          "items": { "enum": ["name", "title", "description", "inputSchema", "annotations"] },
           "uniqueItems": true
         }
       }
@@ -91,7 +93,9 @@
           "then": {
             "required": ["hint", "value"],
             "properties": {
-              "hint": { "enum": ["readOnlyHint", "destructiveHint", "idempotentHint", "openWorldHint"] },
+              "hint": {
+                "enum": ["readOnlyHint", "destructiveHint", "idempotentHint", "openWorldHint"]
+              },
               "value": { "type": "boolean" }
             }
           }
@@ -101,8 +105,15 @@
           "then": {
             "required": ["rule"],
             "properties": {
-              "rule": { "description": "Stable id of the heuristic, namespaced by generator, e.g. 'mcpward/name-verb'.", "type": "string" },
-              "detail": { "description": "Human-readable reason. Not for matching.", "type": "string" }
+              "rule": {
+                "description": "Stable id of the heuristic. Ids in the shared/ namespace mean the same thing in every generator (see the README for the list). All other ids are namespaced by generator, e.g. 'mcpward/free-text-context', 'kytto/...'.",
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*$"
+              },
+              "detail": {
+                "description": "Human-readable reason. Not for matching.",
+                "type": "string"
+              }
             }
           }
         },
@@ -111,7 +122,11 @@
           "then": {
             "required": ["indicates", "reason"],
             "properties": {
-              "by": { "description": "Who made the override. Free text; may be omitted for privacy.", "type": "string" },
+              "indicates": true,
+              "by": {
+                "description": "Who made the override. Free text; may be omitted for privacy.",
+                "type": "string"
+              },
               "reason": { "type": "string", "minLength": 1 },
               "at": { "type": "string", "format": "date-time" }
             }
@@ -120,7 +135,7 @@
       ]
     },
     "verdict": {
-      "description": "The generator's resolved verdict. 'basis' names the evidence source that decided it, so a consumer can choose to distrust, for example, verdicts based only on annotations.",
+      "description": "The generator's resolved verdict. 'basis' names the evidence source that decided it, so a consumer can choose to distrust, for example, verdicts based only on annotations. When evidence conflicts, the riskier reading wins. Consumers SHOULD show conflicting evidence and the verdict basis, not only the verdict.",
       "type": "object",
       "required": ["effect", "openWorld", "basis"],
       "properties": {
@@ -129,8 +144,17 @@
         "basis": { "enum": ["annotation", "heuristic", "override", "none"] }
       }
     },
+    "unknownVerdict": {
+      "description": "The fail-safe verdict: nothing is known.",
+      "type": "object",
+      "properties": {
+        "effect": { "const": "unknown" },
+        "openWorld": { "const": "unknown" },
+        "basis": { "const": "none" }
+      }
+    },
     "argument": {
-      "description": "OPEN QUESTION: per-argument risk, for tools that are only risky when given a certain input (a path, a URL, free-form context).",
+      "description": "Optional per-argument risk, for tools that are only risky when given a certain input (a path, a URL, free-form context).",
       "type": "object",
       "required": ["path", "evidence"],
       "properties": {
@@ -147,9 +171,18 @@
       "properties": {
         "name": { "type": "string", "minLength": 1 },
         "contractHash": {
-          "description": "Hash of this tool's canonical contract, per the file's canonicalization block.",
-          "type": "string",
-          "pattern": "^sha256:[0-9a-f]{64}$"
+          "description": "Hash of this tool's canonical contract, per the file's canonicalization block. null when the tool is unhashable: consumers MUST NOT auto-approve such a tool, MUST NOT treat it as unchanged (drift cannot be detected), and SHOULD show unhashableReason.",
+          "type": ["string", "null"]
+        },
+        "unhashableReason": {
+          "description": "Why the tool has no contract hash: its definition is not I-JSON (duplicate-key, lone-surrogate, non-finite-number), it has an integer literal outside ±(2^53−1) (number-precision), or its inputSchema is nested deeper than 64 levels (too-deep).",
+          "enum": [
+            "duplicate-key",
+            "lone-surrogate",
+            "non-finite-number",
+            "number-precision",
+            "too-deep"
+          ]
         },
         "verdict": { "$ref": "#/$defs/verdict" },
         "evidence": {
@@ -159,18 +192,26 @@
         },
         "arguments": { "type": "array", "items": { "$ref": "#/$defs/argument" } }
       },
-      "if": { "properties": { "evidence": { "maxItems": 0 } } },
-      "then": {
-        "properties": {
-          "verdict": {
-            "properties": {
-              "effect": { "const": "unknown" },
-              "openWorld": { "const": "unknown" },
-              "basis": { "const": "none" }
-            }
+      "oneOf": [
+        {
+          "description": "Hashable: a hash and no reason.",
+          "properties": {
+            "contractHash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+            "unhashableReason": false
+          }
+        },
+        {
+          "description": "Unhashable: no hash, a reason, and the fail-safe verdict. Evidence may still be listed but does not raise the verdict.",
+          "required": ["unhashableReason"],
+          "properties": {
+            "contractHash": { "type": "null" },
+            "unhashableReason": true,
+            "verdict": { "$ref": "#/$defs/unknownVerdict" }
           }
         }
-      },
+      ],
+      "if": { "properties": { "evidence": { "type": "array", "maxItems": 0 } } },
+      "then": { "properties": { "verdict": { "$ref": "#/$defs/unknownVerdict" } } },
       "patternProperties": {
         "^x-[a-z0-9][a-z0-9-]*$": {}
       }

@@ -7,17 +7,17 @@
     "id": "mcp-tool-contract",
     "version": 1,
     "algorithm": "sha256",
-    "fields": ["name", "description", "inputSchema", "annotations"]
+    "fields": ["name", "title", "description", "inputSchema", "annotations"]
   },
   "tools": [
     {
       "name": "delete_record",
-      "contractHash": "sha256:e357ae1ab7e99d7607e718cee5276e626598aeda292b50af9874180aea723eea",
+      "contractHash": "sha256:4d15fd30aeaf8a5bc0a52fc03bcbc9beb93a793a37a6dbc330260bd01f988b68",
       "verdict": { "effect": "destructive", "openWorld": "unknown", "basis": "heuristic" },
       "evidence": [
         {
           "source": "heuristic",
-          "rule": "mcpward/name-verb",
+          "rule": "shared/destructive-verb-in-name",
           "detail": "Name starts with a destructive verb (delete_) and the server declares no annotations.",
           "indicates": { "effect": "destructive" }
         }
@@ -25,28 +25,43 @@
     },
     {
       "name": "search_web",
-      "contractHash": "sha256:f7aec6368c29e82062ab418ec32086533ecbc78e6e44983555dd3b6e158b54cc",
+      "contractHash": "sha256:65ef2d414617c0595943768c3ad3533e2bf4e3dd68b5d6768e29b5d133c8d46b",
       "verdict": { "effect": "read-only", "openWorld": "yes", "basis": "annotation" },
       "evidence": [
-        { "source": "annotation", "hint": "readOnlyHint", "value": true, "indicates": { "effect": "read-only" } },
-        { "source": "annotation", "hint": "openWorldHint", "value": true, "indicates": { "openWorld": "yes" } }
+        {
+          "source": "annotation",
+          "hint": "readOnlyHint",
+          "value": true,
+          "indicates": { "effect": "read-only" }
+        },
+        {
+          "source": "annotation",
+          "hint": "openWorldHint",
+          "value": true,
+          "indicates": { "openWorld": "yes" }
+        }
       ]
     },
     {
       "name": "get_note",
-      "contractHash": "sha256:9c2e1766c0893bbd125c6a81602b342e577dc0de4c70b83f4ee58254778abd83",
+      "contractHash": "sha256:5e1c5608e662702a0e4188a6b9caf48cf74933533327229ecc41901fdd90cac3",
       "verdict": { "effect": "unknown", "openWorld": "unknown", "basis": "none" },
       "evidence": []
     },
     {
       "name": "send_report",
-      "contractHash": "sha256:5daaf08fdc15544ed68ea21c78a31b6e9245ca1c009afff49b625737ab706d04",
+      "contractHash": "sha256:99c2230e44389bac09535764378728a76a0c8f24e33f359a8c18645bf3e95785",
       "verdict": { "effect": "mutating", "openWorld": "yes", "basis": "heuristic" },
       "evidence": [
-        { "source": "annotation", "hint": "readOnlyHint", "value": true, "indicates": { "effect": "read-only" } },
+        {
+          "source": "annotation",
+          "hint": "readOnlyHint",
+          "value": true,
+          "indicates": { "effect": "read-only" }
+        },
         {
           "source": "heuristic",
-          "rule": "mcpward/sends-externally",
+          "rule": "shared/sends-externally",
           "detail": "Description says the tool emails a recipient; takes an email-format argument.",
           "indicates": { "effect": "mutating", "openWorld": "yes" }
         }
@@ -65,6 +80,20 @@
         }
       ],
       "x-mcpward": { "findings": ["security/annotation-mismatch"] }
+    },
+    {
+      "name": "get_comment",
+      "contractHash": null,
+      "unhashableReason": "lone-surrogate",
+      "verdict": { "effect": "unknown", "openWorld": "unknown", "basis": "none" },
+      "evidence": [
+        {
+          "source": "annotation",
+          "hint": "readOnlyHint",
+          "value": true,
+          "indicates": { "effect": "read-only" }
+        }
+      ]
     }
   ],
   "x-kytto": { "note": "Example extension: ignored by mcpward." }
