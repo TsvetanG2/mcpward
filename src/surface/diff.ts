@@ -383,13 +383,18 @@ function diffSchema(
   return changes;
 }
 
-/** `severity` overrides the class default (an escalated `input_property_added`). */
+/**
+ * `severity` overrides the class default (an escalated `input_property_added`).
+ * `annotationOnly` marks a change that cannot affect which values validate, so polarity
+ * (a definition used under `not`) does not turn it breaking.
+ */
 type Emit = (
   driftClass: DriftClass,
   message: string,
   previous: unknown,
   current: unknown,
-  severity?: DriftSeverity
+  severity?: DriftSeverity,
+  annotationOnly?: boolean
 ) => void;
 
 /** Nesting limit for the recursive walk (canonicalizeSchema already bounds input depth). */
@@ -702,8 +707,8 @@ function diffSchemaNode(
     negated ??= new Set([...invertedDefinitions(base), ...invertedDefinitions(curr)]);
     if (!negated.has(def)) return emit;
     // An optional field added there can reject more too (`additionalProperties: false`)
-    return (cls, message, previous, current, severity) =>
-      cls === 'nonbreaking_schema_change' || cls === 'input_property_added'
+    return (cls, message, previous, current, severity, annotationOnly) =>
+      !annotationOnly && (cls === 'nonbreaking_schema_change' || cls === 'input_property_added')
         ? emit(
             'breaking_schema_change',
             `${message} (the definition is used under not/if/oneOf, where accepting more can reject more; classified as breaking)`,
@@ -711,7 +716,7 @@ function diffSchemaNode(
             current,
             severity // a hostile new field stays high
           )
-        : emit(cls, message, previous, current, severity);
+        : emit(cls, message, previous, current, severity, annotationOnly);
   };
   for (const key of DEFINITION_KEYWORDS) {
     const baseDefs = (asSchema(base[key]) ?? {}) as Record<string, unknown>;
@@ -1187,7 +1192,9 @@ function diffSchemaText(base: JsonSchema, curr: JsonSchema, subject: string, emi
       'nonbreaking_schema_change',
       `${subject}${key} changed from ${String(b ?? 'absent')} to ${String(c ?? 'absent')}`,
       b,
-      c
+      c,
+      undefined,
+      true
     );
   }
 }
