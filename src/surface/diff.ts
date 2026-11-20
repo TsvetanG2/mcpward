@@ -288,6 +288,28 @@ function diffTool(toolName: string, baseline: ToolSurface, current: ToolSurface)
   const annotationChanges = diffAnnotations(toolName, baseline.annotations, current.annotations);
   changes.push(...annotationChanges);
 
+  // Tool and annotation titles: some clients show them to the model. A baseline written before
+  // 1.3.0 did not capture them (`title` absent), so they are not compared against it.
+  if (baseline.title !== undefined) {
+    const emit: Emit = (driftClass, message, previous, curr) =>
+      changes.push({
+        tool: toolName,
+        class: driftClass,
+        severity: getDefaultSeverity(driftClass),
+        message: `Tool "${toolName}" ${message}`,
+        previous,
+        current: curr,
+      });
+    diffDescription(baseline.title, current.title, '', emit, 'title');
+    diffDescription(
+      baseline.annotations?.title,
+      current.annotations?.title,
+      'annotations.',
+      emit,
+      'title'
+    );
+  }
+
   return changes;
 }
 
@@ -439,10 +461,8 @@ function diffSchemaNode(
   // nested ones read `inputSchema property "a.b" ...` (matching the established wording).
   const subject = path === '' ? '' : `property "${path}" `;
 
-  // --- description (parameter-level rug-pull vector) ---
-  if (path !== '') {
-    diffDescription(base.description, curr.description, subject, emit);
-  }
+  // --- text the model reads: description, title, default, examples, $comment, x-*, flags ---
+  diffSchemaText(base, curr, subject, emit);
 
   // --- type ---
   const baseType = base.type as string | string[] | undefined;
@@ -936,9 +956,9 @@ function diffSubschema(
   }
   if (same(base, curr)) return;
 
-  // A description can arrive with the switch from `true` to an object schema — it is read by
-  // the model all the same, so it must not hide behind a schema-change finding.
-  diffDescription(b?.description, c?.description, `property "${path}" `, emit);
+  // Text can arrive with the switch from `true` to an object schema — it is read by the model
+  // all the same, so it must not hide behind a schema-change finding.
+  diffSchemaText(b ?? {}, c ?? {}, `property "${path}" `, emit);
 
   const rank = (v: unknown) => (v === false ? 0 : acceptsAnything(v) ? 2 : 1);
   if (rank(base) === rank(curr)) return; // e.g. `true` ↔ `{}`: same accepted values
@@ -1106,17 +1126,61 @@ function acceptsAnything(v: unknown): boolean {
 }
 
 /**
- * Parameter descriptions are a rug-pull vector like tool descriptions. Absent counts as empty —
- * ADDING a description to a parameter that had none is the easiest rug-pull of all. Compared
- * canonically, so formatting-only edits are not drift; invisible characters still are.
+ * Parameter descriptions and titles are a rug-pull vector like tool descriptions. Absent counts
+ * as empty — ADDING a description to a parameter that had none is the easiest rug-pull of all.
+ * Compared canonically, so formatting-only edits are not drift; invisible characters still are.
  */
-function diffDescription(before: unknown, after: unknown, subject: string, emit: Emit): void {
+function diffDescription(
+  before: unknown,
+  after: unknown,
+  subject: string,
+  emit: Emit,
+  keyword: 'description' | 'title' = 'description'
+): void {
   const b = typeof before === 'string' ? before : '';
   const a = typeof after === 'string' ? after : '';
   if (canonicalizeDescription(b) === canonicalizeDescription(a)) return;
-  const what =
-    b === '' ? 'description added' : a === '' ? 'description removed' : 'description changed';
-  emit('description_changed', `${subject}${what} (possible rug-pull)`, before, after);
+  const what = b === '' ? 'added' : a === '' ? 'removed' : 'changed';
+  emit('description_changed', `${subject}${keyword} ${what} (possible rug-pull)`, before, after);
+}
+
+/** Free-form values the model reads with the schema: compared exactly, they are data. */
+const TEXT_VALUE_KEYWORDS = ['default', 'examples', '$comment'] as const;
+/** Boolean annotations the model reads; a change is visible but not a rug-pull by itself. */
+const FLAG_KEYWORDS = ['deprecated', 'readOnly', 'writeOnly'] as const;
+
+/**
+ * Compares everything in a schema node that is text for the model rather than a constraint, at
+ * any level including the root: `title` and `description` canonically, `default`, `examples`,
+ * `$comment` and `x-*` extensions exactly (description_changed), and the `deprecated`/
+ * `readOnly`/`writeOnly` flags (nonbreaking_schema_change). The catch-all skips all of these.
+ */
+function diffSchemaText(base: JsonSchema, curr: JsonSchema, subject: string, emit: Emit): void {
+  diffDescription(base.title, curr.title, subject, emit, 'title');
+  diffDescription(base.description, curr.description, subject, emit);
+
+  const extensions = [...new Set([...Object.keys(base), ...Object.keys(curr)])]
+    .filter((k) => k.startsWith('x-'))
+    .sort();
+  for (const key of [...TEXT_VALUE_KEYWORDS, ...extensions]) {
+    const b = base[key];
+    const c = curr[key];
+    if (same(b, c)) continue;
+    const verb = b === undefined ? 'added' : c === undefined ? 'removed' : 'changed';
+    emit('description_changed', `${subject}${key} ${verb} (possible rug-pull)`, b, c);
+  }
+
+  for (const key of FLAG_KEYWORDS) {
+    const b = base[key];
+    const c = curr[key];
+    if (same(b, c)) continue;
+    emit(
+      'nonbreaking_schema_change',
+      `${subject}${key} changed from ${String(b ?? 'absent')} to ${String(c ?? 'absent')}`,
+      b,
+      c
+    );
+  }
 }
 
 type HintName = 'readOnlyHint' | 'destructiveHint' | 'idempotentHint' | 'openWorldHint';

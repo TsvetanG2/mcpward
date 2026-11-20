@@ -398,10 +398,16 @@ describe('keywords the walk does not model', () => {
     );
   });
 
+  // Since 1.3.0: text the model reads is compared, root included (was skipped as annotation)
   it.each([
     ['x-mcp-header', 'X-A', 'X-B'],
     ['title', 'A', 'B'],
-  ])('a change to %s alone is not drift', (key, a, b) => {
-    expect(classify({ type: 'object', [key]: a }, { type: 'object', [key]: b })).toEqual([]);
+  ])('a change to %s alone is description_changed, not a schema change', (key, a, b) => {
+    expect(classify({ type: 'object', [key]: a }, { type: 'object', [key]: b })).toEqual([
+      expect.objectContaining({
+        class: 'description_changed',
+        message: expect.stringContaining(`${key} changed`),
+      }),
+    ]);
   });
 });

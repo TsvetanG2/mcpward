@@ -351,11 +351,23 @@ describe('NEGATIVE: no false positives', () => {
     ).toEqual([]);
   });
 
-  it('cosmetic keywords (title, default, examples) are not contract changes', () => {
+  it('title, default and examples are text the model reads: description_changed, never a schema break', () => {
+    const changes = classify(
+      prop({ type: 'string', title: 'A', default: 'x', examples: ['x'] }),
+      prop({ type: 'string', title: 'B', default: 'y', examples: ['y'] })
+    );
+    expect(changes.map((c) => c.class)).toEqual([
+      'description_changed',
+      'description_changed',
+      'description_changed',
+    ]);
+  });
+
+  it('NEGATIVE: a whitespace-only title edit is not drift', () => {
     expect(
       classify(
-        prop({ type: 'string', title: 'A', default: 'x', examples: ['x'] }),
-        prop({ type: 'string', title: 'B', default: 'y', examples: ['y'] })
+        prop({ type: 'string', title: 'File path' }),
+        prop({ type: 'string', title: ' File   path\r\n' })
       )
     ).toEqual([]);
   });

@@ -389,7 +389,13 @@ Review the new tool carefully. If legitimate, update the baseline.
 
 A tool's description has changed since the baseline. The model reads descriptions to decide what to call and how, so a silent description change is the classic **rug-pull** vector: behavior is steered after trust is established.
 
-This also fires when a **parameter** description anywhere in the input schema is changed, added where there was none, or removed — the model reads those too. Formatting-only edits (whitespace, line endings, Unicode normalization) are not drift.
+This also fires for every other piece of text the model reads, when it is changed, added where there was none, or removed:
+
+- the tool's top-level `title` and `annotations.title` (some clients show them to the model; compared since 1.3.0 — a baseline written by an older version has no titles, and the drift summary says they were not compared);
+- `description` and `title` anywhere in the schema, the root included;
+- `default`, `examples`, `$comment` and `x-*` extension values anywhere in the schema, the root included (since 1.3.0). These are compared exactly: they are data, not prose.
+
+Formatting-only edits to descriptions and titles (whitespace, line endings, Unicode normalization) are not drift. Changes inside `anyOf`/`oneOf`/`allOf` branches are still reported as `breaking_schema_change`.
 
 **What it checks:**
 
@@ -412,7 +418,7 @@ A tool's input or output schema changed in a way that can reject previously vali
 - `pattern`, `format`, `const` or `multipleOf` added or changed (a changed pattern cannot be proven compatible, so it is classified as breaking and the message says so)
 - `uniqueItems` turned on, `additionalProperties` closed, an `items` constraint added
 - `anyOf`/`oneOf`/`allOf` changed (cannot be classified structurally — conservative)
-- any other keyword added, changed or removed — `prefixItems`, `contains`, `not`, `if`/`then`/`else`, `dependentRequired`, `propertyNames`, `unevaluatedProperties`, `$ref`, `$schema` and the like. These are not modelled, so compatibility cannot be determined and the message says so (even a removal can reject more: dropping `prefixItems` next to `items: false`). Annotations (`title`, `default`, `examples`, …) and `x-` vendor extensions are not compared.
+- any other keyword added, changed or removed — `prefixItems`, `contains`, `not`, `if`/`then`/`else`, `dependentRequired`, `propertyNames`, `unevaluatedProperties`, `$ref`, `$schema` and the like. These are not modelled, so compatibility cannot be determined and the message says so (even a removal can reject more: dropping `prefixItems` next to `items: false`). Text the model reads (`title`, `description`, `default`, `examples`, `$comment`, `x-*`) is reported as [`description_changed`](#driftdescription_changed) instead, and the `deprecated`/`readOnly`/`writeOnly` flags as `nonbreaking_schema_change`.
 - `additionalItems` tightened behind a tuple (path `t[1+]`)
 - a definition in `$defs`/`definitions` removed, or changed in any of the ways above (paths like `$defs/Item.x`) — a `$ref` target changes there, not at the `$ref`. A definition used under `not`, `if`, `oneOf` or a `contains` limited by `maxContains` (directly, through a pointer into it, through a plain-name anchor declared on or inside it, or through another definition) can reject more when it accepts more, so any change inside it is breaking.
 - a declared schema removed
@@ -425,6 +431,8 @@ Breaking schema changes require client updates. Review carefully and update the 
 **Severity:** low (info)
 
 A tool's schema changed compatibly, at any nesting depth: type widened, required → optional, `enum` value added or `enum` removed, bounds relaxed or removed, `pattern`/`format`/`const`/`multipleOf` removed, `uniqueItems` turned off, `additionalProperties` opened, `items` constraint removed, a `$defs`/`definitions` entry added, or a declared schema added.
+
+Since 1.3.0 it also covers the `deprecated`, `readOnly` and `writeOnly` flags changing at any level: the model reads them, but they do not change which values are accepted.
 
 An optional property added to an `inputSchema` is [`input_property_added`](#driftinput_property_added) since 1.2.0; one added to an `outputSchema` stays here.
 

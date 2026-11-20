@@ -280,6 +280,36 @@ describe('Drift Detection Integration', () => {
         // Should have a pass result indicating no drift
         const passResult = results.find((r) => r.id === 'drift/no-changes' && r.status === 'pass');
         expect(passResult).toBeDefined();
+        expect(passResult?.message).not.toContain('titles were not compared');
+      } finally {
+        await v1Connection2.close();
+      }
+    }, 60000);
+
+    it('says so when a baseline predates title capture (mcpward < 1.3.0)', async () => {
+      const v1Connection1 = await connect(v1Config);
+      try {
+        const surface = await captureServerSurface(v1Connection1);
+        for (const tool of Object.values(surface.tools)) delete tool.title;
+        await saveLockfile(surface, BASELINE_PATH);
+      } finally {
+        await v1Connection1.close();
+      }
+
+      const v1Connection2 = await connect(v1Config);
+      try {
+        const config = testConfig({
+          ...v1Config,
+          checks: { drift: { baseline: BASELINE_PATH } },
+        });
+        const results = await runDriftChecks({
+          connection: v1Connection2,
+          fullConfig: config,
+          config: config.checks?.drift,
+        });
+        const noChanges = results.find((r) => r.id === 'drift/no-changes');
+        expect(noChanges?.status).toBe('pass');
+        expect(noChanges?.message).toContain('titles were not compared');
       } finally {
         await v1Connection2.close();
       }

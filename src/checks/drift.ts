@@ -184,6 +184,11 @@ export async function runDriftChecks(ctx: DriftCheckContext): Promise<CheckResul
   const diff = diffSurfaces(baseline, current);
   diff.changes = applySeverityOverrides(diff.changes, ctx.config?.severity);
 
+  // A baseline written before 1.3.0 has no titles: say so instead of passing silently on them
+  const titleNote = Object.values(baseline.tools).some((t) => t.title === undefined)
+    ? ' Tool and annotation titles were not compared: the baseline predates title capture (mcpward < 1.3.0). Re-run "mcpward baseline" to include them.'
+    : '';
+
   // If no changes, report success
   if (diff.unchanged) {
     results.push({
@@ -191,7 +196,7 @@ export async function runDriftChecks(ctx: DriftCheckContext): Promise<CheckResul
       family: 'drift',
       status: 'pass',
       severity: 'info',
-      message: 'No drift detected. Server surface matches baseline.',
+      message: `No drift detected. Server surface matches baseline.${titleNote}`,
     });
     return results;
   }
@@ -216,7 +221,7 @@ export async function runDriftChecks(ctx: DriftCheckContext): Promise<CheckResul
       family: 'drift',
       status: 'fail',
       severity: 'error',
-      message: `Drift detected: ${failCount} failing change(s) out of ${totalCount} total`,
+      message: `Drift detected: ${failCount} failing change(s) out of ${totalCount} total.${titleNote}`,
       expected: 'No breaking changes',
       actual: `${failCount} breaking, ${totalCount - failCount} non-breaking`,
     });
@@ -226,7 +231,7 @@ export async function runDriftChecks(ctx: DriftCheckContext): Promise<CheckResul
       family: 'drift',
       status: 'pass',
       severity: 'info',
-      message: `Drift detected: ${totalCount} non-breaking change(s)`,
+      message: `Drift detected: ${totalCount} non-breaking change(s).${titleNote}`,
     });
   }
 
