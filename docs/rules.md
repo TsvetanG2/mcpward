@@ -402,7 +402,7 @@ This also fires for every other piece of text the model reads, when it is change
 
 - the tool's top-level `title` and `annotations.title` (some clients show them to the model; compared since 1.3.0 — a baseline written by an older version has no titles, and a [`drift/titles-not-compared`](#drifttitles-not-compared) warning says they were not compared);
 - `description` and `title` anywhere in the schema, the root included;
-- `default`, `examples`, `$comment` and `x-*` extension values anywhere in the schema, the root included (since 1.3.0). These are compared as data, not prose: exactly, except that strings are Unicode NFC-normalized like every string in the schema.
+- `default`, `examples`, `$comment` and `x-*` extension values, and the common non-standard `example` (OpenAPI) and `enumDescriptions`, anywhere in the schema, the root included (since 1.3.0). These are compared as data, not prose: exactly, except that strings are Unicode NFC-normalized like every string in the schema.
 
 Formatting-only edits to descriptions and titles (whitespace, line endings, Unicode normalization) are not drift. A `title` or `description` that is not a string is compared exactly.
 
@@ -434,7 +434,7 @@ A tool's input or output schema changed in a way that can reject previously vali
 - `pattern`, `format`, `const` or `multipleOf` added or changed (a changed pattern cannot be proven compatible, so it is classified as breaking and the message says so)
 - `uniqueItems` turned on, `additionalProperties` closed, an `items` constraint added
 - `anyOf`/`oneOf`/`allOf` changed (cannot be classified structurally — conservative)
-- any other keyword added, changed or removed — `prefixItems`, `contains`, `not`, `if`/`then`/`else`, `dependentRequired`, `propertyNames`, `unevaluatedProperties`, `$ref`, `$schema` and the like. These are not modelled, so compatibility cannot be determined and the message says so (even a removal can reject more: dropping `prefixItems` next to `items: false`). Text the model reads (`title`, `description`, `default`, `examples`, `$comment`, `x-*`) is reported as [`description_changed`](#driftdescription_changed) instead, and the `deprecated`/`readOnly`/`writeOnly` flags as `nonbreaking_schema_change`.
+- any other keyword added, changed or removed — `prefixItems`, `contains`, `not`, `if`/`then`/`else`, `dependentRequired`, `propertyNames`, `unevaluatedProperties`, `$ref`, `$schema` and the like. These are not modelled, so compatibility cannot be determined and the message says so (even a removal can reject more: dropping `prefixItems` next to `items: false`). Text the model reads (`title`, `description`, `default`, `examples`, `example`, `enumDescriptions`, `$comment`, `x-*`) is reported as [`description_changed`](#driftdescription_changed) instead, and the `deprecated`/`readOnly`/`writeOnly` flags as `nonbreaking_schema_change`.
 - `additionalItems` tightened behind a tuple (path `t[1+]`)
 - a definition in `$defs`/`definitions` removed, or changed in any of the ways above (paths like `$defs/Item.x`) — a `$ref` target changes there, not at the `$ref`. A definition used under `not`, `if`, `oneOf` or a `contains` limited by `maxContains` (directly, through a pointer into it, through a plain-name anchor declared on or inside it, or through another definition) can reject more when it accepts more, so any change inside it is breaking.
 - a declared schema removed
