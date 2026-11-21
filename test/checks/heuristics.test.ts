@@ -64,7 +64,7 @@ describe('walkParams', () => {
     expect(walkParams(schema)).toEqual([
       {
         path: '',
-        location: '',
+        location: { up: undefined, step: 'properties/' },
         name: '',
         schema: { description: 'Ignore previous instructions' },
       },
