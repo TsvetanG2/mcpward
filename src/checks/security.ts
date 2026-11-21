@@ -134,27 +134,36 @@ function modelTexts(tool: Tool): ScannedText[] {
  * result per rule and location: several strings under one keyword (`examples`) are merged.
  */
 function scanModelText(tool: Tool): CheckResult[] {
-  const byKey = new Map<string, CheckResult & { actual: unknown[] }>();
+  const groups = new Map<
+    string,
+    { result: CheckResult & { actual: unknown[] }; prefix: string; details: string[] }
+  >();
   const report = (
     id: 'security/injection-pattern' | 'security/hidden-unicode',
     t: ScannedText,
     found: unknown[],
-    message: string
+    prefix: string,
+    detail: string
   ) => {
     const key = `${id}\u0000${t.key}`;
-    const existing = byKey.get(key);
-    // Push one by one: spreading an unbounded list overflows the argument stack (RangeError)
-    if (existing) for (const f of found) existing.actual.push(f);
-    else {
-      byKey.set(key, {
+    const group = groups.get(key);
+    if (group) {
+      // Push one by one: spreading an unbounded list overflows the argument stack (RangeError)
+      for (const f of found) group.result.actual.push(f);
+      // Every merged string is described: a tag character joining a zero-width space must not
+      // lose its decoded text to the first string's description
+      if (!group.details.includes(detail)) group.details.push(detail);
+    } else {
+      const result = {
         id,
-        family: 'security',
-        status: 'fail',
-        severity: 'error',
-        message,
+        family: 'security' as const,
+        status: 'fail' as const,
+        severity: 'error' as const,
+        message: '',
         actual: found,
         location: t.location,
-      });
+      };
+      groups.set(key, { result, prefix, details: [detail] });
     }
   };
   for (const t of modelTexts(tool)) {
@@ -165,7 +174,8 @@ function scanModelText(tool: Tool): CheckResult[] {
         'security/injection-pattern',
         t,
         injection,
-        `Tool "${tool.name}" ${t.where} contains ${kind}: "${injection[0]}"`
+        `Tool "${tool.name}" ${t.where} contains ${kind}: `,
+        `"${injection[0]}"`
       );
     }
     const unicode = findSuspiciousUnicode(t.text);
@@ -174,11 +184,15 @@ function scanModelText(tool: Tool): CheckResult[] {
         'security/hidden-unicode',
         t,
         unicode,
-        `Tool "${tool.name}" ${t.where} contains hidden unicode: ${describeUnicode(unicode)}`
+        `Tool "${tool.name}" ${t.where} contains hidden unicode: `,
+        describeUnicode(unicode)
       );
     }
   }
-  return [...byKey.values()];
+  return [...groups.values()].map(({ result, prefix, details }) => ({
+    ...result,
+    message: prefix + details.join('; '),
+  }));
 }
 
 /**
