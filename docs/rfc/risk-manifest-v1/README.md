@@ -25,7 +25,7 @@ The contract hash identifies the part of a tool definition that the model is tol
 
 ### 1. Unhashable tools
 
-A tool is **unhashable** when its definition is not valid I-JSON (RFC 7493), when it has an integer that a double cannot hold exactly, or when its `inputSchema` is nested too deeply. The reasons, checked over the whole tool definition, are:
+A tool is **unhashable** when its definition is not valid I-JSON (RFC 7493), when it has an integer literal outside the safe-integer range [−(2^53−1), 2^53−1], or when its `inputSchema` is nested too deeply. The reasons, checked over the whole tool definition, are:
 
 | Reason              | Condition                                                                                                                                            |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -135,8 +135,10 @@ Expected output, in numeric order:
 | `16-unsafe-integer`        | `9007199254740993`                                                                                                                    | `unhashable: number-precision`                                            |
 | `17-large-integer`         | `123456789012345680000` (moved out of vector 5)                                                                                       | `unhashable: number-precision`                                            |
 | `18-numbers-in-strings`    | out-of-range and non-finite numbers only inside strings and member names                                                              | `sha256:e1fe84ba5a866fa72f0fc2e4ac5f8c7d61b043e7f39945687aa0cc75781308d1` |
+| `19-integer-boundary`      | `9007199254740992` and `-9007199254740992` (±2^53, exact as a double but outside the safe range)                                      | `unhashable: number-precision`                                            |
+| `20-integer-fraction`      | `9007199254740992.0`: not an integer literal, so the rule does not apply                                                              | `sha256:0f8c00a18bf324e56fa456ae870680319acb18941041085628fe8b22529bcc31` |
 
-`crosscheck.ts` reports vector 7 as "not detectable from parsed input" on the TypeScript side. That is the duplicate-key limitation above, not a disagreement. Its number checks (vectors 9, 15–18) read the raw text, as a conforming generator must.
+`crosscheck.ts` reports vector 7 as "not detectable from parsed input" on the TypeScript side. That is the duplicate-key limitation above, not a disagreement. Its number checks (vectors 9, 15–20) read the raw text, as a conforming generator must.
 
 ## Revision history
 
@@ -151,3 +153,4 @@ Expected output, in numeric order:
   - Confirmed: the whole `inputSchema` is hashed, so `default`, `examples`, `$comment` and `x-*` are covered.
   - Rule ids are namespaced per generator, plus a small `shared/` set. Consumer guidance on conflicting evidence, overrides in a separate file, `arguments[]` optional, `outputSchema` out of the hash, spec location.
   - Vectors 5–18, and `crosscheck.ts`: every vector is checked by two independent implementations.
+- **r2.1** (2026-11-21): wording and vectors only, no rule change. The unhashable summary now says "integer literal outside the safe-integer range", as the reason table does. Vectors 19 (±2^53 is `number-precision`, although a double holds it exactly) and 20 (`9007199254740992.0` hashes: the rule covers integer literals only).

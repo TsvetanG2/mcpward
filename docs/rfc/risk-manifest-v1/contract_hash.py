@@ -223,7 +223,7 @@ def parse_tool(text: str) -> dict:
         return 0.0
 
     def int_hook(literal):
-        # Written as an integer (no fraction, no exponent): must be exact as a double.
+        # Written as an integer (no fraction, no exponent): must be in the safe-integer range.
         # Never converted silently; an out-of-range literal makes the tool unhashable.
         if abs(int(literal)) > MAX_SAFE_INTEGER:
             found.add("number-precision")
