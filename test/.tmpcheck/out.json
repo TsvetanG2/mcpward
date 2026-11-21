@@ -1,0 +1,56 @@
+{
+ "properties": [
+  "input_property_added/high"
+ ],
+ "items": [
+  "input_property_added/high"
+ ],
+ "prefixItems": [
+  "input_property_added/high"
+ ],
+ "tupleItems": [
+  "input_property_added/high"
+ ],
+ "additionalProperties": [
+  "input_property_added/high"
+ ],
+ "patternProperties": [
+  "input_property_added/high"
+ ],
+ "propertyNames": [
+  "input_property_added/high"
+ ],
+ "contains": [
+  "input_property_added/high"
+ ],
+ "anyOf": [
+  "input_property_added/high"
+ ],
+ "not": [
+  "input_property_added/high"
+ ],
+ "ifThen": [
+  "input_property_added/high"
+ ],
+ "dependentSchemas": [
+  "input_property_added/high"
+ ],
+ "unreferencedDefs": [
+  "input_property_added/medium"
+ ],
+ "unevaluatedProperties": [
+  "input_property_added/high"
+ ],
+ "nonStringTitle": [],
+ "nonStringTitleAdded": [],
+ "nonStringDesc": [],
+ "newDef": [
+  "nonbreaking_schema_change/low"
+ ],
+ "newDefHostile": [
+  "nonbreaking_schema_change/low"
+ ],
+ "newFieldNonStringHostileTitle": [
+  "input_property_added/medium"
+ ]
+}

@@ -412,3 +412,53 @@ describe('tool-level title and annotations.title', () => {
     ).toBe('Remove record');
   });
 });
+
+describe('a baseline from canonicalization v2 (mcpward ≤ 1.2.x)', () => {
+  // v2 stored every array named `required` sorted, data included
+  const v2 = (r: string[]) => {
+    const s = surfaceOf([
+      {
+        name: 't',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            a: { type: 'object', default: { required: r }, enum: [{ required: r }] },
+            b: { type: 'object', const: { required: r } },
+          },
+        },
+      },
+    ]);
+    s.meta.canonicalVersion = 2;
+    return s;
+  };
+  const server = (r: string[], extra: object = {}) =>
+    surfaceOf([
+      {
+        name: 't',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            a: { type: 'object', default: { required: r }, enum: [{ required: r }], ...extra },
+            b: { type: 'object', const: { required: r } },
+          },
+        },
+      },
+    ]);
+
+  it('an unchanged server with unsorted data `required` lists is not drift', () => {
+    expect(diffSurfaces(v2(['a', 'b']), server(['b', 'a'])).changes).toEqual([]);
+  });
+
+  it('a real change is still reported', () => {
+    expect(
+      diffSurfaces(v2(['a', 'b']), server(['b', 'a'], { title: HOSTILE })).changes.map(
+        (c) => `${c.class}/${c.severity}`
+      )
+    ).toEqual(['description_changed/high']);
+  });
+
+  it('a v3 baseline compares the order (the rule change applies after re-baselining)', () => {
+    const v3 = server(['a', 'b']);
+    expect(diffSurfaces(v3, server(['b', 'a'])).changes.length).toBeGreaterThan(0);
+  });
+});

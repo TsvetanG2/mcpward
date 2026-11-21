@@ -25,8 +25,11 @@ const MAX_SCHEMA_DEPTH = 64;
  * v1: initial rules (M0)
  * v2: trimming is ASCII-only — v1 used String#trim(), which also strips U+FEFF (a zero-width
  *     character) and Unicode spaces such as U+00A0, hiding them from drift at the edges.
+ * v3: `required` is sorted only where it is a schema keyword; inside instance data (`default`,
+ *     `const`, `enum`, `examples`, `$comment`, `x-*`) it keeps its order. A v2 baseline is
+ *     compared under v2 rules (`legacyRequiredSort`), so the change alone is never drift.
  */
-export const CANONICAL_VERSION = 2;
+export const CANONICAL_VERSION = 3;
 
 /** Trims ASCII spaces, tabs and newlines only — never Unicode whitespace or U+FEFF. */
 function trimAscii(text: string): string {
@@ -116,10 +119,14 @@ function childMode(mode: Mode, key: string): Mode {
  * Do not "helpfully" change this later.
  *
  * @param schema - The schema to canonicalize
+ * @param options.legacyRequiredSort - v2 rules: sort every array named `required`, data included
  * @returns Canonical form of the schema, or null if input was null
  * @throws Error if schema exceeds max depth or contains cycles
  */
-export function canonicalizeSchema(schema: JsonSchema | null): JsonSchema | null {
+export function canonicalizeSchema(
+  schema: JsonSchema | null,
+  options: { legacyRequiredSort?: boolean } = {}
+): JsonSchema | null {
   if (schema === null) return null;
 
   const seen = new WeakSet<object>();
@@ -169,7 +176,11 @@ export function canonicalizeSchema(schema: JsonSchema | null): JsonSchema | null
       if (val === undefined) continue;
 
       // Special case: sort the `required` array since it's a set
-      if (mode === 'schema' && key === 'required' && Array.isArray(val)) {
+      if (
+        (mode === 'schema' || options.legacyRequiredSort) &&
+        key === 'required' &&
+        Array.isArray(val)
+      ) {
         setOwn(result, key, [...val].sort());
       } else {
         setOwn(result, key, canonicalizeValue(val, depth + 1, childMode(mode, key)));
