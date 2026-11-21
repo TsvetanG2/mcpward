@@ -260,6 +260,26 @@ describe('title and description that are not strings', () => {
     expect(schemaClasses(at(k, a), at(k, b))).toEqual(['description_changed/high']);
   });
 
+  it.each(['title', 'description'])(
+    '%s: reordering a list inside a non-string value is drift (canonicalization must not sort it)',
+    (k) => {
+      expect(
+        schemaClasses(at(k, { required: ['a', 'b'] }), at(k, { required: ['b', 'a'] }))
+      ).toEqual(['description_changed/high']);
+    }
+  );
+
+  it('a property NAMED title or description is still a schema', () => {
+    const s = (r: string[]): JsonSchema => ({
+      type: 'object',
+      properties: {
+        title: { type: 'object', required: r },
+        description: { type: 'object', required: r },
+      },
+    });
+    expect(schemaClasses(s(['a', 'b']), s(['b', 'a']))).toEqual([]);
+  });
+
   it('NEGATIVE: an identical non-string value is not drift', () => {
     expect(schemaClasses(at('title', { a: 1 }), at('title', { a: 1 }))).toEqual([]);
   });
