@@ -444,7 +444,12 @@ Breaking schema changes require client updates. Review carefully and update the 
 
 ### drift/nonbreaking_schema_change
 
-**Severity:** low (info)
+**Severity:** low (info) by default. Since 1.3.0:
+
+- **medium** for a new `$defs`/`definitions` entry in an `inputSchema`. The model reads a definition's text whether or not anything refers to it, so it is treated like a new input field ([`input_property_added`](#driftinput_property_added)), with its description quoted in the message.
+- **high** when the change brings in hostile input: a new definition, a subschema that was `false` or `true`, or `additionalProperties` that were closed, whose text anywhere inside has injection-like phrasing or hidden unicode, or whose field name solicits a secret.
+
+In an `outputSchema` it always stays low: the server, not the model, fills in output.
 
 A tool's schema changed compatibly, at any nesting depth: type widened, required → optional, `enum` value added or `enum` removed, bounds relaxed or removed, `pattern`/`format`/`const`/`multipleOf` removed, `uniqueItems` turned off, `additionalProperties` opened, `items` constraint removed, a `$defs`/`definitions` entry added, or a declared schema added.
 
