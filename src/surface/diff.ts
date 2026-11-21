@@ -1279,7 +1279,9 @@ function diffDescription(
   emit: Emit,
   keyword: 'description' | 'title' = 'description'
 ): void {
-  const isText = (v: unknown) => v === undefined || typeof v === 'string';
+  // Absent, null and "" all mean "no text": moving between them is not drift
+  const absent = (v: unknown) => v === undefined || v === null || v === '';
+  const isText = (v: unknown) => absent(v) || typeof v === 'string';
   const b = typeof before === 'string' ? before : '';
   const a = typeof after === 'string' ? after : '';
   if (isText(before) && isText(after)) {
@@ -1288,7 +1290,6 @@ function diffDescription(
     // Not a string (`title: 1`, `description: {…}`): the model still reads it — compare exactly
     return;
   }
-  const absent = (v: unknown) => v === undefined || v === null || v === '';
   const what = absent(before) ? 'added' : absent(after) ? 'removed' : 'changed';
   emit('description_changed', `${subject}${keyword} ${what} (possible rug-pull)`, before, after);
 }

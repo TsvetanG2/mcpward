@@ -494,3 +494,33 @@ describe('example (OpenAPI) and enumDescriptions are model text like examples', 
     }
   });
 });
+
+describe('absent, null and "" all mean "no text"', () => {
+  const at = (k: string, v: unknown): JsonSchema =>
+    ({
+      type: 'object',
+      properties: { a: { type: 'string', ...(v === undefined ? {} : { [k]: v }) } },
+    }) as JsonSchema;
+  const NONE = [undefined, null, ''];
+
+  it.each(['title', 'description'])('%s: no finding between any two of them', (k) => {
+    for (const x of NONE)
+      for (const y of NONE) expect(schemaClasses(at(k, x), at(k, y))).toEqual([]);
+  });
+
+  it.each(['title', 'description'])('%s: text appearing from any of them is "added"', (k) => {
+    for (const x of NONE) {
+      const [change] = diffSurfaces(
+        surfaceOf([{ name: 't', inputSchema: at(k, x) }]),
+        surfaceOf([{ name: 't', inputSchema: at(k, HOSTILE) }])
+      ).changes;
+      expect(change?.message).toBe(
+        `Tool "t" inputSchema property "a" ${k} added (possible rug-pull)`
+      );
+    }
+  });
+
+  it('tool-level: a title null in the baseline and absent now is not drift', () => {
+    expect(classes({ title: '' }, {})).toEqual([]);
+  });
+});
