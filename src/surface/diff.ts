@@ -171,6 +171,11 @@ function classifyTypeChange(
 export function diffSurfaces(baseline: ServerSurface, current: ServerSurface): DriftResult {
   const changes: DriftChange[] = [];
 
+  // A baseline from canonicalization v2 (mcpward ≤ 1.2.x) stored `required` lists inside
+  // instance data sorted. Compare the current schemas under the same rule, so that rule change
+  // alone never shows up as drift; re-running `mcpward baseline` moves to v3 comparison.
+  if ((baseline.meta.canonicalVersion ?? 0) < 3) current = withLegacyRequiredSort(current);
+
   // Check for canonicalization version mismatch
   // Old lockfiles (v1) won't have this field
   const baselineCanonicalVer = baseline.meta.canonicalVersion ?? 0;
@@ -180,9 +185,13 @@ export function diffSurfaces(baseline: ServerSurface, current: ServerSurface): D
     // This is not a real drift change, but a warning that the comparison
     // crosses a canonicalization change boundary
     console.warn(
-      `Warning: Baseline was captured with canonicalization v${baselineCanonicalVer}, ` +
-        `current uses v${currentCanonicalVer}. Some changes may be artifacts of the ` +
-        `canonicalization change. Recommend re-running 'mcpward baseline' to update.`
+      baselineCanonicalVer === 2 && currentCanonicalVer === 3
+        ? // v2 → v3 is compared under v2 rules (withLegacyRequiredSort): findings are real
+          `Warning: Baseline was captured with canonicalization v2, current uses v3; the ` +
+            `comparison used v2 rules. Re-run 'mcpward baseline' to update.`
+        : `Warning: Baseline was captured with canonicalization v${baselineCanonicalVer}, ` +
+            `current uses v${currentCanonicalVer}. Some changes may be artifacts of the ` +
+            `canonicalization change. Recommend re-running 'mcpward baseline' to update.`
     );
   }
 
@@ -311,6 +320,25 @@ function diffTool(toolName: string, baseline: ToolSurface, current: ToolSurface)
   }
 
   return changes;
+}
+
+/** `surface` with every schema canonicalized under v2's `required` sorting. */
+function withLegacyRequiredSort(surface: ServerSurface): ServerSurface {
+  const tools: ServerSurface['tools'] = {};
+  for (const [name, tool] of Object.entries(surface.tools)) {
+    // defineProperty: a tool named `__proto__` stays an ordinary key
+    Object.defineProperty(tools, name, {
+      value: {
+        ...tool,
+        inputSchema: canonicalizeSchema(tool.inputSchema, { legacyRequiredSort: true }),
+        outputSchema: canonicalizeSchema(tool.outputSchema, { legacyRequiredSort: true }),
+      },
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+  }
+  return { ...surface, tools };
 }
 
 /**

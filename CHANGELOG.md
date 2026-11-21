@@ -36,6 +36,8 @@ Checks get better ([`docs/stability.md`](docs/stability.md)); three effects to e
 
 Review each finding; if the change is intended, re-baseline. Pin the mcpward version and upgrade deliberately.
 
+Canonicalization moves to v3 (a `required` list inside instance data keeps its order). A baseline from 1.2.x is still compared under its own v2 rules, so the change alone is never drift; `diff` prints a one-line notice until you re-baseline.
+
 Run `mcpward baseline` again to start tracking tool titles; older baselines skip title comparison, and a `drift/titles-not-compared` warning says so. Older mcpward versions read the new lockfile fields without error.
 
 ## [1.2.1] — 2026-11-18
