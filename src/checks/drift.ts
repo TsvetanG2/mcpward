@@ -204,7 +204,7 @@ export async function runDriftChecks(ctx: DriftCheckContext): Promise<CheckResul
       family: 'drift',
       status: 'pass',
       severity: 'info',
-      message: `No drift detected. Server surface matches baseline.`,
+      message: 'No drift detected. Server surface matches baseline.',
     });
     return results;
   }
@@ -229,7 +229,7 @@ export async function runDriftChecks(ctx: DriftCheckContext): Promise<CheckResul
       family: 'drift',
       status: 'fail',
       severity: 'error',
-      message: `Drift detected: ${failCount} failing change(s) out of ${totalCount} total.`,
+      message: `Drift detected: ${failCount} failing change(s) out of ${totalCount} total`,
       expected: 'No breaking changes',
       actual: `${failCount} breaking, ${totalCount - failCount} non-breaking`,
     });
@@ -239,7 +239,7 @@ export async function runDriftChecks(ctx: DriftCheckContext): Promise<CheckResul
       family: 'drift',
       status: 'pass',
       severity: 'info',
-      message: `Drift detected: ${totalCount} non-breaking change(s).`,
+      message: `Drift detected: ${totalCount} non-breaking change(s)`,
     });
   }
 
