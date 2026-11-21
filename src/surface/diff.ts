@@ -962,8 +962,8 @@ function suspiciousNewInput(
 function withDefinitions(params: ParamNode[], currRoot: JsonSchema): ParamNode[] {
   const out = [...params];
   const seen = new WeakSet<object>();
-  for (let i = 0; i < out.length; i++) {
-    const node = out[i]?.schema;
+  // for-of over `out` also visits the nodes pushed below: definitions inside definitions
+  for (const { path, schema: node } of out) {
     if (!node) continue;
     for (const key of DEFINITION_KEYWORDS) {
       const defs = asSchema(node[key]);
@@ -971,7 +971,7 @@ function withDefinitions(params: ParamNode[], currRoot: JsonSchema): ParamNode[]
       for (const [name, def] of Object.entries(defs)) {
         if (def === null || typeof def !== 'object' || seen.has(def)) continue;
         seen.add(def);
-        const at = `${out[i]?.path ?? ''}.${key}/${name}`;
+        const at = `${path}.${key}/${name}`;
         // `at` as the only property name: the walk reports it and everything below it
         for (const p of walkParams({ properties: { [at]: def } }, currRoot)) {
           out.push({ ...p, name: undefined });
