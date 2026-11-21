@@ -78,9 +78,14 @@ function hasDestructiveKeywords(text: string): boolean {
 
 /** A piece of text the model reads, with where it is for the report. */
 interface ScannedText {
-  /** `description`, `title`, `parameter "a.b" default`, … — goes into the message. */
+  /** `description`, `title`, `inputSchema.properties/a.default`, … — goes into the message. */
   where: string;
   location: string;
+  /**
+   * What findings are grouped by: tool-level or not, the location segments and the keyword.
+   * Not the location string, which can coincide for two places (a property named `a.items`).
+   */
+  key: string;
   text: string;
   /** Tool-level text keeps the pre-1.3.1 wording "injection-like pattern". */
   toolLevel: boolean;
@@ -89,10 +94,12 @@ interface ScannedText {
 /**
  * Every text of a tool the model reads: the tool's description and title, `annotations.title`,
  * and everything `collectSchemaText` finds in the input schema. The location is the full path:
- * `tool`, `tool.title`, `tool.annotations.title`, `tool.inputSchema.<keyword>` for the schema
- * root (`tool.inputSchema.anyOf/0.<keyword>` for its branches), `tool.<location>` for a
- * parameter description and `tool.<location>.<keyword>` for any other keyword. The location
- * spells out every keyword: `rows.items.note`, `opts.patternProperties/^x`, `$defs/Name`.
+ * `tool` for the description, `tool.title`, `tool.annotations.title`, and
+ * `tool.inputSchema.<segments>.<keyword>` for the schema, with every keyword spelled out and
+ * property names prefixed: `tool.inputSchema.description` (root),
+ * `tool.inputSchema.properties/rows.items.properties/note.description`,
+ * `tool.inputSchema.properties/opts.patternProperties/^x.title`,
+ * `tool.inputSchema.$defs/Name.title`.
  */
 function modelTexts(tool: Tool): ScannedText[] {
   const { name } = tool;
@@ -100,32 +107,23 @@ function modelTexts(tool: Tool): ScannedText[] {
   // The server is untrusted: a field typed as a string may be anything at runtime
   const add = (where: string, location: string, value: unknown) => {
     if (typeof value === 'string' && value !== '') {
-      out.push({ where, location, text: value, toolLevel: true });
+      const key = JSON.stringify([true, where]);
+      out.push({ where, location, key, text: value, toolLevel: true });
     }
   };
   add('description', name, tool.description);
   add('title', `${name}.title`, tool.title);
   add('annotations.title', `${name}.annotations.title`, tool.annotations?.title);
   if (tool.inputSchema) {
-    for (const { path, location, keyword, text } of collectSchemaText(tool.inputSchema)) {
-      // The root and its in-place branches (`anyOf/0`, `not`) are not a parameter
-      if (path === '') {
-        const at = location === '' ? 'inputSchema' : `inputSchema.${location}`;
-        out.push({
-          where: `input schema ${location === '' ? '' : `${location} `}${keyword}`,
-          location: `${name}.${at}.${keyword}`,
-          text,
-          toolLevel: false,
-        });
-      } else {
-        out.push({
-          where: `parameter "${location}" ${keyword}`,
-          location:
-            keyword === 'description' ? `${name}.${location}` : `${name}.${location}.${keyword}`,
-          text,
-          toolLevel: false,
-        });
-      }
+    for (const { location, keyword, text } of collectSchemaText(tool.inputSchema)) {
+      const where = ['inputSchema', ...location, keyword].join('.');
+      out.push({
+        where,
+        location: `${name}.${where}`,
+        key: JSON.stringify([false, location, keyword]),
+        text,
+        toolLevel: false,
+      });
     }
   }
   return out;
@@ -143,7 +141,7 @@ function scanModelText(tool: Tool): CheckResult[] {
     found: unknown[],
     message: string
   ) => {
-    const key = `${id}\u0000${t.location}`;
+    const key = `${id}\u0000${t.key}`;
     const existing = byKey.get(key);
     // Push one by one: spreading an unbounded list overflows the argument stack (RangeError)
     if (existing) for (const f of found) existing.actual.push(f);
