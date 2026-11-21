@@ -989,6 +989,8 @@ const isModelTextKeyword = (k: string) =>
   k === '$comment' ||
   k === 'default' ||
   k === 'examples' ||
+  k === 'example' ||
+  k === 'enumDescriptions' ||
   k.startsWith('x-');
 
 /**
@@ -1250,6 +1252,8 @@ const ANNOTATION_KEYWORDS = new Set([
   'description',
   'default',
   'examples',
+  'example',
+  'enumDescriptions',
   '$comment',
   'deprecated',
   'readOnly',
@@ -1290,7 +1294,14 @@ function diffDescription(
 }
 
 /** Free-form values the model reads with the schema: compared exactly, they are data. */
-const TEXT_VALUE_KEYWORDS = ['default', 'examples', '$comment'] as const;
+// `example` (OpenAPI) and `enumDescriptions` (VS Code) are common non-standard ones (canonical.ts)
+const TEXT_VALUE_KEYWORDS = [
+  'default',
+  'examples',
+  'example',
+  'enumDescriptions',
+  '$comment',
+] as const;
 /** Boolean annotations the model reads; a change is visible but not a rug-pull by itself. */
 const FLAG_KEYWORDS = ['deprecated', 'readOnly', 'writeOnly'] as const;
 

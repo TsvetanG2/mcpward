@@ -46,6 +46,8 @@ const POSITIONS: Record<string, (k: string, v: unknown) => JsonSchema> = {
 
 describe('text keywords are description_changed at every level', () => {
   const TEXT: [string, unknown, unknown][] = [
+    ['example', 'a', HOSTILE],
+    ['enumDescriptions', ['a'], [HOSTILE]],
     ['title', 'Path', HOSTILE],
     ['description', 'Path', HOSTILE],
     ['default', 'a', HOSTILE],
@@ -345,18 +347,13 @@ describe('a `required` key inside data is data: its order is compared', () => {
       'description_changed/high',
     ],
     ['x-hint', { required: ['a', 'b'] }, { required: ['b', 'a'] }, 'description_changed/high'],
-    // non-standard data keywords: unmodelled, so breaking — but the reorder must not be silent
-    [
-      'example',
-      { required: ['a', 'b'] },
-      { required: ['b', 'a'] },
-      'breaking_schema_change/medium',
-    ],
+    // common non-standard data keywords
+    ['example', { required: ['a', 'b'] }, { required: ['b', 'a'] }, 'description_changed/high'],
     [
       'enumDescriptions',
       [{ required: ['a', 'b'] }],
       [{ required: ['b', 'a'] }],
-      'breaking_schema_change/medium',
+      'description_changed/high',
     ],
     ['const', { required: ['a', 'b'] }, { required: ['b', 'a'] }, 'breaking_schema_change/medium'],
   ])('%s', (k, a, b, expected) => {
@@ -473,5 +470,27 @@ describe('a baseline from canonicalization v2 (mcpward ≤ 1.2.x)', () => {
   it('a v3 baseline compares the order (the rule change applies after re-baselining)', () => {
     const v3 = server(['a', 'b']);
     expect(diffSurfaces(v3, server(['b', 'a'])).changes.length).toBeGreaterThan(0);
+  });
+});
+
+describe('example (OpenAPI) and enumDescriptions are model text like examples', () => {
+  it('a hostile example on a NEW field escalates it', () => {
+    expect(
+      classes(
+        { inputSchema: { type: 'object', properties: {} } },
+        { inputSchema: { type: 'object', properties: { a: { type: 'string', example: HOSTILE } } } }
+      )
+    ).toEqual(['input_property_added/high']);
+  });
+
+  it('adding one to `true` is text, not a schema change (they do not constrain)', () => {
+    for (const k of ['example', 'enumDescriptions']) {
+      expect(
+        schemaClasses(
+          { type: 'object', properties: { a: true } },
+          { type: 'object', properties: { a: { [k]: ['x'] } } }
+        )
+      ).toEqual(['description_changed/high']);
+    }
   });
 });
