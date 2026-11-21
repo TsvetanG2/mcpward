@@ -8,6 +8,8 @@ Since `1.0.0`, the public contract described in [`docs/stability.md`](docs/stabi
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-11-21
+
 ### Added
 
 - **New drift class `annotation_relaxed`** (medium, not in the default `fail_on`): a tool hint now claims a safer tool — `readOnlyHint` false→true, `destructiveHint` true→false or `openWorldHint` true→false. These changes passed silently. A tool that tells clients "I am harmless now" after you reviewed it is on the path to auto-approval, so it is reported as a warning.
@@ -505,7 +507,8 @@ Initial release.
 - **GitHub composite Action** for one-step CI integration.
 - `${ENV_VAR}` interpolation in config for secrets and tokens.
 
-[Unreleased]: https://github.com/TsvetanG2/mcpward/compare/v1.2.1...HEAD
+[Unreleased]: https://github.com/TsvetanG2/mcpward/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/TsvetanG2/mcpward/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/TsvetanG2/mcpward/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/TsvetanG2/mcpward/compare/v1.1.3...v1.2.0
 [1.1.3]: https://github.com/TsvetanG2/mcpward/compare/v1.1.2...v1.1.3
