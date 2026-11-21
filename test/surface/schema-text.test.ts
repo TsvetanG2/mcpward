@@ -436,6 +436,10 @@ describe('tool-level title and annotations.title', () => {
     expect(captureToolSurface({ name: 't', title: ' Read   file\r\n' }).title).toBe('Read file');
     expect(captureToolSurface({ name: 't' }).title).toBeNull();
     expect(captureToolSurface({ name: 't', title: '' }).title).toBeNull();
+    expect(captureToolSurface({ name: 't', title: ' \r\n ' }).title).toBeNull();
+    expect(
+      captureToolSurface({ name: 't', annotations: { title: '  ' } }).annotations?.title
+    ).toBeUndefined();
     expect(
       captureToolSurface({ name: 't', annotations: { title: ' Remove  record ' } }).annotations
         ?.title
