@@ -400,11 +400,18 @@ A tool's description has changed since the baseline. The model reads description
 
 This also fires for every other piece of text the model reads, when it is changed, added where there was none, or removed:
 
-- the tool's top-level `title` and `annotations.title` (some clients show them to the model; compared since 1.3.0 — a baseline written by an older version has no titles, and the drift summary says they were not compared);
+- the tool's top-level `title` and `annotations.title` (some clients show them to the model; compared since 1.3.0 — a baseline written by an older version has no titles, and a [`drift/titles-not-compared`](#drifttitles-not-compared) warning says they were not compared);
 - `description` and `title` anywhere in the schema, the root included;
 - `default`, `examples`, `$comment` and `x-*` extension values anywhere in the schema, the root included (since 1.3.0). These are compared as data, not prose: exactly, except that strings are Unicode NFC-normalized like every string in the schema.
 
-Formatting-only edits to descriptions and titles (whitespace, line endings, Unicode normalization) are not drift. Changes inside `anyOf`/`oneOf`/`allOf` branches are still reported as `breaking_schema_change`.
+Formatting-only edits to descriptions and titles (whitespace, line endings, Unicode normalization) are not drift. A `title` or `description` that is not a string is compared exactly.
+
+**Exceptions:**
+
+- **Text inside keywords the walk does not model** — `anyOf`, `oneOf`, `allOf`, `patternProperties`, `propertyNames`, `prefixItems`, `contains`, `dependentSchemas`, `dependencies`, `if`/`then`/`else`, `not`, `unevaluatedProperties` — is reported as [`breaking_schema_change`](#driftbreaking_schema_change) (high when it brings in hostile text), not as `description_changed`. It still fails CI by default.
+- **Text that arrives with new structure** — a new optional field, a subschema that was `false` or `true`, `additionalProperties` that were closed, a new `items` schema, a new `$defs`/`definitions` entry — is reported with the structural finding, like [`input_property_added`](#driftinput_property_added): the whole new structure is read at every depth (definitions inside it included) and the finding is escalated to high when any of its text has injection-like phrasing or hidden unicode, or a field name solicits a secret.
+
+**Expect churn from generated values.** A `default`, `examples` or `x-*` value that changes on every release (a version stamp, a build date, a generated id) is `description_changed` (high) each time. Review it and re-baseline. Lowering `description_changed` in `checks.drift.severity` would hide real rug-pulls too, so it is not a fix for this.
 
 **What it checks:**
 
