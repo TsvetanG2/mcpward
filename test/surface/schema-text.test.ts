@@ -345,6 +345,19 @@ describe('a `required` key inside data is data: its order is compared', () => {
       'description_changed/high',
     ],
     ['x-hint', { required: ['a', 'b'] }, { required: ['b', 'a'] }, 'description_changed/high'],
+    // non-standard data keywords: unmodelled, so breaking — but the reorder must not be silent
+    [
+      'example',
+      { required: ['a', 'b'] },
+      { required: ['b', 'a'] },
+      'breaking_schema_change/medium',
+    ],
+    [
+      'enumDescriptions',
+      [{ required: ['a', 'b'] }],
+      [{ required: ['b', 'a'] }],
+      'breaking_schema_change/medium',
+    ],
     ['const', { required: ['a', 'b'] }, { required: ['b', 'a'] }, 'breaking_schema_change/medium'],
   ])('%s', (k, a, b, expected) => {
     expect(schemaClasses(at(k, a), at(k, b))).toEqual([expected]);

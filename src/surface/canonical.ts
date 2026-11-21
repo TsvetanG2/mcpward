@@ -26,8 +26,9 @@ const MAX_SCHEMA_DEPTH = 64;
  * v2: trimming is ASCII-only — v1 used String#trim(), which also strips U+FEFF (a zero-width
  *     character) and Unicode spaces such as U+00A0, hiding them from drift at the edges.
  * v3: `required` is sorted only where it is a schema keyword; inside instance data (`default`,
- *     `const`, `enum`, `examples`, `$comment`, `x-*`) it keeps its order. A v2 baseline is
- *     compared under v2 rules (`legacyRequiredSort`), so the change alone is never drift.
+ *     `const`, `enum`, `examples`, `example`, `enumDescriptions`, `$comment`, `x-*`) it keeps
+ *     its order. A v2 baseline is compared under v2 rules (`legacyRequiredSort`), so the
+ *     change alone is never drift.
  */
 export const CANONICAL_VERSION = 3;
 
@@ -83,7 +84,16 @@ function setOwn(obj: Record<string, unknown>, key: string, value: unknown): void
 type Mode = 'schema' | 'names' | 'data';
 
 /** Keywords whose value is instance data or free text, never a schema. */
-const DATA_KEYWORDS = new Set(['default', 'const', 'enum', 'examples', '$comment']);
+// `example` (OpenAPI) and `enumDescriptions` (VS Code) are common non-standard data keywords
+const DATA_KEYWORDS = new Set([
+  'default',
+  'const',
+  'enum',
+  'examples',
+  'example',
+  'enumDescriptions',
+  '$comment',
+]);
 /** Keywords whose value maps names to schemas. */
 const NAME_MAP_KEYWORDS = new Set([
   'properties',
