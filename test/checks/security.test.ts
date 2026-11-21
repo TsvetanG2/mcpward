@@ -221,7 +221,7 @@ describe('Security Checks', () => {
           'broken_flag',
           'fake_flag',
           'nested_hider.filter.status',
-          'nested_hider.rows[].note',
+          'nested_hider.rows.items.note',
           'param_hider.text',
           'tag_smuggler',
         ]);
@@ -305,14 +305,86 @@ describe('Security Checks', () => {
       [
         'root anyOf branch',
         (t) => ({ inputSchema: { type: 'object', anyOf: [{ description: t }] } }),
-        't.inputSchema.description',
+        't.inputSchema.anyOf/0.description',
       ],
       [
         'root not',
         (t) => ({ inputSchema: { type: 'object', not: { title: t } } }),
-        't.inputSchema.title',
+        't.inputSchema.not.title',
       ],
       ['param description', (t) => ({ inputSchema: param({ description: t }) }), 't.a'],
+      // The location names the keyword: `t.a{}` would be the same for three of them
+      ['items', (t) => ({ inputSchema: param({ items: { description: t } }) }), 't.a.items'],
+      [
+        'tuple items',
+        (t) => ({ inputSchema: param({ items: [{}, { description: t }] }) }),
+        't.a.items/1',
+      ],
+      [
+        'prefixItems',
+        (t) => ({ inputSchema: param({ prefixItems: [{ description: t }] }) }),
+        't.a.prefixItems/0',
+      ],
+      [
+        'additionalItems',
+        (t) => ({ inputSchema: param({ items: {}, additionalItems: { description: t } }) }),
+        't.a.additionalItems',
+      ],
+      [
+        'contains',
+        (t) => ({ inputSchema: param({ contains: { title: t } }) }),
+        't.a.contains.title',
+      ],
+      [
+        'unevaluatedItems',
+        (t) => ({ inputSchema: param({ unevaluatedItems: { description: t } }) }),
+        't.a.unevaluatedItems',
+      ],
+      [
+        'additionalProperties',
+        (t) => ({ inputSchema: param({ additionalProperties: { description: t } }) }),
+        't.a.additionalProperties',
+      ],
+      [
+        'patternProperties',
+        (t) => ({ inputSchema: param({ patternProperties: { '^f': { description: t } } }) }),
+        't.a.patternProperties/^f',
+      ],
+      [
+        'unevaluatedProperties',
+        (t) => ({ inputSchema: param({ unevaluatedProperties: { description: t } }) }),
+        't.a.unevaluatedProperties',
+      ],
+      [
+        'propertyNames',
+        (t) => ({ inputSchema: param({ propertyNames: { description: t } }) }),
+        't.a.propertyNames',
+      ],
+      [
+        'oneOf branch',
+        (t) => ({ inputSchema: param({ oneOf: [{}, { description: t }] }) }),
+        't.a.oneOf/1',
+      ],
+      ['if', (t) => ({ inputSchema: param({ if: { description: t } }) }), 't.a.if'],
+      [
+        'dependentSchemas',
+        (t) => ({ inputSchema: param({ dependentSchemas: { b: { description: t } } }) }),
+        't.a.dependentSchemas/b',
+      ],
+      [
+        'dependencies (schema)',
+        (t) => ({ inputSchema: param({ dependencies: { b: { description: t } } }) }),
+        't.a.dependencies/b',
+      ],
+      [
+        'nested property inside items',
+        (t) => ({
+          inputSchema: param({
+            items: { type: 'object', properties: { note: { description: t } } },
+          }),
+        }),
+        't.a.items.note',
+      ],
       ['param title', (t) => ({ inputSchema: param({ title: t }) }), 't.a.title'],
       ['param default', (t) => ({ inputSchema: param({ default: t }) }), 't.a.default'],
       ['default at depth 3', (t) => ({ inputSchema: deep({ default: t }) }), 't.x.y.z.default'],

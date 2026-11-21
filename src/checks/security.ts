@@ -90,8 +90,9 @@ interface ScannedText {
  * Every text of a tool the model reads: the tool's description and title, `annotations.title`,
  * and everything `collectSchemaText` finds in the input schema. The location is the full path:
  * `tool`, `tool.title`, `tool.annotations.title`, `tool.inputSchema.<keyword>` for the schema
- * root, `tool.<param path>` for a parameter description and `tool.<param path>.<keyword>` for
- * any other keyword.
+ * root (`tool.inputSchema.anyOf/0.<keyword>` for its branches), `tool.<location>` for a
+ * parameter description and `tool.<location>.<keyword>` for any other keyword. The location
+ * spells out every keyword: `rows.items.note`, `opts.patternProperties/^x`, `$defs/Name`.
  */
 function modelTexts(tool: Tool): ScannedText[] {
   const { name } = tool;
@@ -106,18 +107,21 @@ function modelTexts(tool: Tool): ScannedText[] {
   add('title', `${name}.title`, tool.title);
   add('annotations.title', `${name}.annotations.title`, tool.annotations?.title);
   if (tool.inputSchema) {
-    for (const { path, keyword, text } of collectSchemaText(tool.inputSchema)) {
+    for (const { path, location, keyword, text } of collectSchemaText(tool.inputSchema)) {
+      // The root and its in-place branches (`anyOf/0`, `not`) are not a parameter
       if (path === '') {
+        const at = location === '' ? 'inputSchema' : `inputSchema.${location}`;
         out.push({
-          where: `input schema ${keyword}`,
-          location: `${name}.inputSchema.${keyword}`,
+          where: `input schema ${location === '' ? '' : `${location} `}${keyword}`,
+          location: `${name}.${at}.${keyword}`,
           text,
           toolLevel: false,
         });
       } else {
         out.push({
-          where: `parameter "${path}" ${keyword}`,
-          location: keyword === 'description' ? `${name}.${path}` : `${name}.${path}.${keyword}`,
+          where: `parameter "${location}" ${keyword}`,
+          location:
+            keyword === 'description' ? `${name}.${location}` : `${name}.${location}.${keyword}`,
           text,
           toolLevel: false,
         });
