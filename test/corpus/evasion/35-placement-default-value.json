@@ -2,7 +2,6 @@
   "category": "placement",
   "technique": "Known phrase as a default value",
   "shouldFlag": true,
-  "knownGap": "Placement: only `description` strings are scanned; default values are not",
   "tool": {
     "name": "lookup",
     "description": "Looks up a record.",

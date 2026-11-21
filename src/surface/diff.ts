@@ -31,13 +31,14 @@ import type {
 import { canonicalizeSchema, canonicalJson, canonicalizeDescription } from './canonical.js';
 import { diffOutputShapes } from './output-shape.js';
 import {
+  collectModelText,
   findInjectionPatterns,
   findSuspiciousUnicode,
   isSchemaResource,
   isSecretField,
   walkParams,
-  type ParamNode,
   resolveLocalRefIn,
+  withDefinitions,
 } from '../checks/heuristics.js';
 
 /**
@@ -952,76 +953,6 @@ function suspiciousNewInput(
     }
   }
   return undefined;
-}
-
-/**
- * Every node of `params` plus the nodes inside `$defs`/`definitions` declared anywhere in
- * them, referenced or not: their text reaches the model with the schema all the same. Used for
- * text only — a definition is not a field, so its name is not checked as a secret.
- */
-function withDefinitions(params: ParamNode[], currRoot: JsonSchema): ParamNode[] {
-  const out = [...params];
-  const seen = new WeakSet<object>();
-  // for-of over `out` also visits the nodes pushed below: definitions inside definitions
-  for (const { path, schema: node } of out) {
-    if (!node) continue;
-    for (const key of DEFINITION_KEYWORDS) {
-      const defs = asSchema(node[key]);
-      if (!defs) continue;
-      for (const [name, def] of Object.entries(defs)) {
-        if (def === null || typeof def !== 'object' || seen.has(def)) continue;
-        seen.add(def);
-        const at = `${path}.${key}/${name}`;
-        // `at` as the only property name: the walk reports it and everything below it
-        for (const p of walkParams({ properties: { [at]: def } }, currRoot)) {
-          out.push({ ...p, name: undefined });
-        }
-      }
-    }
-  }
-  return out;
-}
-
-/** Keywords whose values are text the model reads (diffSchemaText's keywords). */
-const isModelTextKeyword = (k: string) =>
-  k === 'description' ||
-  k === 'title' ||
-  k === '$comment' ||
-  k === 'default' ||
-  k === 'examples' ||
-  k === 'example' ||
-  k === 'enumDescriptions' ||
-  k.startsWith('x-');
-
-/**
- * Text the model reads on each parameter: every string inside `description`, `title`,
- * `$comment`, `default`, `examples` and `x-*` values, object keys included — a value that
- * is not a string (`title: {…}`) is walked as data.
- */
-function collectModelText(params: ParamNode[]): { path: string; keyword: string; text: string }[] {
-  const out: { path: string; keyword: string; text: string }[] = [];
-  for (const { path, schema } of params) {
-    if (!schema) continue;
-    // description first: it is what the reasons quote most often
-    const keywords = Object.keys(schema)
-      .filter(isModelTextKeyword)
-      .sort((a, b) => Number(b === 'description') - Number(a === 'description'));
-    for (const keyword of keywords) {
-      const stack: unknown[] = [schema[keyword]];
-      while (stack.length > 0) {
-        const v = stack.pop();
-        if (typeof v === 'string') {
-          if (v !== '') out.push({ path, keyword, text: v });
-        }
-        // No spread: an argument list overflows on a large array (RangeError)
-        else if (Array.isArray(v)) for (const x of v) stack.push(x);
-        // A key is read by the model as much as a value is
-        else if (v !== null && typeof v === 'object')
-          for (const [k, x] of Object.entries(v)) stack.push(k, x);
-      }
-    }
-  }
-  return out;
 }
 
 /** Every hostile-looking parameter reached through `{ [key]: value }`, as reasons. */

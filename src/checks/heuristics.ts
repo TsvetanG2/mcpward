@@ -398,6 +398,108 @@ export function collectParamDescriptions(
   );
 }
 
+/** Keywords whose values map names to definitions, read for text whether referenced or not. */
+const DEFINITION_KEYWORDS = ['$defs', 'definitions'] as const;
+
+/**
+ * Every node of `params` plus the nodes inside `$defs`/`definitions` declared anywhere in
+ * them, referenced or not: their text reaches the model with the schema all the same. Used for
+ * text only — a definition is not a field, so its name is not checked as a secret.
+ */
+export function withDefinitions(params: ParamNode[], refRoot: unknown): ParamNode[] {
+  const out = [...params];
+  const seen = new WeakSet<object>();
+  // for-of over `out` also visits the nodes pushed below: definitions inside definitions
+  for (const { path, schema: node } of out) {
+    if (!node) continue;
+    for (const key of DEFINITION_KEYWORDS) {
+      const defs = node[key];
+      if (defs === null || typeof defs !== 'object' || Array.isArray(defs)) continue;
+      for (const [name, def] of Object.entries(defs as Record<string, unknown>)) {
+        if (def === null || typeof def !== 'object' || seen.has(def)) continue;
+        seen.add(def);
+        const at = `${path}.${key}/${name}`;
+        // `at` as the only property name: the walk reports it and everything below it
+        for (const p of walkParams({ properties: { [at]: def } }, refRoot)) {
+          out.push({ ...p, name: undefined });
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/** Keywords whose values are text the model reads (the drift diff's text keywords). */
+const isModelTextKeyword = (k: string) =>
+  k === 'description' ||
+  k === 'title' ||
+  k === '$comment' ||
+  k === 'default' ||
+  k === 'examples' ||
+  k === 'example' ||
+  k === 'enumDescriptions' ||
+  k.startsWith('x-');
+
+/** One piece of text the model reads: where it is, under which keyword, and the text. */
+export interface ModelText {
+  path: string;
+  keyword: string;
+  text: string;
+}
+
+/**
+ * Text the model reads on each parameter: every string inside `description`, `title`,
+ * `$comment`, `default`, `examples`, `example`, `enumDescriptions` and `x-*` values, object
+ * keys included — a value that is not a string (`title: {…}`) is walked as data.
+ */
+export function collectModelText(params: ParamNode[]): ModelText[] {
+  const out: ModelText[] = [];
+  for (const { path, schema } of params) {
+    if (!schema) continue;
+    // description first: it is what the reasons quote most often
+    const keywords = Object.keys(schema)
+      .filter(isModelTextKeyword)
+      .sort((a, b) => Number(b === 'description') - Number(a === 'description'));
+    for (const keyword of keywords) {
+      const stack: unknown[] = [schema[keyword]];
+      while (stack.length > 0) {
+        const v = stack.pop();
+        if (typeof v === 'string') {
+          if (v !== '') out.push({ path, keyword, text: v });
+        }
+        // No spread: an argument list overflows on a large array (RangeError)
+        else if (Array.isArray(v)) for (const x of v) stack.push(x);
+        // A key is read by the model as much as a value is
+        else if (v !== null && typeof v === 'object')
+          for (const [k, x] of Object.entries(v)) stack.push(k, x);
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * All text the model reads in an input schema: the root and its in-place branches
+ * (`anyOf`, `not`, …), every parameter at any depth, and every `$defs`/`definitions` entry,
+ * referenced or not. The root's path is `""`; a definition's path is `$defs/Name` (below the
+ * root) or `field.$defs/Name`. A node reached both through a `$ref` and as a definition is
+ * reported once, at the referring path.
+ */
+export function collectSchemaText(schema: unknown): ModelText[] {
+  // The walk skips its root: wrap the schema as the only property of a root and strip the
+  // placeholder name from the paths. `$ref`s still resolve against the real schema.
+  const ROOT = '\u0000';
+  const walked = walkParams({ properties: { [ROOT]: schema } }, schema);
+  const reached = new Set(walked.map((p) => p.schema).filter((s) => s !== undefined));
+  const nodes = withDefinitions(walked, schema).filter(
+    (p, i) => i < walked.length || p.schema === undefined || !reached.has(p.schema)
+  );
+  return collectModelText(nodes).map((t) => ({
+    ...t,
+    path: t.path.slice(ROOT.length).replace(/^\./, ''),
+  }));
+}
+
 /**
  * Checks if a schema property name looks like it's soliciting secrets.
  */

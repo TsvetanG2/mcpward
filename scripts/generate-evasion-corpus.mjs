@@ -408,14 +408,12 @@ const GAPS = {
   french: `Other language: ${MATCH}; only English is covered`,
   bulgarian: `Other language: ${MATCH}; only English is covered`,
   chinese: `Other language: ${MATCH}; only English is covered`,
-  'enum-value': 'Placement: only `description` strings are scanned; enum values are not',
-  'default-value': 'Placement: only `description` strings are scanned; default values are not',
-  'examples-value': 'Placement: only `description` strings are scanned; examples are not',
-  'const-value': 'Placement: only `description` strings are scanned; const values are not',
-  'param-title': 'Placement: only `description` strings are scanned; parameter titles are not',
-  'tool-title': 'Placement: the tool `title` is not scanned',
+  'enum-value':
+    'Placement: only text the model reads (titles, descriptions, `default`, `examples`, `x-*`, …) is scanned; enum values are not',
+  'const-value':
+    'Placement: only text the model reads (titles, descriptions, `default`, `examples`, `x-*`, …) is scanned; const values are not',
   'hidden-unicode-in-enum':
-    'Placement: hidden unicode is looked for in names and descriptions only; enum values are not scanned',
+    'Placement: hidden unicode is looked for in names and text the model reads only; enum values are not scanned',
   'emoji-zwj-sequence':
     'False positive: U+200D inside a valid emoji ZWJ sequence is flagged as zero-width (only subdivision flags are exempt)',
   'security-scanner-description':

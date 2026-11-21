@@ -225,16 +225,20 @@ Summary of security scan results.
 
 **Severity:** error
 
-Detects prompt injection patterns in tool descriptions. These patterns could be used to manipulate LLM behavior.
+Detects prompt injection patterns in text the model reads. These patterns could be used to manipulate LLM behavior.
+
+**Where it looks:** every text of a tool the model reads: the tool description, its `title` and `annotations.title`, and everywhere in the input schema — the root and its `anyOf`/`oneOf`/`allOf`/`not` branches, every parameter at any depth, and every `$defs`/`definitions` entry whether referenced or not. In each place it reads `description`, `title`, `$comment`, `enumDescriptions` and every string (object keys too) in `default`, `examples`, `example` and `x-*` values. Since 1.3.1; before, only tool and parameter descriptions were read. `enum` and `const` values are data and are not read.
+
+**Location:** the full path — `tool` (description), `tool.title`, `tool.annotations.title`, `tool.inputSchema.<keyword>` (schema root), `tool.<param path>` (parameter description), `tool.<param path>.<keyword>` (anything else), with `$defs/Name` or `definitions/Name` in the path of a definition. Several strings under one keyword are one finding.
 
 **What it checks:**
 
-- Descriptions for patterns like "ignore previous instructions"
+- Patterns like "ignore previous instructions"
 - System prompt override attempts
 - Instructions that attempt to change LLM behavior
 
 **How to fix:**
-Remove or rephrase tool descriptions that contain instruction-like language. Tool descriptions should describe what the tool does, not instruct the LLM how to behave.
+Remove or rephrase text that contains instruction-like language. Descriptions, titles, defaults and examples should describe what the tool does, not instruct the LLM how to behave.
 
 **Example dangerous patterns:**
 
@@ -250,14 +254,14 @@ Detects hidden unicode characters that could conceal malicious content from a hu
 
 **What it checks:**
 
-- Tool names, descriptions, and **parameter descriptions at any nesting level** (nested objects, array items, `anyOf`/`oneOf`/`allOf`)
+- The tool name, and the same text as [`security/injection-pattern`](#securityinjection-pattern), with the same locations: every text of a tool the model reads: the tool description, its `title` and `annotations.title`, and everywhere in the input schema — the root and its `anyOf`/`oneOf`/`allOf`/`not` branches, every parameter at any depth, and every `$defs`/`definitions` entry whether referenced or not. In each place it reads `description`, `title`, `$comment`, `enumDescriptions` and every string (object keys too) in `default`, `examples`, `example` and `x-*` values. Since 1.3.1; before, only tool and parameter descriptions were read.
 - Zero-width characters (e.g. U+200B, U+200D, U+FEFF)
 - Bidirectional overrides and isolates (U+202A–U+202E, U+2066–U+2069)
 - **Unicode Tag characters** (U+E0000–U+E007F, "ASCII smuggling"): invisible characters that map 1:1 onto ASCII. The finding decodes the hidden text so you can read it. Valid subdivision flags (U+1F3F4 + an ISO 3166-2 code such as `gbsct` + U+E007F, e.g. the Scotland flag) are not flagged; anything else wrapped between U+1F3F4 and U+E007F is.
 - Confusable spaces (non-breaking and typographic spaces)
 
 **How to fix:**
-Remove all hidden unicode characters from tool names and descriptions. Use a unicode-aware text editor to identify and remove them.
+Remove all hidden unicode characters from tool names and the text reported. Use a unicode-aware text editor to identify and remove them.
 
 ### security/secret-in-schema
 
