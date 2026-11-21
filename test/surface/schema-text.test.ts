@@ -240,6 +240,97 @@ describe('hostile text inside NEW structure escalates the finding to high', () =
   });
 });
 
+describe('title and description that are not strings', () => {
+  const at = (k: string, v: unknown): JsonSchema =>
+    ({
+      type: 'object',
+      properties: { a: { type: 'string', ...(v === undefined ? {} : { [k]: v }) } },
+    }) as JsonSchema;
+
+  it.each([
+    ['title', 1, 2],
+    ['title', undefined, { note: HOSTILE }],
+    ['title', ['x'], undefined],
+    ['description', ['a'], [HOSTILE]],
+    ['description', 'text', { text: 'text' }],
+    ['description', undefined, 0],
+  ])('%s %j → %j is description_changed', (k, a, b) => {
+    expect(schemaClasses(at(k, a), at(k, b))).toEqual(['description_changed/high']);
+  });
+
+  it('NEGATIVE: an identical non-string value is not drift', () => {
+    expect(schemaClasses(at('title', { a: 1 }), at('title', { a: 1 }))).toEqual([]);
+  });
+
+  it('hostile text in a non-string title of a NEW field escalates it', () => {
+    expect(
+      classes(
+        { inputSchema: { type: 'object', properties: {} } },
+        {
+          inputSchema: {
+            type: 'object',
+            properties: { a: { type: 'string', title: { note: HOSTILE } } },
+          },
+        }
+      )
+    ).toEqual(['input_property_added/high']);
+  });
+});
+
+describe('a new definition is reported like a new input field', () => {
+  const at = (defs?: Record<string, unknown>): JsonSchema =>
+    ({ type: 'object', properties: {}, ...(defs ? { $defs: defs } : {}) }) as JsonSchema;
+
+  it('medium, its description quoted', () => {
+    const [change] = diffSurfaces(
+      surfaceOf([{ name: 't', inputSchema: at() }]),
+      surfaceOf([{ name: 't', inputSchema: at({ D: { type: 'string', description: 'An id' } }) }])
+    ).changes;
+    expect(`${change?.class}/${change?.severity}`).toBe('nonbreaking_schema_change/medium');
+    expect(change?.message).toContain('definition "$defs/D" added (description "An id")');
+  });
+
+  it.each([
+    ['injection in its description', { description: HOSTILE }],
+    ['injection in a nested title', { properties: { x: { title: HOSTILE } } }],
+    ['a secret-soliciting field', { properties: { api_key: { type: 'string' } } }],
+  ])('high for %s', (_case, def) => {
+    expect(schemaClasses(at(), at({ D: def }))).toEqual(['nonbreaking_schema_change/high']);
+  });
+
+  it('stays low in an outputSchema', () => {
+    expect(
+      classes({ outputSchema: at() }, { outputSchema: at({ D: { description: HOSTILE } }) })
+    ).toEqual(['nonbreaking_schema_change/low']);
+  });
+});
+
+describe('a NEW field is read for hostility at every depth', () => {
+  const field = (inner: object): JsonSchema => ({
+    type: 'object',
+    properties: {
+      a: { type: 'object', properties: { x: { type: 'object', properties: { y: inner } } } },
+    },
+  });
+  it.each([
+    ['properties', { properties: { z: { title: HOSTILE } } }],
+    ['tuple items', { items: [{ title: HOSTILE }] }],
+    ['patternProperties', { patternProperties: { '^a': { title: HOSTILE } } }],
+    ['propertyNames', { propertyNames: { title: HOSTILE } }],
+    ['contains', { contains: { title: HOSTILE } }],
+    ['not', { not: { title: HOSTILE } }],
+    ['if', { if: { title: HOSTILE } }],
+    ['dependentSchemas', { dependentSchemas: { k: { title: HOSTILE } } }],
+    ['unevaluatedProperties', { unevaluatedProperties: { title: HOSTILE } }],
+    ['an unreferenced $defs', { $defs: { D: { title: HOSTILE } } }],
+    ['$defs nested in $defs', { $defs: { D: { $defs: { E: { description: HOSTILE } } } } }],
+  ])('under %s', (_case, inner) => {
+    expect(
+      classes({ inputSchema: { type: 'object', properties: {} } }, { inputSchema: field(inner) })
+    ).toEqual(['input_property_added/high']);
+  });
+});
+
 describe('a `required` key inside data is data: its order is compared', () => {
   const at = (k: string, v: unknown): JsonSchema => ({
     type: 'object',
