@@ -1,0 +1,1 @@
+{"name":"pick_column","description":"Picks a column.","inputSchema":{"type":"object","properties":{"9":{"type":"string"},"10":{"type":"string"},"1a":{"type":"string"},"a":{"type":"string"}}}}

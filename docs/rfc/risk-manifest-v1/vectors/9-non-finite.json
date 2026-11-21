@@ -1,0 +1,1 @@
+{"name":"set_limit","description":"Sets a limit.","inputSchema":{"type":"object","properties":{"limit":{"type":"number","maximum":1e400}}}}

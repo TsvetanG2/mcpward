@@ -1,0 +1,220 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/TsvetanG2/mcpward/main/schemas/risk-manifest.v1.schema.json",
+  "title": "MCP tool risk manifest, version 1 (DRAFT)",
+  "description": "Per-tool risk of an MCP server's tool surface, with the evidence behind each verdict and the contract it was derived from. Shared by mcpward and KyttoMCP. Consumers MUST ignore properties they do not understand.",
+  "type": "object",
+  "required": ["manifestVersion", "generator", "generatedAt", "canonicalization", "tools"],
+  "properties": {
+    "manifestVersion": {
+      "description": "Major version of this format. A consumer that sees a higher major version than it supports MUST NOT trust any verdict in the file and SHOULD treat every tool as unknown.",
+      "const": 1
+    },
+    "generator": {
+      "description": "The tool that wrote this file.",
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "examples": ["mcpward", "kytto"] },
+        "version": { "type": "string", "minLength": 1 }
+      }
+    },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "server": {
+      "description": "What the server said about itself. Self-reported, informational only.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" },
+        "protocolVersion": { "type": "string" }
+      }
+    },
+    "canonicalization": { "$ref": "#/$defs/canonicalization" },
+    "tools": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/tool" }
+    }
+  },
+  "patternProperties": {
+    "^x-[a-z0-9][a-z0-9-]*$": {
+      "description": "Generator-specific extension. Other consumers ignore it."
+    }
+  },
+  "$defs": {
+    "canonicalization": {
+      "description": "How each tool's contractHash was computed. Two manifests describe the same contract only if id, version and algorithm match AND the hashes match.",
+      "type": "object",
+      "required": ["id", "version", "algorithm", "fields"],
+      "properties": {
+        "id": { "const": "mcp-tool-contract" },
+        "version": {
+          "description": "Version of the canonicalization rules in the spec document. Bumped whenever the rules change.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "algorithm": { "enum": ["sha256"] },
+        "fields": {
+          "description": "The tool fields that went into the hash, in the canonical object. Fixed per rules version; listed so a consumer can see it without reading the spec.",
+          "type": "array",
+          "items": { "enum": ["name", "title", "description", "inputSchema", "annotations"] },
+          "uniqueItems": true
+        }
+      }
+    },
+    "effect": {
+      "description": "What calling the tool can do to state. 'unknown' is the default and the fail-safe: a consumer MUST NOT treat it as read-only.",
+      "enum": ["read-only", "mutating", "destructive", "unknown"]
+    },
+    "openWorld": {
+      "description": "Whether the tool can reach entities outside the server's own domain (web, email, third-party APIs). Orthogonal to effect: a web search is read-only AND open-world.",
+      "enum": ["yes", "no", "unknown"]
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["source"],
+      "properties": {
+        "source": {
+          "description": "annotation: declared by the server (self-reported, unverified). heuristic: derived by the generator from names, descriptions or schema. override: set by a person.",
+          "enum": ["annotation", "heuristic", "override"]
+        },
+        "indicates": {
+          "description": "What this piece of evidence points to. A piece of evidence may speak to effect, openWorld, or both.",
+          "type": "object",
+          "properties": {
+            "effect": { "$ref": "#/$defs/effect" },
+            "openWorld": { "$ref": "#/$defs/openWorld" }
+          },
+          "minProperties": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "source": { "const": "annotation" } } },
+          "then": {
+            "required": ["hint", "value"],
+            "properties": {
+              "hint": {
+                "enum": ["readOnlyHint", "destructiveHint", "idempotentHint", "openWorldHint"]
+              },
+              "value": { "type": "boolean" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "source": { "const": "heuristic" } } },
+          "then": {
+            "required": ["rule"],
+            "properties": {
+              "rule": {
+                "description": "Stable id of the heuristic. Ids in the shared/ namespace mean the same thing in every generator (see the README for the list). All other ids are namespaced by generator, e.g. 'mcpward/free-text-context', 'kytto/...'.",
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*$"
+              },
+              "detail": {
+                "description": "Human-readable reason. Not for matching.",
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "source": { "const": "override" } } },
+          "then": {
+            "required": ["indicates", "reason"],
+            "properties": {
+              "indicates": true,
+              "by": {
+                "description": "Who made the override. Free text; may be omitted for privacy.",
+                "type": "string"
+              },
+              "reason": { "type": "string", "minLength": 1 },
+              "at": { "type": "string", "format": "date-time" }
+            }
+          }
+        }
+      ]
+    },
+    "verdict": {
+      "description": "The generator's resolved verdict. 'basis' names the evidence source that decided it, so a consumer can choose to distrust, for example, verdicts based only on annotations. When evidence conflicts, the riskier reading wins. Consumers SHOULD show conflicting evidence and the verdict basis, not only the verdict.",
+      "type": "object",
+      "required": ["effect", "openWorld", "basis"],
+      "properties": {
+        "effect": { "$ref": "#/$defs/effect" },
+        "openWorld": { "$ref": "#/$defs/openWorld" },
+        "basis": { "enum": ["annotation", "heuristic", "override", "none"] }
+      }
+    },
+    "unknownVerdict": {
+      "description": "The fail-safe verdict: nothing is known.",
+      "type": "object",
+      "properties": {
+        "effect": { "const": "unknown" },
+        "openWorld": { "const": "unknown" },
+        "basis": { "const": "none" }
+      }
+    },
+    "argument": {
+      "description": "Optional per-argument risk, for tools that are only risky when given a certain input (a path, a URL, free-form context).",
+      "type": "object",
+      "required": ["path", "evidence"],
+      "properties": {
+        "path": { "description": "Dotted property path within inputSchema.", "type": "string" },
+        "concern": {
+          "enum": ["filesystem-path", "url", "credential", "free-text-context", "command", "other"]
+        },
+        "evidence": { "type": "array", "items": { "$ref": "#/$defs/evidence" } }
+      }
+    },
+    "tool": {
+      "type": "object",
+      "required": ["name", "contractHash", "verdict", "evidence"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "contractHash": {
+          "description": "Hash of this tool's canonical contract, per the file's canonicalization block. null when the tool is unhashable: consumers MUST NOT auto-approve such a tool, MUST NOT treat it as unchanged (drift cannot be detected), and SHOULD show unhashableReason.",
+          "type": ["string", "null"]
+        },
+        "unhashableReason": {
+          "description": "Why the tool has no contract hash: its definition is not I-JSON (duplicate-key, lone-surrogate, non-finite-number), it has an integer literal outside ±(2^53−1) (number-precision), or its inputSchema is nested deeper than 64 levels (too-deep).",
+          "enum": [
+            "duplicate-key",
+            "lone-surrogate",
+            "non-finite-number",
+            "number-precision",
+            "too-deep"
+          ]
+        },
+        "verdict": { "$ref": "#/$defs/verdict" },
+        "evidence": {
+          "description": "Every signal considered, including ones the verdict overrode. Empty array means no evidence; the verdict must then be unknown with basis none.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidence" }
+        },
+        "arguments": { "type": "array", "items": { "$ref": "#/$defs/argument" } }
+      },
+      "oneOf": [
+        {
+          "description": "Hashable: a hash and no reason.",
+          "properties": {
+            "contractHash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+            "unhashableReason": false
+          }
+        },
+        {
+          "description": "Unhashable: no hash, a reason, and the fail-safe verdict. Evidence may still be listed but does not raise the verdict.",
+          "required": ["unhashableReason"],
+          "properties": {
+            "contractHash": { "type": "null" },
+            "unhashableReason": true,
+            "verdict": { "$ref": "#/$defs/unknownVerdict" }
+          }
+        }
+      ],
+      "if": { "properties": { "evidence": { "type": "array", "maxItems": 0 } } },
+      "then": { "properties": { "verdict": { "$ref": "#/$defs/unknownVerdict" } } },
+      "patternProperties": {
+        "^x-[a-z0-9][a-z0-9-]*$": {}
+      }
+    }
+  }
+}
