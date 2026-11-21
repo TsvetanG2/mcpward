@@ -26,8 +26,8 @@ const MAX_SCHEMA_DEPTH = 64;
  * v2: trimming is ASCII-only — v1 used String#trim(), which also strips U+FEFF (a zero-width
  *     character) and Unicode spaces such as U+00A0, hiding them from drift at the edges.
  * v3: `required` is sorted only where it is a schema keyword; inside instance data (`default`,
- *     `const`, `enum`, `examples`, `example`, `enumDescriptions`, `$comment`, `x-*`) it keeps
- *     its order. A v2 baseline is compared under v2 rules (`legacyRequiredSort`), so the
+ *     `const`, `enum`, `examples`, `example`, `enumDescriptions`, `$comment`, `x-*`, and a
+ *     non-string `title` or `description`) it keeps its order. A v2 baseline is compared under v2 rules (`legacyRequiredSort`), so the
  *     change alone is never drift.
  */
 export const CANONICAL_VERSION = 3;
@@ -93,6 +93,9 @@ const DATA_KEYWORDS = new Set([
   'example',
   'enumDescriptions',
   '$comment',
+  // text keywords: a non-string value (`title: {…}`) is data too; a string is unaffected
+  'title',
+  'description',
 ]);
 /** Keywords whose value maps names to schemas. */
 const NAME_MAP_KEYWORDS = new Set([
