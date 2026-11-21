@@ -2,8 +2,8 @@
  * Security checks - Tool-poisoning heuristics
  *
  * Detects potential security issues in MCP tool definitions:
- * 1. Injection-like phrasing in descriptions
- * 2. Hidden/zero-width unicode characters
+ * 1. Injection-like phrasing in every text the model reads (descriptions, titles, defaults, …)
+ * 2. Hidden/zero-width unicode characters in the name and the same text
  * 3. Secret-soliciting input schemas
  * 4. Annotation/behavior mismatch (readOnlyHint on destructive tools)
  *
@@ -17,7 +17,7 @@ import { listAllTools } from '../client/tools.js';
 import type { Tool } from './schema.js';
 import {
   TAG_START,
-  collectParamDescriptions,
+  collectSchemaText,
   collectSecretFields,
   findInjectionPatterns,
   findSuspiciousUnicode,
@@ -74,6 +74,109 @@ function describeUnicode(found: { codePoint: number; type: string }[]): string {
  */
 function hasDestructiveKeywords(text: string): boolean {
   return DESTRUCTIVE_KEYWORDS.some((pattern) => pattern.test(text));
+}
+
+/** A piece of text the model reads, with where it is for the report. */
+interface ScannedText {
+  /** `description`, `title`, `parameter "a.b" default`, … — goes into the message. */
+  where: string;
+  location: string;
+  text: string;
+  /** Tool-level text keeps the pre-1.3.1 wording "injection-like pattern". */
+  toolLevel: boolean;
+}
+
+/**
+ * Every text of a tool the model reads: the tool's description and title, `annotations.title`,
+ * and everything `collectSchemaText` finds in the input schema. The location is the full path:
+ * `tool`, `tool.title`, `tool.annotations.title`, `tool.inputSchema.<keyword>` for the schema
+ * root, `tool.<param path>` for a parameter description and `tool.<param path>.<keyword>` for
+ * any other keyword.
+ */
+function modelTexts(tool: Tool): ScannedText[] {
+  const { name } = tool;
+  const out: ScannedText[] = [];
+  // The server is untrusted: a field typed as a string may be anything at runtime
+  const add = (where: string, location: string, value: unknown) => {
+    if (typeof value === 'string' && value !== '') {
+      out.push({ where, location, text: value, toolLevel: true });
+    }
+  };
+  add('description', name, tool.description);
+  add('title', `${name}.title`, tool.title);
+  add('annotations.title', `${name}.annotations.title`, tool.annotations?.title);
+  if (tool.inputSchema) {
+    for (const { path, keyword, text } of collectSchemaText(tool.inputSchema)) {
+      if (path === '') {
+        out.push({
+          where: `input schema ${keyword}`,
+          location: `${name}.inputSchema.${keyword}`,
+          text,
+          toolLevel: false,
+        });
+      } else {
+        out.push({
+          where: `parameter "${path}" ${keyword}`,
+          location: keyword === 'description' ? `${name}.${path}` : `${name}.${path}.${keyword}`,
+          text,
+          toolLevel: false,
+        });
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Injection phrasing and hidden unicode in every text the model reads (see `modelTexts`). One
+ * result per rule and location: several strings under one keyword (`examples`) are merged.
+ */
+function scanModelText(tool: Tool): CheckResult[] {
+  const byKey = new Map<string, CheckResult & { actual: unknown[] }>();
+  const report = (
+    id: 'security/injection-pattern' | 'security/hidden-unicode',
+    t: ScannedText,
+    found: unknown[],
+    message: string
+  ) => {
+    const key = `${id}\u0000${t.location}`;
+    const existing = byKey.get(key);
+    // Push one by one: spreading an unbounded list overflows the argument stack (RangeError)
+    if (existing) for (const f of found) existing.actual.push(f);
+    else {
+      byKey.set(key, {
+        id,
+        family: 'security',
+        status: 'fail',
+        severity: 'error',
+        message,
+        actual: found,
+        location: t.location,
+      });
+    }
+  };
+  for (const t of modelTexts(tool)) {
+    const injection = findInjectionPatterns(t.text);
+    if (injection.length > 0) {
+      const kind = t.toolLevel ? 'injection-like pattern' : 'injection pattern';
+      report(
+        'security/injection-pattern',
+        t,
+        injection,
+        `Tool "${tool.name}" ${t.where} contains ${kind}: "${injection[0]}"`
+      );
+    }
+    const unicode = findSuspiciousUnicode(t.text);
+    if (unicode.length > 0) {
+      report(
+        'security/hidden-unicode',
+        t,
+        unicode,
+        `Tool "${tool.name}" ${t.where} contains hidden unicode: ${describeUnicode(unicode)}`
+      );
+    }
+  }
+  return [...byKey.values()];
 }
 
 /**
@@ -143,23 +246,7 @@ export function checkToolSecurity(tool: Tool): CheckResult[] {
   const results: CheckResult[] = [];
   const { name, description, inputSchema, annotations } = tool;
 
-  // 1. Check for injection patterns in description
-  if (description) {
-    const injectionMatches = findInjectionPatterns(description);
-    if (injectionMatches.length > 0) {
-      results.push({
-        id: 'security/injection-pattern',
-        family: 'security',
-        status: 'fail',
-        severity: 'error',
-        message: `Tool "${name}" description contains injection-like pattern: "${injectionMatches[0]}"`,
-        actual: injectionMatches,
-        location: name,
-      });
-    }
-  }
-
-  // 2. Check for suspicious unicode in name
+  // 1. Hidden unicode in the name
   const nameUnicode = findSuspiciousUnicode(name);
   if (nameUnicode.length > 0) {
     results.push({
@@ -173,23 +260,7 @@ export function checkToolSecurity(tool: Tool): CheckResult[] {
     });
   }
 
-  // 3. Check for suspicious unicode in description
-  if (description) {
-    const descUnicode = findSuspiciousUnicode(description);
-    if (descUnicode.length > 0) {
-      results.push({
-        id: 'security/hidden-unicode',
-        family: 'security',
-        status: 'fail',
-        severity: 'error',
-        message: `Tool "${name}" description contains hidden unicode: ${describeUnicode(descUnicode)}`,
-        actual: descUnicode,
-        location: name,
-      });
-    }
-  }
-
-  // 4. Check for secret-soliciting fields at every nesting level (`options.password` too)
+  // 2. Secret-soliciting fields at every nesting level (`options.password` too)
   if (inputSchema) {
     const secretFields = collectSecretFields(inputSchema);
     if (secretFields.length > 0) {
@@ -205,39 +276,8 @@ export function checkToolSecurity(tool: Tool): CheckResult[] {
     }
   }
 
-  // 5. Check parameter descriptions at every nesting level (the model reads them all)
-  if (inputSchema) {
-    for (const { path: fieldName, description: fieldDesc } of collectParamDescriptions(
-      inputSchema
-    )) {
-      // Parameter descriptions are read by the model too — same hidden-unicode rule
-      const paramUnicode = findSuspiciousUnicode(fieldDesc);
-      if (paramUnicode.length > 0) {
-        results.push({
-          id: 'security/hidden-unicode',
-          family: 'security',
-          status: 'fail',
-          severity: 'error',
-          message: `Tool "${name}" parameter "${fieldName}" description contains hidden unicode: ${describeUnicode(paramUnicode)}`,
-          actual: paramUnicode,
-          location: `${name}.${fieldName}`,
-        });
-      }
-
-      const paramInjection = findInjectionPatterns(fieldDesc);
-      if (paramInjection.length > 0) {
-        results.push({
-          id: 'security/injection-pattern',
-          family: 'security',
-          status: 'fail',
-          severity: 'error',
-          message: `Tool "${name}" parameter "${fieldName}" description contains injection pattern: "${paramInjection[0]}"`,
-          actual: paramInjection,
-          location: `${name}.${fieldName}`,
-        });
-      }
-    }
-  }
+  // 3. Injection phrasing and hidden unicode in every text the model reads
+  for (const r of scanModelText(tool)) results.push(r);
 
   // 6. Check for annotation/behavior mismatch
   if (annotations?.readOnlyHint === true) {
