@@ -225,15 +225,18 @@ interface Visit {
  * behind a long `$ref` chain.
  *
  * With `from`, the walk starts at a node that IS reported, with that path and location: a
- * definition below a field, or a schema root whose own text matters.
+ * definition below a field, or a schema root whose own text matters. With `expanded`, several
+ * walks share one record of the nodes they descended into: a node another walk already expanded
+ * is reported but not descended again.
  */
 export function walkParams(
   schema: unknown,
   refRoot: unknown = schema,
-  from?: { path: string; location: Steps | undefined }
+  from?: { path: string; location: Steps | undefined },
+  expanded: WeakSet<object> = new WeakSet<object>()
 ): ParamNode[] {
   const found: ParamNode[] = [];
-  const seen = new WeakSet<object>();
+  const seen = expanded;
   const stack: Visit[] = [
     from
       ? {
@@ -485,6 +488,11 @@ const DEFINITION_KEYWORDS = ['$defs', 'definitions'] as const;
 export function withDefinitions(params: ParamNode[], refRoot: unknown): ParamNode[] {
   const out = [...params];
   const seen = new WeakSet<object>();
+  // Each node is descended into once across all the walks below, and not at all when `params`
+  // already reached it: a chain of N definitions referencing each other would otherwise be
+  // walked again from every definition in it (N²/2 nodes — a few thousand stall a scan)
+  const expanded = new WeakSet<object>();
+  for (const p of params) if (p.schema) expanded.add(p.schema);
   // for-of over `out` also visits the nodes pushed below: definitions inside definitions
   for (const { path, location, schema: node } of out) {
     if (!node) continue;
@@ -497,7 +505,8 @@ export function withDefinitions(params: ParamNode[], refRoot: unknown): ParamNod
         const step = `${key}/${name}`;
         const at = path === '' ? step : `${path}.${step}`;
         // The walk reports the definition itself and everything below it
-        for (const p of walkParams(def, refRoot, { path: at, location: { up: location, step } })) {
+        const from = { path: at, location: { up: location, step } };
+        for (const p of walkParams(def, refRoot, from, expanded)) {
           out.push({ ...p, name: undefined });
         }
       }
@@ -569,9 +578,14 @@ export function collectSchemaText(schema: unknown): ModelText[] {
   // Start at the root as a reported node: its own text is read by the model too
   const walked = walkParams(schema, schema, { path: '', location: undefined });
   const reached = new Set(walked.map((p) => p.schema).filter((s) => s !== undefined));
-  const nodes = withDefinitions(walked, schema).filter(
-    (p, i) => i < walked.length || p.schema === undefined || !reached.has(p.schema)
-  );
+  // A definition node is reported once: not again when the walk or an earlier definition (a
+  // chain listed in reverse order: D2, then D1 → $ref D2) already reported it
+  const nodes = withDefinitions(walked, schema).filter((p, i) => {
+    if (i < walked.length || p.schema === undefined) return true;
+    if (reached.has(p.schema)) return false;
+    reached.add(p.schema);
+    return true;
+  });
   return collectModelText(nodes);
 }
 
