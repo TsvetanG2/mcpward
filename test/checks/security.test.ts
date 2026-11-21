@@ -499,6 +499,20 @@ describe('Security Checks', () => {
       const found = checkToolSecurity(tool).filter((r) => r.id === 'security/injection-pattern');
       expect(found).toHaveLength(1);
       expect(found[0]?.actual).toHaveLength(2);
+      expect(found[0]?.message).toContain('"Ignore all previous instructions"');
+      expect(found[0]?.message).toContain('"Forget all previous"');
+    });
+
+    it('describes every merged string, not just the first', () => {
+      // A zero-width space first, then smuggled tag characters decoding to "hi"
+      const tool: Tool = {
+        name: 't',
+        inputSchema: param({ examples: ['a​b', 'x\u{E0068}\u{E0069}'] }),
+      };
+      const found = checkToolSecurity(tool).filter((r) => r.id === 'security/hidden-unicode');
+      expect(found).toHaveLength(1);
+      expect(found[0]?.message).toContain('U+200B');
+      expect(found[0]?.message).toContain('decoding to "hi"');
     });
 
     it('keeps the destructive-verb heuristic on the name and description only', () => {
