@@ -36,6 +36,7 @@ import {
   isSchemaResource,
   isSecretField,
   walkParams,
+  type ParamNode,
   resolveLocalRefIn,
 } from '../checks/heuristics.js';
 
@@ -732,11 +733,21 @@ function diffSchemaNode(
     for (const name of new Set([...Object.keys(baseDefs), ...Object.keys(currDefs)])) {
       const defPath = path === '' ? `${key}/${name}` : `${path}.${key}/${name}`;
       if (!Object.hasOwn(baseDefs, name)) {
+        // Like a new input field: the model reads its text whether or not anything refers to
+        // it, so medium, its description quoted, and high when it brings in hostile input
+        const def = currDefs[name];
+        const description = asSchema(def)?.description;
+        const quoted =
+          typeof description === 'string' && description !== ''
+            ? `description "${description}"`
+            : 'no description';
+        const reason = newHostility('allOf', [true], [def], defPath, currRoot);
         emit(
           'nonbreaking_schema_change',
-          `definition "${defPath}" added`,
+          `definition "${defPath}" added (${quoted})${reason ? ` — ${reason}` : ''}`,
           undefined,
-          currDefs[name]
+          def,
+          reason ? 'high' : 'medium'
         );
       } else if (!Object.hasOwn(currDefs, name)) {
         emit(
@@ -904,7 +915,7 @@ function suspiciousNewInput(
   const params = walkParams(root, currRoot);
   const secret = params.find((p) => p.name !== undefined && isSecretField(p.name));
   if (secret) return `"${at(secret.path)}" solicits a secret`;
-  for (const { path: p, keyword, text } of collectModelText(params)) {
+  for (const { path: p, keyword, text } of collectModelText(withDefinitions(params, currRoot))) {
     if (findInjectionPatterns(text).length > 0) {
       return `"${at(p)}" ${keyword} contains injection-like phrasing`;
     }
@@ -916,28 +927,62 @@ function suspiciousNewInput(
 }
 
 /**
- * Text the model reads on each parameter: `description`, `title` and `$comment` strings, and
- * every string inside `default`, `examples` and `x-*` values, object keys included
- * (diffSchemaText's keywords).
+ * Every node of `params` plus the nodes inside `$defs`/`definitions` declared anywhere in
+ * them, referenced or not: their text reaches the model with the schema all the same. Used for
+ * text only — a definition is not a field, so its name is not checked as a secret.
  */
-function collectModelText(
-  params: ReturnType<typeof walkParams>
-): { path: string; keyword: string; text: string }[] {
+function withDefinitions(params: ParamNode[], currRoot: JsonSchema): ParamNode[] {
+  const out = [...params];
+  const seen = new WeakSet<object>();
+  for (let i = 0; i < out.length; i++) {
+    const node = out[i]?.schema;
+    if (!node) continue;
+    for (const key of DEFINITION_KEYWORDS) {
+      const defs = asSchema(node[key]);
+      if (!defs) continue;
+      for (const [name, def] of Object.entries(defs)) {
+        if (def === null || typeof def !== 'object' || seen.has(def)) continue;
+        seen.add(def);
+        const at = `${out[i]?.path ?? ''}.${key}/${name}`;
+        // `at` as the only property name: the walk reports it and everything below it
+        for (const p of walkParams({ properties: { [at]: def } }, currRoot)) {
+          out.push({ ...p, name: undefined });
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/** Keywords whose values are text the model reads (diffSchemaText's keywords). */
+const isModelTextKeyword = (k: string) =>
+  k === 'description' ||
+  k === 'title' ||
+  k === '$comment' ||
+  k === 'default' ||
+  k === 'examples' ||
+  k.startsWith('x-');
+
+/**
+ * Text the model reads on each parameter: every string inside `description`, `title`,
+ * `$comment`, `default`, `examples` and `x-*` values, object keys included — a value that
+ * is not a string (`title: {…}`) is walked as data.
+ */
+function collectModelText(params: ParamNode[]): { path: string; keyword: string; text: string }[] {
   const out: { path: string; keyword: string; text: string }[] = [];
   for (const { path, schema } of params) {
     if (!schema) continue;
-    for (const keyword of ['description', 'title', '$comment']) {
-      const v = schema[keyword];
-      if (typeof v === 'string' && v !== '') out.push({ path, keyword, text: v });
-    }
-    const values = Object.keys(schema).filter(
-      (k) => k === 'default' || k === 'examples' || k.startsWith('x-')
-    );
-    for (const keyword of values) {
+    // description first: it is what the reasons quote most often
+    const keywords = Object.keys(schema)
+      .filter(isModelTextKeyword)
+      .sort((a, b) => Number(b === 'description') - Number(a === 'description'));
+    for (const keyword of keywords) {
       const stack: unknown[] = [schema[keyword]];
       while (stack.length > 0) {
         const v = stack.pop();
-        if (typeof v === 'string') out.push({ path, keyword, text: v });
+        if (typeof v === 'string') {
+          if (v !== '') out.push({ path, keyword, text: v });
+        }
         // No spread: an argument list overflows on a large array (RangeError)
         else if (Array.isArray(v)) for (const x of v) stack.push(x);
         // A key is read by the model as much as a value is
@@ -968,7 +1013,9 @@ function hostileFindings(
       found.add(`"${at(p.path)}" solicits a secret`);
     }
   }
-  for (const { path: p, keyword, text } of collectModelText(walkParams(root, currRoot))) {
+  for (const { path: p, keyword, text } of collectModelText(
+    withDefinitions(walkParams(root, currRoot), currRoot)
+  )) {
     if (findInjectionPatterns(text).length > 0) {
       found.add(`"${at(p)}" ${keyword} contains injection-like phrasing`);
     }
@@ -1200,10 +1247,17 @@ function diffDescription(
   emit: Emit,
   keyword: 'description' | 'title' = 'description'
 ): void {
+  const isText = (v: unknown) => v === undefined || typeof v === 'string';
   const b = typeof before === 'string' ? before : '';
   const a = typeof after === 'string' ? after : '';
-  if (canonicalizeDescription(b) === canonicalizeDescription(a)) return;
-  const what = b === '' ? 'added' : a === '' ? 'removed' : 'changed';
+  if (isText(before) && isText(after)) {
+    if (canonicalizeDescription(b) === canonicalizeDescription(a)) return;
+  } else if (same(before, after)) {
+    // Not a string (`title: 1`, `description: {…}`): the model still reads it — compare exactly
+    return;
+  }
+  const absent = (v: unknown) => v === undefined || v === null || v === '';
+  const what = absent(before) ? 'added' : absent(after) ? 'removed' : 'changed';
   emit('description_changed', `${subject}${keyword} ${what} (possible rug-pull)`, before, after);
 }
 
