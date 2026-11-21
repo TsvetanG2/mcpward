@@ -160,17 +160,33 @@ export function findSuspiciousUnicode(
   return suspicious;
 }
 
+/**
+ * A location as a linked list from the leaf up. Children share their parent's steps, so a deep
+ * schema costs one step per node (copying arrays made a 100 000-level schema quadratic).
+ */
+export interface Steps {
+  readonly up: Steps | undefined;
+  readonly step: string;
+}
+
+/** The steps from the outermost to `steps` itself; `[]` for undefined. */
+export function stepsOf(steps: Steps | undefined): string[] {
+  const out: string[] = [];
+  for (let n = steps; n !== undefined; n = n.up) out.push(n.step);
+  return out.reverse();
+}
+
 /** One schema node reached by {@link walkParams}. */
 export interface ParamNode {
   /** `filter.status`, `rows[]`, `meta{}` — the same path style as the drift diff. */
   path: string;
   /**
-   * The same place with every keyword spelled out, one segment per step:
-   * `['properties/rows', 'items']`, `['properties/opts', 'patternProperties/^x']`,
-   * `['properties/a', 'anyOf/0']`. Property names carry `properties/`, so a property named
+   * The same place with every keyword spelled out, one step each (see {@link stepsOf}):
+   * `properties/rows` → `items`, `properties/opts` → `patternProperties/^x`,
+   * `properties/a` → `anyOf/0`. Property names carry `properties/`, so a property named
    * `items` is never the keyword `items`. A `$ref` target keeps the referring location.
    */
-  location: readonly string[];
+  location: Steps | undefined;
   /** The `properties` key that led here; undefined for array items and additionalProperties. */
   name: string | undefined;
   /** The node's schema; undefined for a boolean schema (`password: true` is still a field). */
@@ -181,9 +197,11 @@ export interface ParamNode {
 interface Visit {
   node: unknown;
   path: string;
-  location: readonly string[];
+  location: Steps | undefined;
   name: string | undefined;
   isRoot: boolean;
+  /** Property paths below it start without a dot: the root, or a `from` start with path `""`. */
+  bare: boolean;
   /** Document a `#…` reference resolves against: the nearest enclosing `$id`, else refRoot. */
   base: unknown;
 }
@@ -205,16 +223,41 @@ interface Visit {
  * walk is linear in the size of the document and cycle-safe. It is iterative, with no depth
  * limit: a limit would silently drop whatever lies past it, and a server could hide a field
  * behind a long `$ref` chain.
+ *
+ * With `from`, the walk starts at a node that IS reported, with that path and location: a
+ * definition below a field, or a schema root whose own text matters.
  */
-export function walkParams(schema: unknown, refRoot: unknown = schema): ParamNode[] {
+export function walkParams(
+  schema: unknown,
+  refRoot: unknown = schema,
+  from?: { path: string; location: Steps | undefined }
+): ParamNode[] {
   const found: ParamNode[] = [];
   const seen = new WeakSet<object>();
   const stack: Visit[] = [
-    { node: schema, path: '', location: [], name: undefined, isRoot: true, base: refRoot },
+    from
+      ? {
+          node: schema,
+          path: from.path,
+          location: from.location,
+          name: undefined,
+          isRoot: false,
+          bare: from.path === '',
+          base: refRoot,
+        }
+      : {
+          node: schema,
+          path: '',
+          location: undefined,
+          name: undefined,
+          isRoot: true,
+          bare: true,
+          base: refRoot,
+        },
   ];
 
   while (stack.length > 0) {
-    const { node, path, location, name, isRoot, base: outerBase } = stack.pop() as Visit;
+    const { node, path, location, name, isRoot, bare, base: outerBase } = stack.pop() as Visit;
     if (node === undefined) continue;
     const s =
       node !== null && typeof node === 'object' && !Array.isArray(node)
@@ -229,24 +272,20 @@ export function walkParams(schema: unknown, refRoot: unknown = schema): ParamNod
     const base = isSchemaResource(s) ? s : outerBase;
 
     const children: Visit[] = [];
-    const at = (segment: string) => [...location, segment];
-    const add = (
-      child: unknown,
-      childPath: string,
-      childLocation: readonly string[],
-      childName?: string
-    ) =>
+    const at = (step: string): Steps => ({ up: location, step });
+    const add = (child: unknown, childPath: string, childLocation: Steps, childName?: string) =>
       children.push({
         node: child,
         path: childPath,
         location: childLocation,
         name: childName,
         isRoot: false,
+        bare: false,
         base,
       });
     // In-place applicators describe this same value: same path, name and root-ness
     const same = (child: unknown, keyword: string) =>
-      children.push({ node: child, path, location: at(keyword), name, isRoot, base });
+      children.push({ node: child, path, location: at(keyword), name, isRoot, bare, base });
     const entries = (v: unknown): [string, unknown][] =>
       v && typeof v === 'object' && !Array.isArray(v) ? Object.entries(v) : [];
     const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
@@ -256,7 +295,7 @@ export function walkParams(schema: unknown, refRoot: unknown = schema): ParamNod
     const props = s.properties;
     if (props && typeof props === 'object' && !Array.isArray(props)) {
       for (const [key, child] of Object.entries(props as Record<string, unknown>)) {
-        add(child, isRoot ? key : `${path}.${key}`, at(`properties/${key}`), key);
+        add(child, bare ? key : `${path}.${key}`, at(`properties/${key}`), key);
       }
     }
     // `required`, `dependentRequired` and array-valued draft-07 `dependencies` may name a
@@ -269,7 +308,7 @@ export function walkParams(schema: unknown, refRoot: unknown = schema): ParamNod
     for (const key of new Set(requested)) {
       if (typeof key !== 'string') continue;
       if (props && typeof props === 'object' && Object.hasOwn(props, key)) continue;
-      add(true, isRoot ? key : `${path}.${key}`, at(`properties/${key}`), key);
+      add(true, bare ? key : `${path}.${key}`, at(`properties/${key}`), key);
     }
     if (Array.isArray(s.items))
       s.items.forEach((item, i) => add(item, `${path}[]`, at(`items/${i}`)));
@@ -299,7 +338,7 @@ export function walkParams(schema: unknown, refRoot: unknown = schema): ParamNod
       const target = typeof s[key] === 'string' ? resolveLocalRefIn(base, s[key]) : undefined;
       // The target keeps this path but resolves its own references in its resource
       if (target) {
-        children.push({ node: target.node, path, location, name, isRoot, base: target.base });
+        children.push({ node: target.node, path, location, name, isRoot, bare, base: target.base });
       }
     }
 
@@ -455,12 +494,11 @@ export function withDefinitions(params: ParamNode[], refRoot: unknown): ParamNod
       for (const [name, def] of Object.entries(defs as Record<string, unknown>)) {
         if (def === null || typeof def !== 'object' || seen.has(def)) continue;
         seen.add(def);
-        const at = `${path}.${key}/${name}`;
-        // `at` as the only property name: the walk reports it and everything below it
-        for (const p of walkParams({ properties: { [at]: def } }, refRoot)) {
-          // Its first location segment is that placeholder property: the definition instead
-          const rest = p.location.slice(1);
-          out.push({ ...p, location: [...location, `${key}/${name}`, ...rest], name: undefined });
+        const step = `${key}/${name}`;
+        const at = path === '' ? step : `${path}.${step}`;
+        // The walk reports the definition itself and everything below it
+        for (const p of walkParams(def, refRoot, { path: at, location: { up: location, step } })) {
+          out.push({ ...p, name: undefined });
         }
       }
     }
@@ -482,8 +520,8 @@ const isModelTextKeyword = (k: string) =>
 /** One piece of text the model reads: where it is, under which keyword, and the text. */
 export interface ModelText {
   path: string;
-  /** The place with its keywords spelled out (see `ParamNode.location`). */
-  location: readonly string[];
+  /** The place with its keywords spelled out, one step each (see `ParamNode.location`). */
+  location: string[];
   keyword: string;
   text: string;
 }
@@ -506,7 +544,7 @@ export function collectModelText(params: ParamNode[]): ModelText[] {
       while (stack.length > 0) {
         const v = stack.pop();
         if (typeof v === 'string') {
-          if (v !== '') out.push({ path, location, keyword, text: v });
+          if (v !== '') out.push({ path, location: stepsOf(location), keyword, text: v });
         }
         // No spread: an argument list overflows on a large array (RangeError)
         else if (Array.isArray(v)) for (const x of v) stack.push(x);
@@ -528,20 +566,13 @@ export function collectModelText(params: ParamNode[]): ModelText[] {
  * and as a definition is reported once, at the referring path.
  */
 export function collectSchemaText(schema: unknown): ModelText[] {
-  // The walk skips its root: wrap the schema as the only property of a root and strip the
-  // placeholder name from the paths. `$ref`s still resolve against the real schema.
-  const ROOT = '\u0000';
-  const walked = walkParams({ properties: { [ROOT]: schema } }, schema);
+  // Start at the root as a reported node: its own text is read by the model too
+  const walked = walkParams(schema, schema, { path: '', location: undefined });
   const reached = new Set(walked.map((p) => p.schema).filter((s) => s !== undefined));
   const nodes = withDefinitions(walked, schema).filter(
     (p, i) => i < walked.length || p.schema === undefined || !reached.has(p.schema)
   );
-  return collectModelText(nodes).map((t) => ({
-    ...t,
-    path: t.path.slice(ROOT.length).replace(/^\./, ''),
-    // The placeholder property is the first segment of every location
-    location: t.location.slice(1),
-  }));
+  return collectModelText(nodes);
 }
 
 /**
