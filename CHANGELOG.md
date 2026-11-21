@@ -8,6 +8,11 @@ Since `1.0.0`, the public contract described in [`docs/stability.md`](docs/stabi
 
 ## [Unreleased]
 
+### Fixed
+
+- **The security scan read only descriptions.** `security/injection-pattern` and `security/hidden-unicode` read the tool description and parameter descriptions, so injection phrasing or hidden unicode in a tool `title`, `annotations.title`, the schema root, a parameter `title`, `default`, `examples`, `example`, `enumDescriptions`, `$comment`, an `x-*` extension or an unreferenced `$defs`/`definitions` entry passed with exit 0. They now read every text the model reads, at any depth, with the same text collection as drift. Same rule ids; the location is the full path with every step spelled out and property names prefixed with `properties/` (`tool.title`, `tool.inputSchema.description`, `tool.inputSchema.properties/id.default`, `tool.inputSchema.properties/opts.patternProperties/^x.title`, `tool.inputSchema.$defs/Name.title`). This also changes the location of every parameter finding reported before: `tool.query` is now `tool.inputSchema.properties/query.description` and `tool.rows[].note` is `tool.inputSchema.properties/rows.items.properties/note.description`, so code scanning closes the old alert and opens a new one. The tool description keeps `tool`. The destructive-verb heuristic (`security/annotation-mismatch`) still reads only the tool name and description. No new false positives on the 400-tool registry corpus.
+  **This can turn CI red** on a server that passed before: a finding is a real hit in a place that was not scanned. The default `fail_on` is unchanged.
+
 ## [1.3.0] — 2026-11-21
 
 ### Added

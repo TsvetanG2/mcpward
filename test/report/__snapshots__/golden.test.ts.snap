@@ -292,7 +292,7 @@ exports[`Golden Snapshot Tests > SARIF Reporter > matches snapshot 1`] = `
                 "text": "Prompt injection pattern detected"
               },
               "fullDescription": {
-                "text": "The tool description contains patterns commonly used in prompt injection attacks, such as \\"ignore previous instructions\\" or \\"before doing anything else\\"."
+                "text": "Text the model reads contains patterns commonly used in prompt injection attacks, such as \\"ignore previous instructions\\" or \\"before doing anything else\\". Checked: the tool description, title and annotations.title, and in the input schema at any depth (root, parameters, $defs) every description, title, $comment, enumDescriptions and string in default, examples, example and x-* values."
               },
               "helpUri": "https://github.com/TsvetanG2/mcpward/blob/main/docs/rules.md#securityinjection-pattern",
               "defaultConfiguration": {

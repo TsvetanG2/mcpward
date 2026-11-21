@@ -146,9 +146,9 @@ function getShortDescription(ruleId: string): string {
 function getFullDescription(ruleId: string): string {
   const descriptions: Record<string, string> = {
     'security/injection-pattern':
-      'The tool description contains patterns commonly used in prompt injection attacks, such as "ignore previous instructions" or "before doing anything else".',
+      'Text the model reads contains patterns commonly used in prompt injection attacks, such as "ignore previous instructions" or "before doing anything else". Checked: the tool description, title and annotations.title, and in the input schema at any depth (root, parameters, $defs) every description, title, $comment, enumDescriptions and string in default, examples, example and x-* values.',
     'security/hidden-unicode':
-      'The tool name, description, or a parameter description contains zero-width, bidirectional override, or Unicode Tag characters (ASCII smuggling) that can hide instructions from a human reviewer while the model still reads them.',
+      'The tool name or text the model reads (the same places as security/injection-pattern) contains zero-width, bidirectional override, or Unicode Tag characters (ASCII smuggling) that can hide instructions from a human reviewer while the model still reads them.',
     'security/secret-in-schema':
       'The tool input schema contains field names, at any nesting depth, that suggest it is soliciting secrets such as api_key, password, or token.',
     'security/annotation-mismatch':

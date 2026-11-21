@@ -227,7 +227,7 @@ That last row is the practical reason to reach for mcpward on internal or client
 - **Classifies every schema change as breaking or non-breaking** — fails CI only on the ones you configure, reports the rest
 - **Detects description rewrites (rug-pulls)** — hashes canonicalized descriptions and shows a word-level diff with invisible characters marked
 - **Ranks drift by blast radius** — high/medium/low severity, `fail_on: high` to fail only on silent security changes
-- **Catches tool-poisoning patterns** — injection phrasing, hidden unicode (including Unicode Tag "ASCII smuggling", decoded for you), secret-soliciting schemas, annotation mismatches — in tool and parameter descriptions
+- **Catches tool-poisoning patterns** — injection phrasing, hidden unicode (including Unicode Tag "ASCII smuggling", decoded for you), secret-soliciting schemas, annotation mismatches — in every text the model reads: descriptions, titles, defaults, examples and extensions at any depth
 - **Lints description collisions** — near-identical descriptions over divergent schemas, no baseline needed
 - **Detects output shape drift** — inferred from real (read-only or allowlisted) calls, structure only
 - **Validates error contracts** — verifies servers use protocol errors vs tool errors correctly (unique to mcpward)
@@ -364,12 +364,12 @@ A stdio server inherits mcpward's environment — except mcpward's own credentia
 
 ### Security
 
-| Check                          | Description                                                                                                              |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| `security/injection-pattern`   | Injection-like phrasing in descriptions                                                                                  |
-| `security/hidden-unicode`      | Zero-width, bidirectional, or Unicode Tag (ASCII smuggling) characters in names, descriptions, or parameter descriptions |
-| `security/secret-in-schema`    | Schema fields soliciting secrets                                                                                         |
-| `security/annotation-mismatch` | readOnlyHint on destructive tools                                                                                        |
+| Check                          | Description                                                                                                 |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `security/injection-pattern`   | Injection-like phrasing in any text the model reads                                                         |
+| `security/hidden-unicode`      | Zero-width, bidirectional, or Unicode Tag (ASCII smuggling) characters in names or any text the model reads |
+| `security/secret-in-schema`    | Schema fields soliciting secrets                                                                            |
+| `security/annotation-mismatch` | readOnlyHint on destructive tools                                                                           |
 
 ### Error contract
 
