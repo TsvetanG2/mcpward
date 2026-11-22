@@ -87,14 +87,23 @@ describe('escapeMarkdown in linear time (review of #110, round 6)', () => {
       .replace(/&amp;/g, '&');
 
   it('splits link-like tokens exactly where the regex did', () => {
-    const alphabet = ['a', 'W', 'w', '.', ':', '/', '@', ' ', '1', '+', '-', 'h', 't', 'p', 's'];
+    // Single characters plus the pieces a URL is built from, so words start with `://`, `:` or
+    // `//` and hold several `://` in a row often enough (round 7 of the review: a word starting
+    // with `://` hid the URL after it, and single characters alone never produced one)
+    const alphabet = [
+      ...['a', 'W', 'w', '.', ':', '/', '@', ' ', '1', '+', '-', 'h', 't', 'p', 's'],
+      ...['://', '://', '//', 'www.', 'https://', '://://', ':///'],
+    ];
+    // mulberry32: the low bits of a plain LCG cycle and missed these words
     let seed = 1;
     const rand = (n: number) => {
-      seed = (seed * 1103515245 + 12345) % 2 ** 31;
-      return seed % n;
+      seed = (seed + 0x6d2b79f5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) % n;
     };
-    for (let i = 0; i < 20_000; i++) {
-      const text = Array.from({ length: rand(24) }, () => alphabet[rand(alphabet.length)]).join('');
+    for (let i = 0; i < 50_000; i++) {
+      const text = Array.from({ length: rand(16) }, () => alphabet[rand(alphabet.length)]).join('');
       expect(after(text), JSON.stringify(text)).toBe(before(text));
     }
     for (const text of [
@@ -104,6 +113,10 @@ describe('escapeMarkdown in linear time (review of #110, round 6)', () => {
       '1://ab://c',
       'x://',
       'WWW.x',
+      '://https://evil.example/login',
+      ':https://x',
+      '//www.x',
+      '://://a://b',
     ]) {
       expect(after(text), text).toBe(before(text));
     }
@@ -134,6 +147,24 @@ describe('escapeMarkdown in linear time (review of #110, round 6)', () => {
 describe('renderMarkdownReport', () => {
   // Review of #110, round 6: the server's name, version and protocol were not capped, so a name
   // of 9 000 zero-width spaces (45 000 characters once marked) hid every finding
+  // Review of #110, round 7: a word starting with `://` left the URL after it as plain text,
+  // which GitHub turns into a clickable link
+  it('keeps a URL after a leading :// inside inline code, in the heading and a finding', () => {
+    const evil = '://https://evil.example/login';
+    const md = renderMarkdownReport({
+      ...report([finding({ message: `see ${evil}`, location: 't' })]),
+      server: { name: 'srv', version: evil, protocolVersion: '2025-11-25' },
+    });
+    const heading = md.split('\n').find((l) => l.startsWith('**Server:**')) ?? '';
+    expect(heading).toContain('v://`https://evil.example/login`');
+    const line = md.split('\n').find((l) => l.includes('**security/injection-pattern**')) ?? '';
+    expect(line).toContain('see ://`https://evil.example/login`');
+    // Outside inline code, nothing of the URL is left for GitHub to autolink
+    for (const l of [heading, line]) {
+      expect(l.replace(/`[^`]*`/g, '')).not.toMatch(/https?:\/\/|evil\.example/);
+    }
+  });
+
   it('caps the server name, version and protocol in the heading', () => {
     const zw = '\u200B'.repeat(9_000);
     const md = renderMarkdownReport({
