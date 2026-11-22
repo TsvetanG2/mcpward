@@ -191,6 +191,74 @@ describe('renderMarkdownReport', () => {
 
   // CodeRabbit on #110: the cap counted raw characters, but a U+200B is 8 characters once
   // marked (14 escaped in a message), so three such findings filled the comment
+  // #111 (C): each finding was capped, but their number was not. About 30 findings with long
+  // locations, or about 10 description diffs, filled the comment, and the rest were cut
+  describe('findings budget, split per tool (#111)', () => {
+    const long = (tool: string, i: number) =>
+      finding({ message: 'm'.repeat(900), location: `${tool}.${'p'.repeat(900)}${i}` });
+    const diff = (i: number) =>
+      finding({
+        id: 'drift/description_changed',
+        family: 'drift',
+        location: `noisy.d${i}`,
+        expected: 'a '.repeat(500),
+        actual: 'b '.repeat(500),
+      });
+
+    it('keeps another tool visible when one tool has many long findings', () => {
+      const noise = [
+        ...Array.from({ length: 60 }, (_, i) => long('noisy', i)),
+        ...Array.from({ length: 20 }, (_, i) => diff(i)),
+      ];
+      const md = renderMarkdownReport(report([...noise, finding({ location: 'zzz_real.x' })]));
+      expect(md.length).toBeLessThan(60_000);
+      // In the details, not only in the list at the top
+      expect(md).toContain('**security/injection-pattern** — `zzz_real.x`');
+      expect(md).toMatch(/- … \d+ more finding\(s\) not shown — see the JSON report/);
+    });
+
+    it('gives each of several small tools its findings next to one huge tool', () => {
+      const results = [
+        ...Array.from({ length: 5_000 }, (_, i) => long('huge', i)),
+        ...['a', 'b', 'c', 'd'].map((t) => finding({ location: `${t}.description` })),
+      ];
+      const md = renderMarkdownReport(report(results));
+      expect(md.length).toBeLessThan(60_000);
+      for (const t of ['a', 'b', 'c', 'd']) {
+        expect(md).toContain(`**security/injection-pattern** — \`${t}.description\``);
+      }
+    });
+
+    it('lists every finding by id and location at the top', () => {
+      const results = [
+        ...Array.from({ length: 60 }, (_, i) => long('noisy', i)),
+        finding({ id: 'security/hidden-unicode', location: 'zzz_real.x' }),
+      ];
+      const md = renderMarkdownReport(report(results));
+      const top = md.slice(md.indexOf('**All findings (61):**'), md.indexOf('### Security'));
+      expect(top).toContain('- ❌ security/hidden-unicode — `zzz_real.x`');
+      expect(top.match(/^- ❌ security\/injection-pattern — `noisy\./gm)).toHaveLength(60);
+    });
+
+    it('bounds the list at the top too, and says how many are left out', () => {
+      const results = Array.from({ length: 150_000 }, (_, i) =>
+        finding({ location: `t${i % 7}.p${i}` })
+      );
+      const md = renderMarkdownReport(report(results));
+      expect(md.length).toBeLessThan(60_000);
+      expect(md).toContain('**All findings (150000):**');
+      // Each of the seven tools still appears in the list
+      for (let t = 0; t < 7; t++) expect(md).toContain(`— \`t${t}.p`);
+      expect(md.match(/more finding\(s\) not shown/g)?.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('adds no list for a few findings that all fit', () => {
+      const md = renderMarkdownReport(report([finding({ location: 'a' }), finding({})]));
+      expect(md).not.toContain('All findings');
+      expect(md).not.toContain('not shown');
+    });
+  });
+
   it('caps what the comment holds, after invisibles are marked and Markdown is escaped', () => {
     const zw = '​'.repeat(5_000);
     const noise = Array.from({ length: 10 }, (_, i) =>

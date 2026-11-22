@@ -217,6 +217,61 @@ function renderFinding(result: CheckResult): string {
   return head;
 }
 
+/**
+ * Room for the findings in the comment, in rendered characters. GitHub cuts the comment at
+ * 65 000; the heading, the list at the top and the rest of the layout stay well below the
+ * remainder. Each finding is already capped (`capRendered`), but their number is not.
+ */
+const FINDINGS_BUDGET = 40_000;
+/** Room for the list of all findings at the top. */
+const LIST_BUDGET = 15_000;
+/** Cap for a location in the list at the top. */
+const MAX_LIST_LOCATION_CHARS = 120;
+
+/** The tool a finding is about: its location up to the first dot (`tool.inputSchema…`). */
+function toolOf(result: CheckResult): string {
+  const location = result.location ?? '';
+  const dot = location.indexOf('.');
+  return dot < 0 ? location : location.slice(0, dot);
+}
+
+/**
+ * Which entries fit in `budget`, shared fairly between tools: each tool gets an equal share,
+ * and what a tool does not use goes to the tools with more. One tool with thousands of
+ * findings cannot crowd out the others. Within a tool, entries are kept in the given order
+ * (failures first) until its share is used.
+ */
+function allot<T extends { result: CheckResult; size: number }>(
+  entries: T[],
+  budget: number
+): Set<T> {
+  const byTool = new Map<string, { list: T[]; need: number }>();
+  for (const e of entries) {
+    const tool = toolOf(e.result);
+    let t = byTool.get(tool);
+    if (!t) byTool.set(tool, (t = { list: [], need: 0 }));
+    t.list.push(e);
+    t.need += e.size;
+  }
+  // Smallest first, so a tool that needs less than its share leaves the rest to the others
+  const tools = [...byTool.values()].sort((a, b) => a.need - b.need);
+  const kept = new Set<T>();
+  let left = budget;
+  tools.forEach((t, i) => {
+    const share = Math.floor(left / (tools.length - i));
+    let used = 0;
+    for (const e of t.list) {
+      if (used + e.size > share) break;
+      used += e.size;
+      kept.add(e);
+    }
+    left -= used;
+  });
+  return kept;
+}
+
+const notShown = (n: number) => `- … ${n} more finding(s) not shown — see the JSON report`;
+
 function familyTitle(family: string): string {
   return family.charAt(0).toUpperCase() + family.slice(1);
 }
@@ -251,6 +306,35 @@ export function renderMarkdownReport(report: CheckReport): string {
   const notable = report.results.filter(
     (r) => r.status === 'fail' || r.status === 'warn' || isContractChange(r)
   );
+  const byStatus = (a: CheckResult, b: CheckResult) =>
+    (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9);
+  // Render every finding once; the budget then decides which of them fit
+  const rendered = [...notable]
+    .sort(byStatus)
+    .map((result) => ({ result, text: renderFinding(result), size: 0 }));
+  for (const e of rendered) e.size = e.text.length + 1;
+  const shown = allot(rendered, FINDINGS_BUDGET);
+  const textOf = new Map(rendered.map((e) => [e.result, e]));
+
+  // Every finding by id and location at the top: when there are many, or some did not fit
+  // below, nothing is left out of the comment entirely
+  if (notable.length > COLLAPSE_AFTER || shown.size < rendered.length) {
+    const lines = rendered.map(({ result }) => {
+      const icon = result.status === 'pass' ? 'ℹ️' : (STATUS_ICON[result.status] ?? '•');
+      const where = result.location
+        ? ` — ${capRendered(result.location, inlineCode, MAX_LIST_LOCATION_CHARS)}`
+        : '';
+      const text = `- ${icon} ${result.id}${where}`;
+      return { result, text, size: text.length + 1 };
+    });
+    const listed = allot(lines, LIST_BUDGET);
+    out.push('');
+    out.push(`**All findings (${notable.length}):**`);
+    out.push('');
+    for (const l of lines) if (listed.has(l)) out.push(l.text);
+    if (listed.size < lines.length) out.push(notShown(lines.length - listed.size));
+  }
+
   const families = new Map<string, CheckResult[]>();
   for (const r of notable) {
     const list = families.get(r.family) ?? [];
@@ -259,7 +343,7 @@ export function renderMarkdownReport(report: CheckReport): string {
   }
 
   for (const [family, results] of families) {
-    results.sort((a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9));
+    results.sort(byStatus);
     const fails = results.filter((r) => r.status === 'fail').length;
     const warns = results.filter((r) => r.status === 'warn').length;
     const changes = results.length - fails - warns;
@@ -270,7 +354,14 @@ export function renderMarkdownReport(report: CheckReport): string {
     ]
       .filter(Boolean)
       .join(', ');
-    const body = results.map(renderFinding).join('\n');
+    const lines: string[] = [];
+    for (const r of results) {
+      const e = textOf.get(r);
+      if (e && shown.has(e)) lines.push(e.text);
+    }
+    const visible = lines.length;
+    if (visible < results.length) lines.push(notShown(results.length - visible));
+    const body = lines.join('\n');
 
     out.push('');
     if (results.length > COLLAPSE_AFTER) {

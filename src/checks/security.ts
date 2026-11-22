@@ -163,7 +163,9 @@ const MAX_MERGED_DETAILS_CHARS = 1000;
 function scanModelText(tool: Tool): CheckResult[] {
   interface Group {
     result: CheckResult & { actual: unknown[] };
-    prefix: string;
+    /** `Hidden unicode`, `Injection pattern`: what the message starts with, before the details. */
+    kind: string;
+    place: Place;
     /** Every distinct detail seen; a Set, so merging N strings stays linear. */
     seen: Set<string>;
     details: string[];
@@ -175,13 +177,7 @@ function scanModelText(tool: Tool): CheckResult[] {
   // A place's groups by rule, resolved once per place: the string key is as long as the
   // location, so looking it up again for every match grew with matches × location length
   const groupsOf = new Map<Place, Map<RuleId, Group>>();
-  const report = (
-    id: RuleId,
-    place: Place,
-    found: unknown[],
-    prefix: () => string,
-    detail: string
-  ) => {
+  const report = (id: RuleId, place: Place, found: unknown[], kind: string, detail: string) => {
     let byRule = groupsOf.get(place);
     if (!byRule) groupsOf.set(place, (byRule = new Map()));
     let group = byRule.get(id);
@@ -213,7 +209,8 @@ function scanModelText(tool: Tool): CheckResult[] {
       };
       const created = {
         result,
-        prefix: prefix(),
+        kind,
+        place,
         seen: new Set([detail]),
         details: [detail],
         length: detail.length,
@@ -229,31 +226,21 @@ function scanModelText(tool: Tool): CheckResult[] {
     if (injection.length === 0 && unicode.length === 0) continue;
     const place = t.place();
     if (injection.length > 0) {
-      const kind = t.toolLevel ? 'injection-like pattern' : 'injection pattern';
-      report(
-        'security/injection-pattern',
-        place,
-        injection,
-        () => `Tool "${tool.name}" ${place.where} contains ${kind}: `,
-        `"${injection[0]}"`
-      );
+      const kind = t.toolLevel ? 'Injection-like pattern' : 'Injection pattern';
+      report('security/injection-pattern', place, injection, kind, `"${injection[0]}"`);
     }
     if (unicode.length > 0) {
-      report(
-        'security/hidden-unicode',
-        place,
-        unicode,
-        () => `Tool "${tool.name}" ${place.where} contains hidden unicode: `,
-        describeUnicode(unicode)
-      );
+      report('security/hidden-unicode', place, unicode, 'Hidden unicode', describeUnicode(unicode));
     }
   }
-  return [...groups.values()].map(({ result, prefix, details, omitted }) => ({
+  // Details first, then where: the PR comment caps a message, and a long tool name or path
+  // in front cut off the decoded hidden text, the part a reviewer needs
+  return [...groups.values()].map(({ result, kind, place, details, omitted }) => ({
     ...result,
     message:
-      prefix +
-      details.join('; ') +
-      (omitted > 0 ? `; and ${omitted} more (see the JSON report)` : ''),
+      `${kind}: ${details.join('; ')}` +
+      (omitted > 0 ? `; and ${omitted} more (see the JSON report)` : '') +
+      ` — tool "${tool.name}" ${place.where}`,
   }));
 }
 
@@ -332,7 +319,7 @@ export function checkToolSecurity(tool: Tool): CheckResult[] {
       family: 'security',
       status: 'fail',
       severity: 'error',
-      message: `Tool "${name}" name contains hidden unicode: ${describeUnicode(nameUnicode)}`,
+      message: `Hidden unicode: ${describeUnicode(nameUnicode)} — tool "${name}" name`,
       actual: nameUnicode,
       location: name,
     });
