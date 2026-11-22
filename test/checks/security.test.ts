@@ -532,6 +532,23 @@ describe('Security Checks', () => {
       expect(found[0]?.message).toMatch(/; and \d+ more \(see the JSON report\)$/);
     });
 
+    // CodeRabbit on #110 (31ed72a): the location, its key and the message prefix were built for
+    // every match: 20 000 matches under a 1 000 000-character name took 50 s
+    it('builds the location once for all matches under one keyword', () => {
+      const name = 'n'.repeat(1_000_000);
+      const examples = Array.from({ length: 20_000 }, (_, i) => `x\u200B${i}`);
+      const tool: Tool = {
+        name: 't',
+        inputSchema: { type: 'object', properties: { [name]: { examples } } },
+      };
+      const start = performance.now();
+      const found = checkToolSecurity(tool).filter((r) => r.id === 'security/hidden-unicode');
+      expect(performance.now() - start).toBeLessThan(2000);
+      expect(found).toHaveLength(1);
+      expect(found[0]?.location).toBe(`t.inputSchema.properties/${name}.examples`);
+      expect(found[0]?.actual).toHaveLength(20_000);
+    });
+
     // Review of #110, round 5: a location built for every text, not only for a finding, made
     // 10 000 levels with a description each take 7 s and 2 GB
     it('builds a location only for a text with a finding', () => {

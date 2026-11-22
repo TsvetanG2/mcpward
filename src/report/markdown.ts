@@ -25,6 +25,8 @@ const COLLAPSE_AFTER = 5;
  * The JSON report has the full text.
  */
 const MAX_DESCRIPTION_CHARS = 1000;
+/** The same cap for the server's name, version and protocol in the heading. */
+const MAX_HEADER_CHARS = 200;
 
 /**
  * Escapes untrusted text for inline Markdown: HTML, Markdown punctuation, and @-mentions
@@ -40,14 +42,43 @@ const MAX_DESCRIPTION_CHARS = 1000;
  */
 export function escapeMarkdown(text: string): string {
   const flat = markInvisibleCharacters(text).replace(/\r?\n|\r/g, ' ');
-  return flat
-    .split(LINKISH)
-    .map((part, i) => (i % 2 === 1 ? inlineCode(part) : escapeInline(part)))
-    .join('');
+  let out = '';
+  // Word by word, in linear time: the regex this replaces (`\S*@\S*` and a scheme before
+  // `://`) backtracked over the rest of the word from every position, quadratic on a long word
+  for (const part of flat.split(/(\s+)/)) {
+    const at = /^\s/.test(part) ? -1 : linkStart(part);
+    out +=
+      at < 0 ? escapeInline(part) : escapeInline(part.slice(0, at)) + inlineCode(part.slice(at));
+  }
+  return out;
 }
 
-/** Tokens GitHub would turn into links or mentions: URLs, www. hosts, anything with an "@". */
-const LINKISH = /((?:[a-z][a-z0-9+.-]*:\/\/|www\.)\S+|\S*@\S*)/gi;
+const SCHEME_CHAR = /[a-z0-9+.-]/i;
+const LETTER = /[a-z]/i;
+
+/**
+ * Where, in a word without whitespace, a token GitHub would turn into a link or mention starts:
+ * the whole word when it holds an "@", else the first URL (`scheme://` and more) or `www.`
+ * host, which runs to the end of the word. -1 for none.
+ */
+function linkStart(word: string): number {
+  if (word.includes('@')) return 0;
+  let start = -1;
+  // Each `://` is walked back over scheme characters only; the walks never overlap (a `/` ends
+  // one), so this is linear. The first `://` that has a scheme gives the earliest start.
+  for (let q = word.indexOf('://'); q > 0 && q + 3 < word.length; q = word.indexOf('://', q + 1)) {
+    let p = q;
+    while (p > 0 && SCHEME_CHAR.test(word.charAt(p - 1))) p--;
+    while (p < q && !LETTER.test(word.charAt(p))) p++;
+    if (p < q) {
+      start = p;
+      break;
+    }
+  }
+  const www = word.search(/www\./i);
+  if (www >= 0 && www + 4 < word.length && (start < 0 || www < start)) start = www;
+  return start;
+}
 
 function escapeInline(text: string): string {
   return text
@@ -85,24 +116,25 @@ const TRUNCATED = '… (truncated, see JSON report for full text)';
  * what the comment holds: a U+200B is 8 characters once marked, and a raw cap let three
  * findings of them fill the 65 000-character comment and push every later one out.
  */
-function capRendered(text: string, render: (text: string) => string): string {
+function capRendered(
+  text: string,
+  render: (text: string) => string,
+  max = MAX_DESCRIPTION_CHARS
+): string {
   // Rendered text is at least half as long (`\r\n` → one space is the only shortening), so a
-  // longer text cannot fit; rendering it whole would also run escapeMarkdown's linkish regex,
-  // quadratic on a run without spaces, over all of it
-  if (text.length <= MAX_DESCRIPTION_CHARS * 2) {
+  // longer text cannot fit and is not rendered whole
+  if (text.length <= max * 2) {
     const full = render(text);
-    if (full.length <= MAX_DESCRIPTION_CHARS) return full;
+    if (full.length <= max) return full;
   }
-  // Rendering only lengthens text (bar `\r\n` → one space), so at most MAX code points are tried
-  const chars = Array.from(text.slice(0, MAX_DESCRIPTION_CHARS * 2));
-  let lo = 0;
-  let hi = Math.min(chars.length, MAX_DESCRIPTION_CHARS);
-  while (lo < hi) {
-    const mid = Math.ceil((lo + hi) / 2);
-    if (render(chars.slice(0, mid).join('')).length <= MAX_DESCRIPTION_CHARS) lo = mid;
-    else hi = mid - 1;
+  // At most `max` code points can fit. Each round cuts in proportion to how much rendering
+  // lengthened the text, so a finding takes a render or two, not a search over prefixes
+  let chars = Array.from(text.slice(0, max * 2)).slice(0, max);
+  for (;;) {
+    const out = render(chars.join(''));
+    if (out.length <= max) return out + TRUNCATED;
+    chars = chars.slice(0, Math.floor((chars.length * max) / out.length));
   }
-  return render(chars.slice(0, lo).join('')) + TRUNCATED;
 }
 
 const STATUS_ICON: Record<string, string> = { fail: '❌', warn: '⚠️', skip: '⏭️', pass: '✅' };
@@ -199,9 +231,14 @@ export function renderMarkdownReport(report: CheckReport): string {
     `## ${failed ? '❌' : '✅'} mcpward: ${failed ? `${summary.failed} check(s) failed` : summary.warnings > 0 ? 'passed with warnings' : 'all checks passed'}`
   );
   out.push('');
+  // Name, version and protocol come from the server: capped like a finding, or a name of 9 000
+  // zero-width spaces (45 000 characters once marked) pushes every finding out of the comment
+  const { server } = report;
   out.push(
-    `**Server:** ${inlineCode(report.server.name)} v${escapeMarkdown(report.server.version)} · ` +
-      `**Protocol:** ${escapeMarkdown(report.server.protocolVersion)} · **mcpward** v${escapeMarkdown(report.version)}`
+    `**Server:** ${capRendered(server.name, inlineCode, MAX_HEADER_CHARS)} ` +
+      `v${capRendered(server.version, escapeMarkdown, MAX_HEADER_CHARS)} · ` +
+      `**Protocol:** ${capRendered(server.protocolVersion, escapeMarkdown, MAX_HEADER_CHARS)} · ` +
+      `**mcpward** v${escapeMarkdown(report.version)}`
   );
   out.push('');
   out.push('| Passed | Failed | Warnings | Skipped | Total |');
