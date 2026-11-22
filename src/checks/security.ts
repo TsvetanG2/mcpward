@@ -22,6 +22,7 @@ import {
   findInjectionPatterns,
   findSuspiciousUnicode,
   stepsOf,
+  type Steps,
 } from './heuristics.js';
 
 export interface SecurityCheckContext {
@@ -94,7 +95,8 @@ interface ScannedText {
   text: string;
   /**
    * Built only for a text with a finding: a location per text makes a deep schema quadratic
-   * (10 000 levels with a description each took 2 GB).
+   * (10 000 levels with a description each took 2 GB). Built once per location and keyword:
+   * every string under it returns the same object.
    */
   place: () => Place;
   /** Tool-level text keeps the pre-1.3.1 wording "injection-like pattern". */
@@ -125,15 +127,21 @@ function modelTexts(tool: Tool): ScannedText[] {
   add('title', `${name}.title`, tool.title);
   add('annotations.title', `${name}.annotations.title`, tool.annotations?.title);
   if (tool.inputSchema) {
+    // The strings under one keyword share its location object: 20 000 matches under a long
+    // property name would otherwise build 20 000 location-sized strings
+    const places = new Map<Steps | undefined, Map<string, Place>>();
     for (const { location, keyword, text } of collectSchemaText(tool.inputSchema)) {
       const place = () => {
-        const steps = stepsOf(location);
-        const where = ['inputSchema', ...steps, keyword].join('.');
-        return {
-          where,
-          location: `${name}.${where}`,
-          key: JSON.stringify([false, steps, keyword]),
-        };
+        let byKeyword = places.get(location);
+        if (!byKeyword) places.set(location, (byKeyword = new Map()));
+        let p = byKeyword.get(keyword);
+        if (!p) {
+          const steps = stepsOf(location);
+          const where = ['inputSchema', ...steps, keyword].join('.');
+          p = { where, location: `${name}.${where}`, key: JSON.stringify([false, steps, keyword]) };
+          byKeyword.set(keyword, p);
+        }
+        return p;
       };
       out.push({ text, place, toolLevel: false });
     }
@@ -162,16 +170,25 @@ function scanModelText(tool: Tool): CheckResult[] {
     length: number;
     omitted: number;
   }
+  type RuleId = 'security/injection-pattern' | 'security/hidden-unicode';
   const groups = new Map<string, Group>();
+  // A place's groups by rule, resolved once per place: the string key is as long as the
+  // location, so looking it up again for every match grew with matches × location length
+  const groupsOf = new Map<Place, Map<RuleId, Group>>();
   const report = (
-    id: 'security/injection-pattern' | 'security/hidden-unicode',
+    id: RuleId,
     place: Place,
     found: unknown[],
-    prefix: string,
+    prefix: () => string,
     detail: string
   ) => {
-    const key = `${id}\u0000${place.key}`;
-    const group = groups.get(key);
+    let byRule = groupsOf.get(place);
+    if (!byRule) groupsOf.set(place, (byRule = new Map()));
+    let group = byRule.get(id);
+    if (!group) {
+      group = groups.get(`${id}\u0000${place.key}`);
+      if (group) byRule.set(id, group);
+    }
     if (group) {
       // Push one by one: spreading an unbounded list overflows the argument stack (RangeError)
       for (const f of found) group.result.actual.push(f);
@@ -194,14 +211,16 @@ function scanModelText(tool: Tool): CheckResult[] {
         actual: found,
         location: place.location,
       };
-      groups.set(key, {
+      const created = {
         result,
-        prefix,
+        prefix: prefix(),
         seen: new Set([detail]),
         details: [detail],
         length: detail.length,
         omitted: 0,
-      });
+      };
+      groups.set(`${id}\u0000${place.key}`, created);
+      byRule.set(id, created);
     }
   };
   for (const t of modelTexts(tool)) {
@@ -215,7 +234,7 @@ function scanModelText(tool: Tool): CheckResult[] {
         'security/injection-pattern',
         place,
         injection,
-        `Tool "${tool.name}" ${place.where} contains ${kind}: `,
+        () => `Tool "${tool.name}" ${place.where} contains ${kind}: `,
         `"${injection[0]}"`
       );
     }
@@ -224,7 +243,7 @@ function scanModelText(tool: Tool): CheckResult[] {
         'security/hidden-unicode',
         place,
         unicode,
-        `Tool "${tool.name}" ${place.where} contains hidden unicode: `,
+        () => `Tool "${tool.name}" ${place.where} contains hidden unicode: `,
         describeUnicode(unicode)
       );
     }

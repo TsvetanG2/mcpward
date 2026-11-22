@@ -66,7 +66,86 @@ describe('escapeMarkdown (untrusted server text)', () => {
   });
 });
 
+describe('escapeMarkdown in linear time (review of #110, round 6)', () => {
+  // The regex escapeMarkdown used before: it backtracked over the rest of a word from every
+  // position, so a long word without spaces took quadratic time
+  const LINKISH = /((?:[a-z][a-z0-9+.-]*:\/\/|www\.)\S+|\S*@\S*)/gi;
+  const before = (text: string) =>
+    text
+      .split(LINKISH)
+      .map((part, i) => (i % 2 === 1 ? `<${part}>` : part))
+      .join('');
+  // escapeMarkdown with every link-like token marked `<…>` and nothing else escaped: compares
+  // where tokens start and end, which is all the split decided
+  const after = (text: string) =>
+    escapeMarkdown(text)
+      .replace(/`([^`]*)`/g, '<$1>')
+      .replace(/\\(.)/g, '$1')
+      .replace(/&#64;/g, '@')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&');
+
+  it('splits link-like tokens exactly where the regex did', () => {
+    const alphabet = ['a', 'W', 'w', '.', ':', '/', '@', ' ', '1', '+', '-', 'h', 't', 'p', 's'];
+    let seed = 1;
+    const rand = (n: number) => {
+      seed = (seed * 1103515245 + 12345) % 2 ** 31;
+      return seed % n;
+    };
+    for (let i = 0; i < 20_000; i++) {
+      const text = Array.from({ length: rand(24) }, () => alphabet[rand(alphabet.length)]).join('');
+      expect(after(text), JSON.stringify(text)).toBe(before(text));
+    }
+    for (const text of [
+      'see https://x.io now',
+      'www.a.b',
+      'a@b c',
+      '1://ab://c',
+      'x://',
+      'WWW.x',
+    ]) {
+      expect(after(text), text).toBe(before(text));
+    }
+  });
+
+  it('escapes a long word without spaces in linear time', () => {
+    for (const word of [
+      'a'.repeat(200_000),
+      `${'a'.repeat(200_000)}@`,
+      `1${'+'.repeat(200_000)}`,
+    ]) {
+      const started = Date.now();
+      escapeMarkdown(word);
+      expect(Date.now() - started).toBeLessThan(500);
+    }
+  });
+
+  it('renders 10 000 findings with long messages without spaces in a few seconds', () => {
+    const findings = Array.from({ length: 10_000 }, (_, i) =>
+      finding({ message: `${'a'.repeat(5_000)}${i}`, location: `t${i}` })
+    );
+    const started = Date.now();
+    renderMarkdownReport(report(findings));
+    expect(Date.now() - started).toBeLessThan(5000);
+  });
+});
+
 describe('renderMarkdownReport', () => {
+  // Review of #110, round 6: the server's name, version and protocol were not capped, so a name
+  // of 9 000 zero-width spaces (45 000 characters once marked) hid every finding
+  it('caps the server name, version and protocol in the heading', () => {
+    const zw = '\u200B'.repeat(9_000);
+    const md = renderMarkdownReport({
+      ...report([finding({ location: 'zzz_real' })]),
+      server: { name: zw, version: zw, protocolVersion: zw },
+    });
+    const heading = md.split('\n').find((l) => l.startsWith('**Server:**')) ?? '';
+    expect(heading.length).toBeLessThan(1000);
+    expect(heading).toContain('<U+200B>');
+    expect(md).toContain('`zzz_real`');
+  });
+
   // Review of #110, round 5: 14 KB of noise in another tool pushed a real finding out of the
   // comment, which is cut at 65 000 characters
   it('caps each message and location so one finding cannot push the others out', () => {
