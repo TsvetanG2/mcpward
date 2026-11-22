@@ -483,7 +483,7 @@ jobs:
           pr-comment: true
 ```
 
-Without the action: `GITHUB_TOKEN=${{ github.token }} npx mcpward@1 run --pr-comment`. The comment is rendered from the same redacted report as every other reporter, and all server-supplied text is escaped so a malicious tool description cannot inject links, HTML, or @-mentions into your PR. It stays readable whatever the server sends: each field is capped, the findings share a fixed budget split per tool (one tool with thousands of findings cannot push the others out), and with more than a few findings a list of all of them by rule id and location comes first. Whatever does not fit is counted ("N more finding(s) not shown"); the JSON report always has everything.
+Without the action: `GITHUB_TOKEN=${{ github.token }} npx mcpward@1 run --pr-comment`. The comment is rendered from the same redacted report as every other reporter, and all server-supplied text is escaped so a malicious tool description cannot inject links, HTML, or @-mentions into your PR. It stays readable whatever the server sends: each field is capped, and the findings share a fixed budget in which failures come before warnings and tools take turns, so one tool with thousands of findings, or many tools, cannot push a failure out. With more than a few findings the comment starts with every tool by name and count, then every finding by rule id and location. Whatever does not fit is counted ("N more finding(s) not shown"); the console output in the job log (and `--reporter json`) always has everything.
 
 The same Markdown works as a job summary: `npx mcpward@1 run --reporter markdown --out "$GITHUB_STEP_SUMMARY"`.
 

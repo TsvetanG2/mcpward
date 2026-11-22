@@ -112,3 +112,22 @@ export function getExitCode(results: CheckResult[]): number {
   const hasFailed = results.some((r) => r.status === 'fail');
   return hasFailed ? 1 : 0;
 }
+
+/**
+ * The tool a result is about, for results whose `location` says more than the tool name
+ * (`tool.inputSchema.properties/a.description`). Tool names may contain dots, so the name
+ * cannot be parsed back out of the location. Kept beside the result, not in it: the JSON
+ * report's shape does not change, and redaction edits results in place, so the link holds.
+ */
+const TOOL_OF = new WeakMap<CheckResult, string>();
+
+/** Records that `result` is about `tool`, and returns `result`. */
+export function aboutTool<T extends CheckResult>(result: T, tool: string): T {
+  TOOL_OF.set(result, tool);
+  return result;
+}
+
+/** The tool `result` is about: recorded by {@link aboutTool}, else its location as a whole. */
+export function toolOfResult(result: CheckResult): string {
+  return TOOL_OF.get(result) ?? result.location ?? '';
+}

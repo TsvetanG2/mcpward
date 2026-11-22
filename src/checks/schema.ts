@@ -8,7 +8,7 @@
  * - Well-formed annotations
  */
 
-import type { CheckResult } from '../report/model.js';
+import { aboutTool, type CheckResult } from '../report/model.js';
 import type { McpConnection } from '../client/connect.js';
 import { listAllTools } from '../client/tools.js';
 import { loadAjv, newAjvFor } from '../assert/ajv.js';
@@ -287,17 +287,20 @@ function checkToolInputSchema(tool: Tool): CheckResult {
     for (const [propName, propSchema] of Object.entries(inputSchema.properties)) {
       const prop = propSchema as { type?: string };
       if (prop.type && !isValidJsonSchemaType(prop.type)) {
-        return {
-          id: 'schema/tool-input-schema',
-          family: 'schema',
-          status: 'fail',
-          severity: 'error',
-          message: `Tool "${name}" property "${propName}" has invalid type: "${prop.type}"`,
-          expected:
-            'Valid JSON Schema type (string, number, integer, boolean, array, object, null)',
-          actual: prop.type,
-          location: `${name}.${propName}`,
-        };
+        return aboutTool(
+          {
+            id: 'schema/tool-input-schema',
+            family: 'schema',
+            status: 'fail',
+            severity: 'error',
+            message: `Tool "${name}" property "${propName}" has invalid type: "${prop.type}"`,
+            expected:
+              'Valid JSON Schema type (string, number, integer, boolean, array, object, null)',
+            actual: prop.type,
+            location: `${name}.${propName}`,
+          },
+          name
+        );
       }
     }
   }

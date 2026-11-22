@@ -11,7 +11,7 @@
  * A security check that cries wolf is worse than none.
  */
 
-import type { CheckResult } from '../report/model.js';
+import { aboutTool, type CheckResult } from '../report/model.js';
 import type { McpConnection } from '../client/connect.js';
 import { listAllTools } from '../client/tools.js';
 import type { Tool } from './schema.js';
@@ -235,13 +235,19 @@ function scanModelText(tool: Tool): CheckResult[] {
   }
   // Details first, then where: the PR comment caps a message, and a long tool name or path
   // in front cut off the decoded hidden text, the part a reviewer needs
-  return [...groups.values()].map(({ result, kind, place, details, omitted }) => ({
-    ...result,
-    message:
-      `${kind}: ${details.join('; ')}` +
-      (omitted > 0 ? `; and ${omitted} more (see the JSON report)` : '') +
-      ` — tool "${tool.name}" ${place.where}`,
-  }));
+  // The location goes past the tool name, and a tool name may contain dots: record the tool
+  return [...groups.values()].map(({ result, kind, place, details, omitted }) =>
+    aboutTool(
+      {
+        ...result,
+        message:
+          `${kind}: ${details.join('; ')}` +
+          (omitted > 0 ? `; and ${omitted} more (see the JSON report)` : '') +
+          ` — tool "${tool.name}" ${place.where}`,
+      },
+      tool.name
+    )
+  );
 }
 
 /**

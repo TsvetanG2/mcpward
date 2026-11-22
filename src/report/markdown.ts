@@ -10,7 +10,7 @@
  * is UNTRUSTED: it is escaped so it cannot inject HTML, links, or @-mentions into the PR.
  */
 
-import type { CheckReport, CheckResult } from './model.js';
+import { toolOfResult, type CheckReport, type CheckResult } from './model.js';
 import { wordDiff, markInvisibleCharacters } from './text-diff.js';
 import { DRIFT_CLASSES } from '../config/schema.js';
 
@@ -108,7 +108,7 @@ function codeBlock(lang: string, content: string): string {
   return `${fence}${lang}\n${content}\n${fence}`;
 }
 
-const TRUNCATED = '… (truncated, see JSON report for full text)';
+const TRUNCATED = '… (truncated; the console output and the JSON report have the full text)';
 
 /**
  * `render(text)`, cut to {@link MAX_DESCRIPTION_CHARS} rendered characters. The raw text is cut
@@ -119,7 +119,8 @@ const TRUNCATED = '… (truncated, see JSON report for full text)';
 function capRendered(
   text: string,
   render: (text: string) => string,
-  max = MAX_DESCRIPTION_CHARS
+  max = MAX_DESCRIPTION_CHARS,
+  suffix = TRUNCATED
 ): string {
   // Rendered text is at least half as long (`\r\n` → one space is the only shortening), so a
   // longer text cannot fit and is not rendered whole
@@ -132,7 +133,7 @@ function capRendered(
   let chars = Array.from(text.slice(0, max * 2)).slice(0, max);
   for (;;) {
     const out = render(chars.join(''));
-    if (out.length <= max) return out + TRUNCATED;
+    if (out.length <= max) return out + suffix;
     chars = chars.slice(0, Math.floor((chars.length * max) / out.length));
   }
 }
@@ -218,59 +219,118 @@ function renderFinding(result: CheckResult): string {
 }
 
 /**
- * Room for the findings in the comment, in rendered characters. GitHub cuts the comment at
- * 65 000; the heading, the list at the top and the rest of the layout stay well below the
- * remainder. Each finding is already capped (`capRendered`), but their number is not.
+ * Room in the comment, in rendered characters. GitHub cuts the comment at 65 000; the heading
+ * and the layout stay well below the remainder. Each finding is already capped
+ * (`capRendered`), but their number is not, and a hostile server picks how many there are.
  */
-const FINDINGS_BUDGET = 40_000;
-/** Room for the list of all findings at the top. */
-const LIST_BUDGET = 15_000;
-/** Cap for a location in the list at the top. */
+const INDEX_BUDGET = 6_000;
+const LIST_BUDGET = 12_000;
+const FINDINGS_BUDGET = 36_000;
+/** Cap for a tool name in the index and a location in the list at the top. */
+const MAX_INDEX_TOOL_CHARS = 40;
 const MAX_LIST_LOCATION_CHARS = 120;
 
-/** The tool a finding is about: its location up to the first dot (`tool.inputSchema…`). */
-function toolOf(result: CheckResult): string {
-  const location = result.location ?? '';
-  const dot = location.indexOf('.');
-  return dot < 0 ? location : location.slice(0, dot);
+/** Where the reader finds what the comment left out. */
+const FULL_REPORT = 'the console output (job log) and the JSON report have all of them';
+
+const statusRank = (r: CheckResult) => STATUS_ORDER[r.status] ?? 9;
+const iconOf = (r: CheckResult) => (r.status === 'pass' ? 'ℹ️' : (STATUS_ICON[r.status] ?? '•'));
+
+/** One notable result, by its position: the same result object may occur more than once. */
+interface Entry {
+  index: number;
+  result: CheckResult;
+  tool: string;
 }
 
 /**
- * Which entries fit in `budget`, shared fairly between tools: each tool gets an equal share,
- * and what a tool does not use goes to the tools with more. One tool with thousands of
- * findings cannot crowd out the others. Within a tool, entries are kept in the given order
- * (failures first) until its share is used.
+ * Which entries fit in `budget`. Failures come first across all tools, then warnings, then
+ * reported changes: a run that is red shows what made it red. Within a status, tools take
+ * turns, one entry per tool per round, tools with fewer findings first. A tool cannot hide
+ * another by having more findings, longer ones, or a smaller share; with more tools than
+ * room, the cut falls in the last round and the rest is counted.
  */
-function allot<T extends { result: CheckResult; size: number }>(
-  entries: T[],
-  budget: number
-): Set<T> {
-  const byTool = new Map<string, { list: T[]; need: number }>();
-  for (const e of entries) {
-    const tool = toolOf(e.result);
-    let t = byTool.get(tool);
-    if (!t) byTool.set(tool, (t = { list: [], need: 0 }));
-    t.list.push(e);
-    t.need += e.size;
-  }
-  // Smallest first, so a tool that needs less than its share leaves the rest to the others
-  const tools = [...byTool.values()].sort((a, b) => a.need - b.need);
-  const kept = new Set<T>();
+function allot(entries: Entry[], sizeOf: (e: Entry) => number, budget: number): Set<number> {
+  const kept = new Set<number>();
   let left = budget;
-  tools.forEach((t, i) => {
-    const share = Math.floor(left / (tools.length - i));
-    let used = 0;
-    for (const e of t.list) {
-      if (used + e.size > share) break;
-      used += e.size;
-      kept.add(e);
+  const ranks = [...new Set(entries.map((e) => statusRank(e.result)))].sort((a, b) => a - b);
+  for (const rank of ranks) {
+    const byTool = new Map<string, Entry[]>();
+    for (const e of entries) {
+      if (statusRank(e.result) !== rank) continue;
+      let q = byTool.get(e.tool);
+      if (!q) byTool.set(e.tool, (q = []));
+      q.push(e);
     }
-    left -= used;
-  });
+    // Fewer findings first, then the shorter first entry: as many tools as possible get room
+    const first = (q: Entry[]) => (q[0] ? sizeOf(q[0]) : 0);
+    let queues = [...byTool.values()].sort((a, b) => a.length - b.length || first(a) - first(b));
+    for (let round = 0; queues.length > 0 && left > 0; round++) {
+      const next: Entry[][] = [];
+      for (const q of queues) {
+        const e = q[round];
+        if (!e) continue;
+        const size = sizeOf(e);
+        // An entry that does not fit ends this tool's turns; a smaller one elsewhere may fit
+        if (size > left) continue;
+        kept.add(e.index);
+        left -= size;
+        if (round + 1 < q.length) next.push(q);
+      }
+      queues = next;
+    }
+  }
   return kept;
 }
 
-const notShown = (n: number) => `- … ${n} more finding(s) not shown — see the JSON report`;
+const notShown = (n: number) => `- … ${n} more finding(s) not shown — ${FULL_REPORT}`;
+
+/**
+ * One line naming every tool with findings: worst status, name, count. Bounded like the rest;
+ * tools that do not fit are counted with their findings.
+ */
+function renderIndex(entries: Entry[]): string {
+  const tools = new Map<string, { worst: CheckResult; count: number }>();
+  for (const e of entries) {
+    const t = tools.get(e.tool);
+    if (!t) tools.set(e.tool, { worst: e.result, count: 1 });
+    else {
+      t.count++;
+      if (statusRank(e.result) < statusRank(t.worst)) t.worst = e.result;
+    }
+  }
+  // Worst status first, then fewer findings, then the shorter entry: as many tools as fit
+  const items = [...tools].map(([tool, { worst, count }]) => {
+    const name =
+      tool === '' ? '(server)' : capRendered(tool, inlineCode, MAX_INDEX_TOOL_CHARS, '…');
+    return { worst, count, part: `${iconOf(worst)} ${name} ${count}` };
+  });
+  items.sort(
+    (a, b) =>
+      statusRank(a.worst) - statusRank(b.worst) ||
+      a.count - b.count ||
+      a.part.length - b.part.length
+  );
+  const parts: string[] = [];
+  let used = 0;
+  let omittedTools = 0;
+  let omittedFindings = 0;
+  for (const { part, count } of items) {
+    if (used + part.length + 3 > INDEX_BUDGET) {
+      omittedTools++;
+      omittedFindings += count;
+      continue;
+    }
+    parts.push(part);
+    used += part.length + 3;
+  }
+  if (omittedTools > 0) {
+    parts.push(
+      `… ${omittedTools} more tool(s) with ${omittedFindings} finding(s) — ${FULL_REPORT}`
+    );
+  }
+  return parts.join(' · ');
+}
 
 function familyTitle(family: string): string {
   return family.charAt(0).toUpperCase() + family.slice(1);
@@ -302,51 +362,47 @@ export function renderMarkdownReport(report: CheckReport): string {
     `| ${summary.passed} | ${summary.failed} | ${summary.warnings} | ${summary.skipped} | ${summary.total} |`
   );
 
-  // Group failures, warnings and every contract change by family; failures first
-  const notable = report.results.filter(
-    (r) => r.status === 'fail' || r.status === 'warn' || isContractChange(r)
-  );
-  const byStatus = (a: CheckResult, b: CheckResult) =>
-    (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9);
+  // Failures, warnings and every contract change
+  const entries: Entry[] = report.results
+    .filter((r) => r.status === 'fail' || r.status === 'warn' || isContractChange(r))
+    .map((result, index) => ({ index, result, tool: toolOfResult(result) }));
   // Render every finding once; the budget then decides which of them fit
-  const rendered = [...notable]
-    .sort(byStatus)
-    .map((result) => ({ result, text: renderFinding(result), size: 0 }));
-  for (const e of rendered) e.size = e.text.length + 1;
-  const shown = allot(rendered, FINDINGS_BUDGET);
-  const textOf = new Map(rendered.map((e) => [e.result, e]));
+  const texts = entries.map((e) => renderFinding(e.result));
+  const shown = allot(entries, (e) => (texts[e.index] ?? '').length + 1, FINDINGS_BUDGET);
 
-  // Every finding by id and location at the top: when there are many, or some did not fit
-  // below, nothing is left out of the comment entirely
-  if (notable.length > COLLAPSE_AFTER || shown.size < rendered.length) {
-    const lines = rendered.map(({ result }) => {
-      const icon = result.status === 'pass' ? 'ℹ️' : (STATUS_ICON[result.status] ?? '•');
-      const where = result.location
-        ? ` — ${capRendered(result.location, inlineCode, MAX_LIST_LOCATION_CHARS)}`
+  // An overview first when there are many findings or some did not fit below: every tool by
+  // name and count, then every finding by id and location, both bounded the same way
+  if (entries.length > COLLAPSE_AFTER || shown.size < entries.length) {
+    out.push('');
+    out.push(`**Findings by tool:** ${renderIndex(entries)}`);
+    const lines = entries.map((e) => {
+      const where = e.result.location
+        ? ` — ${capRendered(e.result.location, inlineCode, MAX_LIST_LOCATION_CHARS)}`
         : '';
-      const text = `- ${icon} ${result.id}${where}`;
-      return { result, text, size: text.length + 1 };
+      return `- ${iconOf(e.result)} ${e.result.id}${where}`;
     });
-    const listed = allot(lines, LIST_BUDGET);
+    const listed = allot(entries, (e) => (lines[e.index] ?? '').length + 1, LIST_BUDGET);
     out.push('');
-    out.push(`**All findings (${notable.length}):**`);
+    out.push(`**All findings (${entries.length}):**`);
     out.push('');
-    for (const l of lines) if (listed.has(l)) out.push(l.text);
-    if (listed.size < lines.length) out.push(notShown(lines.length - listed.size));
+    // Failures first, as allotted
+    const order = [...entries].sort((a, b) => statusRank(a.result) - statusRank(b.result));
+    for (const e of order) if (listed.has(e.index)) out.push(lines[e.index] ?? '');
+    if (listed.size < entries.length) out.push(notShown(entries.length - listed.size));
   }
 
-  const families = new Map<string, CheckResult[]>();
-  for (const r of notable) {
-    const list = families.get(r.family) ?? [];
-    list.push(r);
-    families.set(r.family, list);
+  const families = new Map<string, Entry[]>();
+  for (const e of entries) {
+    const list = families.get(e.result.family) ?? [];
+    list.push(e);
+    families.set(e.result.family, list);
   }
 
-  for (const [family, results] of families) {
-    results.sort(byStatus);
-    const fails = results.filter((r) => r.status === 'fail').length;
-    const warns = results.filter((r) => r.status === 'warn').length;
-    const changes = results.length - fails - warns;
+  for (const [family, list] of families) {
+    list.sort((a, b) => statusRank(a.result) - statusRank(b.result));
+    const fails = list.filter((e) => e.result.status === 'fail').length;
+    const warns = list.filter((e) => e.result.status === 'warn').length;
+    const changes = list.length - fails - warns;
     const counts = [
       fails ? `${fails} failed` : '',
       warns ? `${warns} warning(s)` : '',
@@ -354,17 +410,12 @@ export function renderMarkdownReport(report: CheckReport): string {
     ]
       .filter(Boolean)
       .join(', ');
-    const lines: string[] = [];
-    for (const r of results) {
-      const e = textOf.get(r);
-      if (e && shown.has(e)) lines.push(e.text);
-    }
-    const visible = lines.length;
-    if (visible < results.length) lines.push(notShown(results.length - visible));
+    const lines = list.filter((e) => shown.has(e.index)).map((e) => texts[e.index] ?? '');
+    if (lines.length < list.length) lines.push(notShown(list.length - lines.length));
     const body = lines.join('\n');
 
     out.push('');
-    if (results.length > COLLAPSE_AFTER) {
+    if (list.length > COLLAPSE_AFTER) {
       out.push(
         `<details${fails > 0 ? ' open' : ''}><summary><b>${familyTitle(family)}</b> (${counts})</summary>`
       );
@@ -379,7 +430,7 @@ export function renderMarkdownReport(report: CheckReport): string {
     }
   }
 
-  if (notable.length === 0) {
+  if (entries.length === 0) {
     out.push('');
     out.push('No failures, warnings or contract changes.');
   }
