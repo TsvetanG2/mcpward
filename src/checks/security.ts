@@ -21,6 +21,7 @@ import {
   collectSecretFields,
   findInjectionPatterns,
   findSuspiciousUnicode,
+  stepsOf,
 } from './heuristics.js';
 
 export interface SecurityCheckContext {
@@ -76,8 +77,8 @@ function hasDestructiveKeywords(text: string): boolean {
   return DESTRUCTIVE_KEYWORDS.some((pattern) => pattern.test(text));
 }
 
-/** A piece of text the model reads, with where it is for the report. */
-interface ScannedText {
+/** Where a scanned text is, for the report. */
+interface Place {
   /** `description`, `title`, `inputSchema.properties/a.default`, … — goes into the message. */
   where: string;
   location: string;
@@ -86,7 +87,16 @@ interface ScannedText {
    * Not the location string, which can coincide for two places (a property named `a.items`).
    */
   key: string;
+}
+
+/** A piece of text the model reads. */
+interface ScannedText {
   text: string;
+  /**
+   * Built only for a text with a finding: a location per text makes a deep schema quadratic
+   * (10 000 levels with a description each took 2 GB).
+   */
+  place: () => Place;
   /** Tool-level text keeps the pre-1.3.1 wording "injection-like pattern". */
   toolLevel: boolean;
 }
@@ -107,8 +117,8 @@ function modelTexts(tool: Tool): ScannedText[] {
   // The server is untrusted: a field typed as a string may be anything at runtime
   const add = (where: string, location: string, value: unknown) => {
     if (typeof value === 'string' && value !== '') {
-      const key = JSON.stringify([true, where]);
-      out.push({ where, location, key, text: value, toolLevel: true });
+      const place = { where, location, key: JSON.stringify([true, where]) };
+      out.push({ text: value, place: () => place, toolLevel: true });
     }
   };
   add('description', name, tool.description);
@@ -116,43 +126,64 @@ function modelTexts(tool: Tool): ScannedText[] {
   add('annotations.title', `${name}.annotations.title`, tool.annotations?.title);
   if (tool.inputSchema) {
     for (const { location, keyword, text } of collectSchemaText(tool.inputSchema)) {
-      const where = ['inputSchema', ...location, keyword].join('.');
-      out.push({
-        where,
-        location: `${name}.${where}`,
-        key: JSON.stringify([false, location, keyword]),
-        text,
-        toolLevel: false,
-      });
+      const place = () => {
+        const steps = stepsOf(location);
+        const where = ['inputSchema', ...steps, keyword].join('.');
+        return {
+          where,
+          location: `${name}.${where}`,
+          key: JSON.stringify([false, steps, keyword]),
+        };
+      };
+      out.push({ text, place, toolLevel: false });
     }
   }
   return out;
 }
 
 /**
+ * How long the merged details of one finding may grow. The first string is always described;
+ * the rest are counted once over: 20 000 strings under one `examples` built a message of a
+ * million characters, which pushed every other finding out of the PR comment.
+ */
+const MAX_MERGED_DETAILS_CHARS = 1000;
+
+/**
  * Injection phrasing and hidden unicode in every text the model reads (see `modelTexts`). One
  * result per rule and location: several strings under one keyword (`examples`) are merged.
  */
 function scanModelText(tool: Tool): CheckResult[] {
-  const groups = new Map<
-    string,
-    { result: CheckResult & { actual: unknown[] }; prefix: string; details: string[] }
-  >();
+  interface Group {
+    result: CheckResult & { actual: unknown[] };
+    prefix: string;
+    /** Every distinct detail seen; a Set, so merging N strings stays linear. */
+    seen: Set<string>;
+    details: string[];
+    length: number;
+    omitted: number;
+  }
+  const groups = new Map<string, Group>();
   const report = (
     id: 'security/injection-pattern' | 'security/hidden-unicode',
-    t: ScannedText,
+    place: Place,
     found: unknown[],
     prefix: string,
     detail: string
   ) => {
-    const key = `${id}\u0000${t.key}`;
+    const key = `${id}\u0000${place.key}`;
     const group = groups.get(key);
     if (group) {
       // Push one by one: spreading an unbounded list overflows the argument stack (RangeError)
       for (const f of found) group.result.actual.push(f);
-      // Every merged string is described: a tag character joining a zero-width space must not
-      // lose its decoded text to the first string's description
-      if (!group.details.includes(detail)) group.details.push(detail);
+      // Every merged string is described while there is room: a tag character joining a
+      // zero-width space must not lose its decoded text to the first string's description
+      if (group.seen.has(detail)) return;
+      group.seen.add(detail);
+      if (group.length + detail.length > MAX_MERGED_DETAILS_CHARS) group.omitted++;
+      else {
+        group.details.push(detail);
+        group.length += detail.length;
+      }
     } else {
       const result = {
         id,
@@ -161,37 +192,49 @@ function scanModelText(tool: Tool): CheckResult[] {
         severity: 'error' as const,
         message: '',
         actual: found,
-        location: t.location,
+        location: place.location,
       };
-      groups.set(key, { result, prefix, details: [detail] });
+      groups.set(key, {
+        result,
+        prefix,
+        seen: new Set([detail]),
+        details: [detail],
+        length: detail.length,
+        omitted: 0,
+      });
     }
   };
   for (const t of modelTexts(tool)) {
     const injection = findInjectionPatterns(t.text);
+    const unicode = findSuspiciousUnicode(t.text);
+    if (injection.length === 0 && unicode.length === 0) continue;
+    const place = t.place();
     if (injection.length > 0) {
       const kind = t.toolLevel ? 'injection-like pattern' : 'injection pattern';
       report(
         'security/injection-pattern',
-        t,
+        place,
         injection,
-        `Tool "${tool.name}" ${t.where} contains ${kind}: `,
+        `Tool "${tool.name}" ${place.where} contains ${kind}: `,
         `"${injection[0]}"`
       );
     }
-    const unicode = findSuspiciousUnicode(t.text);
     if (unicode.length > 0) {
       report(
         'security/hidden-unicode',
-        t,
+        place,
         unicode,
-        `Tool "${tool.name}" ${t.where} contains hidden unicode: `,
+        `Tool "${tool.name}" ${place.where} contains hidden unicode: `,
         describeUnicode(unicode)
       );
     }
   }
-  return [...groups.values()].map(({ result, prefix, details }) => ({
+  return [...groups.values()].map(({ result, prefix, details, omitted }) => ({
     ...result,
-    message: prefix + details.join('; '),
+    message:
+      prefix +
+      details.join('; ') +
+      (omitted > 0 ? `; and ${omitted} more (see the JSON report)` : ''),
   }));
 }
 

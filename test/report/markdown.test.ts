@@ -67,6 +67,18 @@ describe('escapeMarkdown (untrusted server text)', () => {
 });
 
 describe('renderMarkdownReport', () => {
+  // Review of #110, round 5: 14 KB of noise in another tool pushed a real finding out of the
+  // comment, which is cut at 65 000 characters
+  it('caps each message and location so one finding cannot push the others out', () => {
+    const noise = Array.from({ length: 10 }, (_, i) =>
+      finding({ message: 'x'.repeat(14_000), location: `noise${i}.${'y'.repeat(14_000)}` })
+    );
+    const md = renderMarkdownReport(report([...noise, finding({ location: 'zzz_real' })]));
+    expect(md.length).toBeLessThan(65_000);
+    expect(md).toContain('`zzz_real`');
+    expect(md).toContain('… (truncated, see JSON report for full text)');
+  });
+
   it('escapes a malicious tool name used as location', () => {
     const md = renderMarkdownReport(report([finding({ location: 'evil`\n# heading @team' })]));
     expect(md).toContain("`evil' # heading @team`");

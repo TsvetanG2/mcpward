@@ -515,6 +515,38 @@ describe('Security Checks', () => {
       expect(found[0]?.message).toContain('decoding to "hi"');
     });
 
+    // Review of #110, round 5: 20 000 distinct strings took 3.3 s (a linear lookup per string)
+    // and built a message of 1.19 million characters
+    it('merges 20 000 strings in linear time into a bounded message', () => {
+      const tag = (n: number) =>
+        Array.from(String(n), (d) => String.fromCodePoint(0xe0000 + d.charCodeAt(0))).join('');
+      const examples = Array.from({ length: 20_000 }, (_, i) => `x${tag(i)}`);
+      const tool: Tool = { name: 't', inputSchema: param({ examples }) };
+      const start = performance.now();
+      const found = checkToolSecurity(tool).filter((r) => r.id === 'security/hidden-unicode');
+      expect(performance.now() - start).toBeLessThan(2000);
+      expect(found).toHaveLength(1);
+      expect(found[0]?.actual).toHaveLength(88_890);
+      expect(found[0]?.message.length).toBeLessThan(1500);
+      expect(found[0]?.message).toContain('decoding to "19999"');
+      expect(found[0]?.message).toMatch(/; and \d+ more \(see the JSON report\)$/);
+    });
+
+    // Review of #110, round 5: a location built for every text, not only for a finding, made
+    // 10 000 levels with a description each take 7 s and 2 GB
+    it('builds a location only for a text with a finding', () => {
+      const DEPTH = 10_000;
+      let leaf: Record<string, unknown> = { type: 'string', description: INJECTION };
+      for (let i = 0; i < DEPTH; i++) {
+        leaf = { type: 'object', description: CLEAN, properties: { p: leaf } };
+      }
+      const tool: Tool = { name: 't', inputSchema: leaf as Tool['inputSchema'] };
+      const start = performance.now();
+      const found = failing(tool);
+      expect(performance.now() - start).toBeLessThan(3000);
+      expect(found).toEqual([`t.inputSchema.${'properties/p.'.repeat(DEPTH)}description`]);
+    });
+
     it('keeps the destructive-verb heuristic on the name and description only', () => {
       const tool: Tool = {
         name: 'lookup',
