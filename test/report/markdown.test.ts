@@ -79,6 +79,28 @@ describe('renderMarkdownReport', () => {
     expect(md).toContain('… (truncated, see JSON report for full text)');
   });
 
+  // CodeRabbit on #110: the cap counted raw characters, but a U+200B is 8 characters once
+  // marked (14 escaped in a message), so three such findings filled the comment
+  it('caps what the comment holds, after invisibles are marked and Markdown is escaped', () => {
+    const zw = '​'.repeat(5_000);
+    const noise = Array.from({ length: 10 }, (_, i) =>
+      finding({ message: zw, location: `noise${i}${zw}` })
+    );
+    const drift = finding({
+      id: 'drift/description_changed',
+      family: 'drift',
+      expected: zw,
+      actual: `${zw}x`,
+      location: 'd',
+    });
+    const md = renderMarkdownReport(
+      report([...noise, drift, drift, drift, finding({ location: 'zzz_real' })])
+    );
+    expect(md.length).toBeLessThan(65_000);
+    expect(md).toContain('`zzz_real`');
+    expect(md).toContain('<U+200B>');
+  });
+
   it('escapes a malicious tool name used as location', () => {
     const md = renderMarkdownReport(report([finding({ location: 'evil`\n# heading @team' })]));
     expect(md).toContain("`evil' # heading @team`");

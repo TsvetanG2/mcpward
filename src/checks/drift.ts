@@ -178,7 +178,7 @@ export async function runDriftChecks(ctx: DriftCheckContext): Promise<CheckResul
   }
 
   // Output sampling notes (M3): refused/skipped tools are reported, never silently dropped
-  results.push(...notes.map(noteToResult));
+  for (const item of notes.map(noteToResult)) results.push(item);
 
   // Diff surfaces, then apply user severity overrides
   const diff = diffSurfaces(baseline, current);

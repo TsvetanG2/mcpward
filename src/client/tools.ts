@@ -20,7 +20,7 @@ export async function listAllTools(client: Client): Promise<Tool[]> {
 
   for (let page = 0; page < MAX_PAGES; page++) {
     const result = await client.listTools(cursor === undefined ? undefined : { cursor });
-    tools.push(...(result.tools as Tool[]));
+    for (const item of result.tools as Tool[]) tools.push(item);
 
     // Cursors are opaque: only an ABSENT nextCursor ends pagination. An empty string is a
     // cursor like any other — treating it as "done" would let a server hide later pages.

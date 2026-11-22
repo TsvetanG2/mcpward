@@ -272,7 +272,7 @@ export async function runSecurityChecks(ctx: SecurityCheckContext): Promise<Chec
 
   // Check each tool
   for (const tool of tools) {
-    results.push(...checkToolSecurity(tool));
+    for (const item of checkToolSecurity(tool)) results.push(item);
   }
 
   // Summary

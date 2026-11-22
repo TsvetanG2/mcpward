@@ -20,8 +20,9 @@ export const MARKDOWN_REPORT_MARKER = '<!-- mcpward-report -->';
 /** Sections with more findings than this are collapsed behind <details>. */
 const COLLAPSE_AFTER = 5;
 /**
- * Cap for server-controlled text in the comment: each side of a description, a finding's
- * message and its location. The JSON report has the full text.
+ * Cap for server-controlled text in the comment, counted after invisible characters are marked
+ * and Markdown is escaped: each side of a description, a finding's message and its location.
+ * The JSON report has the full text.
  */
 const MAX_DESCRIPTION_CHARS = 1000;
 
@@ -70,15 +71,38 @@ function inlineCode(text: string): string {
 
 /** Fenced code block whose fence is longer than any backtick run in the content. */
 function codeBlock(lang: string, content: string): string {
-  const longest = Math.max(2, ...Array.from(content.matchAll(/`+/g), (m) => m[0].length));
+  let longest = 2;
+  for (const m of content.matchAll(/`+/g)) longest = Math.max(longest, m[0].length);
   const fence = '`'.repeat(longest + 1);
   return `${fence}${lang}\n${content}\n${fence}`;
 }
 
-function truncate(text: string): string {
-  return text.length <= MAX_DESCRIPTION_CHARS
-    ? text
-    : `${text.slice(0, MAX_DESCRIPTION_CHARS)}… (truncated, see JSON report for full text)`;
+const TRUNCATED = '… (truncated, see JSON report for full text)';
+
+/**
+ * `render(text)`, cut to {@link MAX_DESCRIPTION_CHARS} rendered characters. The raw text is cut
+ * (at a code point) before rendering, so no marker or escape is split, and the length counts
+ * what the comment holds: a U+200B is 8 characters once marked, and a raw cap let three
+ * findings of them fill the 65 000-character comment and push every later one out.
+ */
+function capRendered(text: string, render: (text: string) => string): string {
+  // Rendered text is at least half as long (`\r\n` → one space is the only shortening), so a
+  // longer text cannot fit; rendering it whole would also run escapeMarkdown's linkish regex,
+  // quadratic on a run without spaces, over all of it
+  if (text.length <= MAX_DESCRIPTION_CHARS * 2) {
+    const full = render(text);
+    if (full.length <= MAX_DESCRIPTION_CHARS) return full;
+  }
+  // Rendering only lengthens text (bar `\r\n` → one space), so at most MAX code points are tried
+  const chars = Array.from(text.slice(0, MAX_DESCRIPTION_CHARS * 2));
+  let lo = 0;
+  let hi = Math.min(chars.length, MAX_DESCRIPTION_CHARS);
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (render(chars.slice(0, mid).join('')).length <= MAX_DESCRIPTION_CHARS) lo = mid;
+    else hi = mid - 1;
+  }
+  return render(chars.slice(0, lo).join('')) + TRUNCATED;
 }
 
 const STATUS_ICON: Record<string, string> = { fail: '❌', warn: '⚠️', skip: '⏭️', pass: '✅' };
@@ -113,13 +137,18 @@ function renderDescriptionChange(result: CheckResult): string | null {
         return s.kind === 'removed' ? `[-${t}-]` : s.kind === 'added' ? `{+${t}+}` : t;
       })
       .join('');
-    lines.push(codeBlock('text', inline.replace(/\r?\n/g, '\n')));
+    // Both sides fit, but marked invisibles can still make the word diff long: leave it out
+    if (inline.length <= MAX_DESCRIPTION_CHARS * 2) {
+      lines.push(codeBlock('text', inline.replace(/\r?\n/g, '\n')));
+    }
   }
   const asDiffLines = (prefix: string, text: string) =>
-    markInvisibleCharacters(truncate(text))
-      .split(/\r?\n/)
-      .map((l) => `${prefix} ${l}`)
-      .join('\n');
+    capRendered(text, (t) =>
+      markInvisibleCharacters(t)
+        .split(/\r?\n/)
+        .map((l) => `${prefix} ${l}`)
+        .join('\n')
+    );
   lines.push(codeBlock('diff', `${asDiffLines('-', prev)}\n${asDiffLines('+', curr)}`));
   return lines.join('\n\n');
 }
@@ -141,8 +170,8 @@ function renderFinding(result: CheckResult): string {
   const icon = result.status === 'pass' ? 'ℹ️' : (STATUS_ICON[result.status] ?? '•');
   // Capped like descriptions: one server-controlled message or location of any length would
   // otherwise push every later finding out of the comment, which GitHub limits to 64 KB
-  const where = result.location ? ` — ${inlineCode(truncate(result.location))}` : '';
-  const head = `- ${icon} **${result.id}**${where}: ${escapeMarkdown(truncate(result.message))}`;
+  const where = result.location ? ` — ${capRendered(result.location, inlineCode)}` : '';
+  const head = `- ${icon} **${result.id}**${where}: ${capRendered(result.message, escapeMarkdown)}`;
   if (result.id === 'drift/description_changed') {
     const diff = renderDescriptionChange(result);
     if (diff) {

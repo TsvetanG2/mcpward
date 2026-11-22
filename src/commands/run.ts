@@ -52,45 +52,51 @@ async function runAllChecks(
 
   if (config.checks?.compliance !== false) {
     step('compliance checks');
-    results.push(...(await runComplianceChecks({ connection, config })));
+    for (const item of await runComplianceChecks({ connection, config })) results.push(item);
   }
 
   if (config.checks?.schema !== false) {
     step('schema checks');
-    results.push(...(await runSchemaChecks({ connection })));
+    for (const item of await runSchemaChecks({ connection })) results.push(item);
   }
 
   if (config.checks?.drift) {
     step('drift checks');
-    results.push(
-      ...(await runDriftChecks({ connection, fullConfig: config, config: config.checks.drift }))
-    );
+    const drift = await runDriftChecks({
+      connection,
+      fullConfig: config,
+      config: config.checks.drift,
+    });
+    for (const item of drift) results.push(item);
   }
 
   if (config.checks?.security !== false) {
     step('security checks');
-    results.push(...(await runSecurityChecks({ connection })));
+    for (const item of await runSecurityChecks({ connection })) results.push(item);
   }
 
   // Description collision lint (M4) — on by default, needs no baseline
   if (config.checks?.collision?.enabled !== false) {
     step('collision lint');
-    results.push(...(await runCollisionChecks({ connection, config: config.checks?.collision })));
+    for (const item of await runCollisionChecks({ connection, config: config.checks?.collision }))
+      results.push(item);
   }
 
   if (config.suites && config.suites.length > 0) {
     step('behavioral test suites');
-    results.push(...(await runBehavioralChecks({ connection, suites: config.suites, golden })));
+    for (const item of await runBehavioralChecks({ connection, suites: config.suites, golden }))
+      results.push(item);
   }
 
   if (config.checks?.errors !== false) {
     step('error contract checks');
-    results.push(...(await runErrorContractChecks({ connection })));
+    for (const item of await runErrorContractChecks({ connection })) results.push(item);
   }
 
   if (config.checks?.latency) {
     step('latency checks');
-    results.push(...(await runLatencyChecks({ connection, config: config.checks.latency })));
+    for (const item of await runLatencyChecks({ connection, config: config.checks.latency }))
+      results.push(item);
   }
 
   return results;

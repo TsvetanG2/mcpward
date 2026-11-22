@@ -106,7 +106,7 @@ export async function runSchemaChecks(ctx: SchemaCheckContext): Promise<CheckRes
 
   // Check each tool
   for (const tool of tools) {
-    results.push(...checkTool(tool));
+    for (const item of checkTool(tool)) results.push(item);
   }
 
   // Overall summary if all tools pass
