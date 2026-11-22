@@ -19,7 +19,10 @@ export const MARKDOWN_REPORT_MARKER = '<!-- mcpward-report -->';
 
 /** Sections with more findings than this are collapsed behind <details>. */
 const COLLAPSE_AFTER = 5;
-/** Per-side cap for description text in the comment; the JSON report has the full text. */
+/**
+ * Cap for server-controlled text in the comment: each side of a description, a finding's
+ * message and its location. The JSON report has the full text.
+ */
 const MAX_DESCRIPTION_CHARS = 1000;
 
 /**
@@ -136,8 +139,10 @@ const STATUS_ORDER: Record<string, number> = { fail: 0, warn: 1, pass: 2, skip: 
 
 function renderFinding(result: CheckResult): string {
   const icon = result.status === 'pass' ? 'ℹ️' : (STATUS_ICON[result.status] ?? '•');
-  const where = result.location ? ` — ${inlineCode(result.location)}` : '';
-  const head = `- ${icon} **${result.id}**${where}: ${escapeMarkdown(result.message)}`;
+  // Capped like descriptions: one server-controlled message or location of any length would
+  // otherwise push every later finding out of the comment, which GitHub limits to 64 KB
+  const where = result.location ? ` — ${inlineCode(truncate(result.location))}` : '';
+  const head = `- ${icon} **${result.id}**${where}: ${escapeMarkdown(truncate(result.message))}`;
   if (result.id === 'drift/description_changed') {
     const diff = renderDescriptionChange(result);
     if (diff) {

@@ -529,8 +529,12 @@ const isModelTextKeyword = (k: string) =>
 /** One piece of text the model reads: where it is, under which keyword, and the text. */
 export interface ModelText {
   path: string;
-  /** The place with its keywords spelled out, one step each (see `ParamNode.location`). */
-  location: string[];
+  /**
+   * The place with its keywords spelled out (see `ParamNode.location`), shared with the node:
+   * materialize it with {@link stepsOf} only for a text that is reported — an array per text
+   * makes a deep schema quadratic in memory.
+   */
+  location: Steps | undefined;
   keyword: string;
   text: string;
 }
@@ -553,7 +557,7 @@ export function collectModelText(params: ParamNode[]): ModelText[] {
       while (stack.length > 0) {
         const v = stack.pop();
         if (typeof v === 'string') {
-          if (v !== '') out.push({ path, location: stepsOf(location), keyword, text: v });
+          if (v !== '') out.push({ path, location, keyword, text: v });
         }
         // No spread: an argument list overflows on a large array (RangeError)
         else if (Array.isArray(v)) for (const x of v) stack.push(x);
@@ -570,8 +574,8 @@ export function collectModelText(params: ParamNode[]): ModelText[] {
  * All text the model reads in an input schema: the root and its in-place branches
  * (`anyOf`, `not`, …), every parameter at any depth, and every `$defs`/`definitions` entry,
  * referenced or not. The root's path is `""`; a definition's path is `$defs/Name` (below the
- * root) or `field.$defs/Name`. The location of the root's own text is `[]`, and
- * `['anyOf/0']`, `['not']`, … for its in-place branches. A node reached both through a `$ref`
+ * root) or `field.$defs/Name`. The location of the root's own text is undefined, and
+ * `anyOf/0`, `not`, … for its in-place branches. A node reached both through a `$ref`
  * and as a definition is reported once, at the referring path.
  */
 export function collectSchemaText(schema: unknown): ModelText[] {
