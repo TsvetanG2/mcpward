@@ -110,18 +110,19 @@ describe('hostile input properties', () => {
     );
   });
 
-  // --- Known gaps found while writing these properties. Each asserts today's crash; when the
-  // crash is fixed the test turns red: flip it to expect no throw. ---
+  // --- Crashes found while writing these properties: a spread argument (`f(...list)`) put a
+  // server-sized list on the call stack. Fixed in #110; the lint rule no-restricted-syntax now
+  // forbids spread arguments in src/. ---
 
   const tags = (n: number) => '\u{1F3F4}' + String.fromCodePoint(0xe0041).repeat(n);
 
-  it('a black flag followed by 200,000 tag characters crashes the security check [known gap]', () => {
-    // findSuspiciousUnicode spreads the whole tag run into String.fromCharCode(...)
-    expect(() => checkToolSecurity({ name: 't', description: tags(200_000) })).toThrow(RangeError);
+  it('a black flag followed by 200,000 tag characters is reported, not a crash', () => {
+    const found = checkToolSecurity({ name: 't', description: tags(200_000) });
+    expect(found.map((r) => r.id)).toEqual(['security/hidden-unicode']);
+    expect(found[0]?.actual).toHaveLength(200_000);
   });
 
-  it('one tool with 150,000 findings crashes the security scan [known gap]', async () => {
-    // runSecurityChecks spreads one tool's results into results.push(...)
+  it('one tool with 150,000 findings is scanned, not a crash', async () => {
     const properties = Object.fromEntries(
       Array.from({ length: 150_000 }, (_, i) => [`p${i}`, { description: 'x\u200By' }])
     );
@@ -129,11 +130,11 @@ describe('hostile input properties', () => {
     const connection = {
       client: { listTools: async () => ({ tools: [tool] }) },
     } as unknown as McpConnection;
-    await expect(runSecurityChecks({ connection })).rejects.toThrow(RangeError);
+    // The summary and one finding per field
+    expect(await runSecurityChecks({ connection })).toHaveLength(150_001);
   });
 
-  it('150,000 new input fields on one tool crash the drift diff [known gap]', () => {
-    // diffTool spreads every input schema change into changes.push(...)
+  it('150,000 new input fields on one tool are diffed, not a crash', () => {
     const properties = Object.fromEntries(
       Array.from({ length: 150_000 }, (_, i) => [`p${i}`, { type: 'string' }])
     );
@@ -141,6 +142,6 @@ describe('hostile input properties', () => {
       name: 't',
       inputSchema: { type: 'object', properties: props },
     });
-    expect(() => diffSurfaces(surfaceOf([v({})]), surfaceOf([v(properties)]))).toThrow(RangeError);
+    expect(() => diffSurfaces(surfaceOf([v({})]), surfaceOf([v(properties)]))).not.toThrow();
   });
 });

@@ -139,7 +139,9 @@ export function findSuspiciousUnicode(
       // Skip a valid subdivision flag; anything else falls through and its tags are flagged.
       let j = i + 1;
       while (j < cps.length && isTag(cps[j] ?? 0) && cps[j] !== TAG_CANCEL) j++;
-      const spec = String.fromCharCode(...cps.slice(i + 1, j).map((cp) => cp - TAG_START));
+      // A loop, not fromCharCode(...spread): a long tag run overflowed the argument stack
+      let spec = '';
+      for (let k = i + 1; k < j; k++) spec += String.fromCharCode((cps[k] ?? 0) - TAG_START);
       if (cps[j] === TAG_CANCEL && SUBDIVISION_TAG_SPEC.test(spec)) {
         i = j;
       }
@@ -494,8 +496,12 @@ export function withDefinitions(params: ParamNode[], refRoot: unknown): ParamNod
   const expanded = new WeakSet<object>();
   for (const p of params) if (p.schema) expanded.add(p.schema);
   // for-of over `out` also visits the nodes pushed below: definitions inside definitions
+  // A schema's definition maps are read once: N definitions each with `{"$ref": "#"}` report
+  // the root N more times, and reading its N definitions again each time was N² entries
+  const listed = new WeakSet<object>();
   for (const { path, location, schema: node } of out) {
-    if (!node) continue;
+    if (!node || listed.has(node)) continue;
+    listed.add(node);
     for (const key of DEFINITION_KEYWORDS) {
       const defs = node[key];
       if (defs === null || typeof defs !== 'object' || Array.isArray(defs)) continue;

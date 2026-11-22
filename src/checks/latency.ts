@@ -159,7 +159,7 @@ export async function runLatencyChecks(ctx: LatencyCheckContext): Promise<CheckR
     }
     const toolResult = await measureToolLatency(ctx.connection, tool, decision.args, samples);
     results.push(toolResult.result);
-    allLatencies.push(...toolResult.latencies);
+    for (const item of toolResult.latencies) allLatencies.push(item);
     timeouts += toolResult.timeouts;
   }
 

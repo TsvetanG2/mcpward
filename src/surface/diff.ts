@@ -235,7 +235,7 @@ export function diffSurfaces(baseline: ServerSurface, current: ServerSurface): D
       const baselineTool = baseline.tools[toolName];
       const currentTool = current.tools[toolName];
       if (baselineTool && currentTool) {
-        changes.push(...diffTool(toolName, baselineTool, currentTool));
+        for (const item of diffTool(toolName, baselineTool, currentTool)) changes.push(item);
       }
     }
   }
@@ -278,7 +278,7 @@ function diffTool(toolName: string, baseline: ToolSurface, current: ToolSurface)
     baseline.inputSchema,
     current.inputSchema
   );
-  changes.push(...inputSchemaChanges);
+  for (const item of inputSchemaChanges) changes.push(item);
 
   // Check outputSchema changes
   const outputSchemaChanges = diffSchema(
@@ -287,16 +287,17 @@ function diffTool(toolName: string, baseline: ToolSurface, current: ToolSurface)
     baseline.outputSchema,
     current.outputSchema
   );
-  changes.push(...outputSchemaChanges);
+  for (const item of outputSchemaChanges) changes.push(item);
 
   // Check inferred output shape changes (M3) — only when both sides were sampled
   if (baseline.outputShape && current.outputShape) {
-    changes.push(...diffOutputShapes(toolName, baseline.outputShape, current.outputShape));
+    for (const item of diffOutputShapes(toolName, baseline.outputShape, current.outputShape))
+      changes.push(item);
   }
 
   // Check annotation changes
   const annotationChanges = diffAnnotations(toolName, baseline.annotations, current.annotations);
-  changes.push(...annotationChanges);
+  for (const item of annotationChanges) changes.push(item);
 
   // Tool and annotation titles: some clients show them to the model. A baseline written before
   // 1.3.0 did not capture them (`title` absent), so they are not compared against it.

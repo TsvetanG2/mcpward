@@ -86,7 +86,7 @@ export async function runBehavioralChecks(ctx: BehavioralCheckContext): Promise<
         toolSchemas.outputSchema,
         ctx.golden
       );
-      results.push(...caseResults);
+      for (const item of caseResults) results.push(item);
     }
   }
 
