@@ -66,7 +66,7 @@ function linkStart(word: string): number {
   let start = -1;
   // Each `://` is walked back over scheme characters only; the walks never overlap (a `/` ends
   // one), so this is linear. The first `://` that has a scheme gives the earliest start.
-  for (let q = word.indexOf('://'); q > 0 && q + 3 < word.length; q = word.indexOf('://', q + 1)) {
+  for (let q = word.indexOf('://'); q >= 0 && q + 3 < word.length; q = word.indexOf('://', q + 1)) {
     let p = q;
     while (p > 0 && SCHEME_CHAR.test(word.charAt(p - 1))) p--;
     while (p < q && !LETTER.test(word.charAt(p))) p++;
