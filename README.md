@@ -158,9 +158,9 @@ mcpward pins the server's contract to a lockfile and fails your build when it dr
 
 ```
 SECURITY (9 failed)
-  ✗ Tool "injection_tool" description contains injection-like pattern:
-    "Ignore all previous instructions"
-  ✗ Tool "safe​tool" name contains hidden unicode: U+200B (zero-width)
+  ✗ Injection-like pattern: "Ignore all previous instructions"
+    — tool "injection_tool" description
+  ✗ Hidden unicode: U+200B (zero-width) — tool "safe​tool" name
   ✗ Tool "api_connector" schema solicits secrets: api_key, password
   ✗ Tool "delete_files" has readOnlyHint=true but name/description implies mutation
 ```
@@ -483,7 +483,7 @@ jobs:
           pr-comment: true
 ```
 
-Without the action: `GITHUB_TOKEN=${{ github.token }} npx mcpward@1 run --pr-comment`. The comment is rendered from the same redacted report as every other reporter, and all server-supplied text is escaped so a malicious tool description cannot inject links, HTML, or @-mentions into your PR.
+Without the action: `GITHUB_TOKEN=${{ github.token }} npx mcpward@1 run --pr-comment`. The comment is rendered from the same redacted report as every other reporter, and all server-supplied text is escaped so a malicious tool description cannot inject links, HTML, or @-mentions into your PR. It stays readable whatever the server sends: each field is capped, and the findings share a fixed budget in which failures come before warnings and tools take turns, so one tool with thousands of findings, or many tools, cannot push a failure out. With more than a few findings the comment starts with every tool by name and count, then every finding by rule id and location. Whatever does not fit is counted ("N more finding(s) not shown"); the console output in the job log (and `--reporter json`) always has everything.
 
 The same Markdown works as a job summary: `npx mcpward@1 run --reporter markdown --out "$GITHUB_STEP_SUMMARY"`.
 
