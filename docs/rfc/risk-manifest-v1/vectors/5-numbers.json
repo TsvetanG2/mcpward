@@ -1,0 +1,1 @@
+{"name":"set_limits","description":"Sets numeric limits.","inputSchema":{"type":"object","properties":{"epsilon":{"type":"number","minimum":1e-7,"maximum":1.5e+300,"default":0.1},"count":{"type":"integer","maximum":100,"exclusiveMaximum":1e21},"offset":{"type":"number","default":-0}}}}

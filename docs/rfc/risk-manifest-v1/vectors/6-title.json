@@ -1,0 +1,1 @@
+{"name":"delete_record","title":"  Delete   a record\r\n","description":"Deletes a record by id.","inputSchema":{"type":"object","properties":{"id":{"type":"integer"}},"required":["id"]},"annotations":{"title":"  Remove   record\r\n","destructiveHint":true}}

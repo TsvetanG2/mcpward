@@ -1,0 +1,1 @@
+{"name":"read_file","description":"Reads a file.","inputSchema":{"type":"object","title":"  Read   file input ","properties":{"path":{"type":"string","description":"  Path   to\r\nthe   file. "},"mode":{"anyOf":[{"type":"string","description":"Text\tmode,\r\n  UTF-8","enum":["text  mode"]},{"type":"null","title":" No  mode "}],"default":"  keep   this  "}},"required":["path"]}}

@@ -1,0 +1,1 @@
+{"name":"get_order","description":"Order ids look like \"9007199254740993\" or 1e400\\.","inputSchema":{"type":"object","properties":{"9007199254740993":{"type":"string","enum":["123456789012345680000","\\\"1e400"]}}}}

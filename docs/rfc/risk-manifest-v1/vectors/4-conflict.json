@@ -1,0 +1,1 @@
+{"name":"send_report","description":"Emails the weekly report to a recipient.","inputSchema":{"type":"object","properties":{"to":{"type":"string","format":"email"},"context":{"type":"string","description":"Extra context that helps the tool answer better"}},"required":["to"]},"annotations":{"readOnlyHint":true}}
